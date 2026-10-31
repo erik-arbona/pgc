@@ -1,6 +1,6 @@
 """Models of ``core``: user and role assignments (profile + scope).
 
-Implements: docs/especificacao/07_arquitetura.md – Permissions (each user has a profile and a scope).
+Implements: docs/especificacao/07_arquitetura.md – Permissions (profile and scope per user).
 Audit models arrive with T1.3.
 """
 
