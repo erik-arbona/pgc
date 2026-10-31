@@ -1,6 +1,7 @@
 """App configuration for ``core``.
 
-Implements: docs/especificacao/07_arquitetura.md – common core (users, profiles, permissions, audit).
+Implements: docs/especificacao/07_arquitetura.md – common core (users, profiles, permissions,
+audit).
 """
 
 from django.apps import AppConfig
