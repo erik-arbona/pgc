@@ -1,0 +1,56 @@
+# Registo de decisões da PGC
+
+Decisões tomadas durante a especificação. Prevalecem sobre qualquer outro texto se houver conflito. Cada decisão nova acrescenta-se no fim, com data.
+
+## Até 31/10/2026 (especificação inicial)
+
+### Plataforma e âmbito
+- D01. O sistema chama-se **PGC – Plataforma de Gestão das Coordenações**. DSD e calendário de exames são módulos ao mesmo nível; os horários vêm depois.
+- D02. Abrange todas as coordenações e Faculdades da Uni-CV; piloto com um grupo de Faculdades, em paralelo com os ficheiros atuais.
+- D03. Não se importam os DSD nem os calendários atuais (Excel/Word): os dados introduzem-se limpos. Os Excel servem só para comparar no piloto.
+- D04. O sistema permite começar um ano letivo a partir de uma cópia editável do DSD e do calendário de um ano anterior.
+- D05. Promotor e autor dos materiais: ICUB.
+
+### Perfis
+- D06. Existe o perfil **Gestor da PGC** (um por Faculdade ou para várias): docentes, cargos, planos, disciplinas, disciplinas transversais, intervalos, épocas e faixas de exames, contas; regista o docente obtido por concurso.
+- D07. O **Património** introduz as salas (localização, nome quando tiver, tipo, capacidade) e não atribui salas.
+- D08. O coordenador só atribui docentes da sua coordenação.
+- D09. Os docentes consultam, só em leitura, a sua própria distribuição, já durante a preparação.
+- D10. O **coordenador é também o diretor de curso**: não há perfil próprio de diretor de curso. Na vista por curso vê em leitura o que é de outras coordenações, sem as listas de estudantes desses exames.
+
+### DSD
+- D11. Intervalos de horas letivas (mínimo e máximo) por **categoria** e por **cargo**, definidos pelo gestor da PGC; quando há vários, aplica-se o do **máximo mais baixo**.
+- D12. O intervalo mede-se em **horas letivas semanais somadas dos dois semestres**; valida **só as horas letivas**.
+- D13. **Horas extra** = total de horas letivas − máximo do intervalo; só com aceitação do docente; **registadas pelo coordenador**.
+- D14. **Preparação** = T + (TP + P + L) × 1,5, como parâmetro configurável.
+- D15. **Componente não letiva** (complementos de ensino, investigação, gestão e serviços) introduzida pelo coordenador, caso a caso, com descrição e horas, por semestre.
+- D16. Abaixo da mínima, o coordenador regista o motivo; o CE pode recusá-lo.
+- D17. Quando não pode atribuir, o coordenador propõe a concurso com justificação obrigatória; o CE aprova (colaborador ou concurso) ou recusa.
+- D18. O CE fecha o DSD de cada coordenação; depois do fecho, gestor da PGC e CE podem alterar, criando nova versão.
+- D19. **Um docente por tipo de aula** de cada turma ou grupo (p. ex. teórica e práticas com docentes diferentes). A partilha do mesmo tipo de aula com percentagem é opcional e excecional.
+- D20. A interface do DSD **não imita o Excel**: vistas por tarefa (visão geral, ficha do docente, atribuição por disciplina, vista por curso).
+
+### Turmas e junções
+- D21. Hoje há **uma turma por curso e ano**; o modelo admite **várias turmas por curso e ano** desde o início, sem mudar nada no caso atual.
+- D22. **Disciplinas transversais**: o gestor declara-as e indica **em que cursos** cada uma é transversal. Só se juntam turmas desses cursos, no mesmo semestre. Vale para o DSD e para os exames.
+- D23. Turmas do mesmo curso (quando houver várias) podem ser juntas pelo coordenador; no futuro também por quem faz os horários.
+
+### Calendário de exames
+- D24. Calendário único partilhado entre coordenações; o gestor da PGC define as épocas (datas) e as faixas horárias.
+- D25. O coordenador marca os exames das suas disciplinas: junta turmas (regras de D22), divide em grupos, escolhe dia, faixa e salas; responsável vindo do DSD (alterável); júri escolhido entre os docentes da coordenação.
+- D26. Regras sempre verificadas no servidor: uma turma não tem dois exames no mesmo dia; uma sala não tem dois exames à mesma hora.
+- D27. Avisos por correio eletrónico quando outra coordenação altera um exame numa turma comum.
+- D28. O calendário publicado é visível para todos os utilizadores da Universidade (vista pública em cache, já na fase 2).
+- D29. Listas de estudantes por exame chegam do SII em cada semestre (substituem o Excel atual); visíveis só para a coordenação, o responsável e o júri.
+- D30. Exames sem inscritos ficam assinalados (outra cor) e podem ser retirados.
+- D31. Só se aceitam salas com capacidade ≥ inscritos (do exame ou de cada grupo); turmas juntas somam inscritos; a soma dos grupos tem de igualar o total; a capacidade aparece sempre nas sugestões; se a lista muda e a sala deixa de chegar, o exame fica assinalado antes de publicar.
+
+### Vista por curso
+- D32. DSD e exames filtráveis por curso (disciplinas, docentes, turmas, grupos, tipos de aula), reunindo todas as coordenações; disciplinas transversais marcadas como partilhadas e contadas uma vez nos totais gerais.
+
+### Técnica e recursos
+- D33. Monólito modular em Django + PostgreSQL + HTMX + Celery/Redis; publicação em cache e iCal.
+- D34. Horários: integrar primeiro FET ou UniTime; motor próprio com OR-Tools só se necessário.
+- D35. Desenvolvimento com programação assistida por agentes, só com o plano Pro de Claude; computador novo com 16 GB de RAM (a adquirir).
+- D36. Todo o código e todos os comentários (docstrings, nomes de testes, mensagens de commit) em inglês; interface e documentação em `docs/` em português europeu.
+- D37. O código tem de estar bem documentado: docstrings em módulos, classes e funções públicas com referência à especificação e às decisões, type hints, `help_text` nos modelos e comentários que expliquem o porquê (regras em `CLAUDE.md`).

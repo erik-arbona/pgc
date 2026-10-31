@@ -1,0 +1,22 @@
+# PGC – Perfis e fontes de dados
+
+> Parte da especificação da PGC (Plataforma de Gestão das Coordenações – Uni-CV). Fonte: documento do projeto, versão de 31/10/2026.
+
+## Perfis e fontes de dados
+
+Cada dado de base é introduzido uma vez, por quem é responsável por ele. Cada perfil edita apenas o seu âmbito; o resto vê-o em leitura ou não o vê.
+
+| Perfil | O que introduz e faz no sistema |
+| --- | --- |
+| Gestor da PGC | Pode haver um por Faculdade ou um para várias Faculdades. Define o intervalo anual de horas letivas (mínimo e máximo) de cada categoria (licenciado, mestre, doutor) e de cada cargo; introduz os docentes de cada coordenação, com categoria e coordenação, e atribui-lhes os cargos; introduz as disciplinas de cada curso a partir do plano de estudos, com a carga semestral e semanal e a distribuição da carga semanal por tipo de aula (teóricas, teórico-práticas, práticas, laboratoriais e outras); define as disciplinas transversais, isto é, que disciplinas de cursos diferentes têm o mesmo programa e em que cursos cada uma pode ter turmas juntas; define as épocas e as faixas horárias dos exames; gere as contas; vê as disciplinas a concurso e, com o resultado, introduz o docente selecionado na disciplina, turma, ano e curso; pode alterar o DSD depois do fecho |
+| Coordenador | Vê as disciplinas da sua coordenação em todos os cursos, os docentes da coordenação, a dimensão das turmas e as salas por tipo e capacidade; junta e divide turmas; atribui docentes e horas por tipo de aula; indica o tipo e a capacidade de sala de cada turma ou grupo; propõe a concurso, com justificação, as disciplinas que não pode atribuir; regista as respostas dos docentes; atribui a cada docente outras atividades da componente não letiva (complementos de ensino, investigação, gestão e serviços); só atribui docentes da sua coordenação; marca os exames das disciplinas da sua coordenação (turmas, grupos, dia, faixa horária, salas, docente responsável e júri); como diretor de curso, consulta a vista por curso, com o DSD e os exames de todas as coordenações, em leitura para o que não é da sua coordenação; ajusta o DSD |
+| Conselho Executivo da Faculdade | Um utilizador do Conselho Executivo recebe relatórios (disciplinas a concurso, docentes abaixo da mínima, abaixo da máxima e com horas extra); aprova ou recusa as propostas de concurso e as justificações de carga abaixo da mínima; recorre a um colaborador quando possível; fecha o DSD de cada coordenação e pode alterá-lo depois do fecho |
+| Serviços Académicos | Introduzem as matrículas por curso e os inscritos por disciplina e época, de preferência importados do SII |
+| Património | Introduz as salas da Universidade, cada uma com a localização (por exemplo, Edifício 9, sala 101), o nome, quando tiver (por exemplo, um anfiteatro ou laboratório com nome próprio), o tipo e a capacidade (por exemplo, 27 lugares); mantém estes dados atualizados e não atribui salas |
+| Consulta | Só vê informação; inclui quem faz os horários, que vê o necessário para os construir; o calendário de exames publicado é visível para todos os utilizadores da Universidade |
+| Docentes | Consultam, só em leitura, a sua própria distribuição, já durante a preparação e depois do fecho: disciplinas, turmas e grupos, horas por tipo de aula, outras atividades e estado da carga anual. Não alteram dados; as horas extra são registadas pelo coordenador |
+
+O gestor da PGC define um intervalo anual de horas letivas (mínimo e máximo) para cada categoria e para cada cargo. O intervalo de cada docente resulta da sua categoria e dos cargos que ocupa; quando há vários, aplica-se o intervalo com o máximo mais baixo.
+
+O coordenador vê quantas salas existem de cada tipo e capacidade, e a dimensão de cada turma, que resulta das matrículas. Com isso decide como juntar ou dividir turmas e indica, para cada turma ou grupo, o tipo e a capacidade de sala de que precisa, sem dia nem hora; quem faz os horários usa essa informação. O Património não atribui salas: nas aulas, a sala concreta fica para os horários; nos exames, é o coordenador que a escolhe. O sistema avisa quando um grupo não cabe em nenhuma sala do tipo indicado.
+
