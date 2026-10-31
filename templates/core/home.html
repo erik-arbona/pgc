@@ -1,18 +1,6 @@
-{% load i18n %}<!doctype html>
-<html lang="pt-PT">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PGC</title>
-</head>
-<body>
-  <main>
-    <h1>PGC</h1>
-    <p>{% blocktranslate with name=user.get_username %}Sessão iniciada como {{ name }}.{% endblocktranslate %}</p>
-    <form method="post" action="{% url 'logout' %}">
-      {% csrf_token %}
-      <button type="submit">{% translate "Sair" %}</button>
-    </form>
-  </main>
-</body>
-</html>
+{% extends "base.html" %}
+{% load i18n %}
+{% block content %}
+  <h1>PGC</h1>
+  <p>{% blocktranslate with name=user.get_username %}Sessão iniciada como {{ name }}.{% endblocktranslate %}</p>
+{% endblock %}

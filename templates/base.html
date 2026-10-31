@@ -1,0 +1,33 @@
+{% load i18n static pgc_permissions %}<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PGC{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <header>
+    <a href="{% url 'home' %}" class="brand">PGC</a>
+    {% if user.is_authenticated %}
+    <nav>
+      {% can "class_type.edit" as can_class_types %}
+      {% if can_class_types %}<a href="{% url 'academic:classtype_list' %}">{% translate "Tipos de aula" %}</a>{% endif %}
+    </nav>
+    <form method="post" action="{% url 'logout' %}" class="logout">
+      {% csrf_token %}
+      <span>{{ user.get_username }}</span>
+      <button type="submit">{% translate "Sair" %}</button>
+    </form>
+    {% endif %}
+  </header>
+  <main>
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
