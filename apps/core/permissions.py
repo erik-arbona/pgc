@@ -141,6 +141,9 @@ registry.register("class_type.edit", {Profile.PGC_MANAGER}, write=True)
 registry.register("cross_course_subject.edit", {Profile.PGC_MANAGER}, write=True)
 # The PGC manager creates the turmas with the academic structure (D49, to confirm).
 registry.register("class_group.edit", {Profile.PGC_MANAGER}, write=True)
+# Faculties and academic years are not limited to a Faculty: any PGC manager (D50, to confirm).
+registry.register("faculty.edit", {Profile.PGC_MANAGER}, write=True)
+registry.register("academic_year.edit", {Profile.PGC_MANAGER}, write=True)
 
 
 def can(user, code: str, scope_kind: str | None = None, scope_id: int | None = None) -> bool:

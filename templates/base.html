@@ -12,6 +12,10 @@
     {% if user.is_authenticated %}
     <nav>
       {% can "class_type.edit" as can_class_types %}
+      {% can "faculty.edit" as can_faculties %}
+      {% if can_faculties %}<a href="{% url 'academic:faculty_list' %}">{% translate "Faculdades" %}</a>{% endif %}
+      {% can "academic_year.edit" as can_years %}
+      {% if can_years %}<a href="{% url 'academic:academicyear_list' %}">{% translate "Anos letivos" %}</a>{% endif %}
       {% if can_class_types %}<a href="{% url 'academic:classtype_list' %}">{% translate "Tipos de aula" %}</a>{% endif %}
     </nav>
     <form method="post" action="{% url 'logout' %}" class="logout">

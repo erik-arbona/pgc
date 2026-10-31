@@ -6,7 +6,7 @@ PGC manager. Every form that edits an existing record asks for a reason (D40).
 
 from apps.core.generic import ReasonModelForm
 
-from .models import ClassType
+from .models import AcademicYear, ClassType, Faculty
 
 
 class ClassTypeForm(ReasonModelForm):
@@ -15,3 +15,19 @@ class ClassTypeForm(ReasonModelForm):
     class Meta:
         model = ClassType
         fields = ["code", "name", "position", "is_active"]
+
+
+class FacultyForm(ReasonModelForm):
+    """Create or edit a Faculty."""
+
+    class Meta:
+        model = Faculty
+        fields = ["name", "code"]
+
+
+class AcademicYearForm(ReasonModelForm):
+    """Create or edit an academic year (only its start year, D42)."""
+
+    class Meta:
+        model = AcademicYear
+        fields = ["start_year"]
