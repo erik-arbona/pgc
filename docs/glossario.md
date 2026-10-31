@@ -22,6 +22,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Plano de estudos | Disciplinas por ano e semestre de um curso | `StudyPlan` |
 | Disciplina (UC) | Unidade do plano: código, ECTS, programa, coordenação, carga semestral e semanal por tipo de aula | `Subject` |
 | Tipo de aula | Teórica (T), teórico-prática (TP), prática (P), laboratorial (L), outra | `ClassType` |
+| Carga semanal por tipo de aula | Horas semanais de um tipo de aula numa disciplina; a soma é a carga semanal da disciplina | `SubjectClassLoad` |
 | Disciplina transversal | A mesma disciplina, com o mesmo programa, em cursos diferentes e no mesmo semestre; o gestor indica em que cursos pode ter turmas juntas | `CrossCourseSubject` |
 | Ano letivo | Período anual do DSD e dos exames | `AcademicYear` |
 | Oferta no semestre | A disciplina lecionada num semestre de um ano letivo; pertence a uma versão do DSD | `Offering` |
