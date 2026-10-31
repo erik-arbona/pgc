@@ -140,3 +140,22 @@ def test_only_the_pgc_manager_can_edit_cross_course_subjects(profile):
         user=user, profile=profile, scope_kind=kind, scope_id=None if kind == "none" else 1
     )
     assert can(user, "cross_course_subject.edit") is (profile == Profile.PGC_MANAGER)
+
+
+def test_effective_group_members_drop_old_plan_subjects_year_by_year(world):
+    """A 2nd-year subject of the old plan stops counting when the new plan reaches year 2."""
+    from apps.academic.services import effective_group_members
+
+    subjects, courses = world
+    old = subjects["EIC"]
+    old.curricular_year = 2
+    old.save()
+    StudyPlan.objects.create(
+        course=courses["EIC"], academic_year=AcademicYear.objects.create(start_year=2027)
+    )
+    group = CrossCourseSubject.objects.create(name="Programação")
+    for key in ("EIC", "TM"):
+        CrossCourseSubjectMember.objects.create(cross_course_subject=group, subject=subjects[key])
+    # The fixture plans start in 2026; the new EIC plan starts in 2027 and reaches year 2 in 2028.
+    assert {f.id for f in effective_group_members(group, 2027)} == {old.pk, subjects["TM"].pk}
+    assert {f.id for f in effective_group_members(group, 2028)} == {subjects["TM"].pk}
