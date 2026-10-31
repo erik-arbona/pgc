@@ -204,7 +204,7 @@ class Subject(models.Model):
     """A subject (UC) of a study plan.
 
     The semester load is one total per subject; the weekly load is split by class type
-    in ``SubjectClassLoad`` (D44). The programme text arrives with T2.4.
+    in ``SubjectClassLoad`` (D44).
     """
 
     study_plan = models.ForeignKey(
@@ -239,6 +239,12 @@ class Subject(models.Model):
         max_digits=6,
         decimal_places=2,
         help_text=_("Total contact hours in the semester."),
+    )
+
+    programme = models.TextField(
+        _("programa"),
+        blank=True,
+        help_text=_("Programme of the subject; cross-course subjects share the same one."),
     )
 
     class Meta:
@@ -321,3 +327,122 @@ class SubjectClassLoad(models.Model):
         if self._state.adding and not self.class_type.is_active:
             raise ValidationError({"class_type": _("Este tipo de aula está desativado.")})
         super().save(*args, **kwargs)
+
+
+class CrossCourseSubject(models.Model):
+    """A group of equivalent subjects: the same programme taught in several courses (D22).
+
+    Which subjects belong to it is in ``CrossCourseSubjectMember``; the courses in which
+    classes may be merged are in ``CrossCourseSubjectCourse``. The relation rows are
+    explicit models so that every change goes through ``audited_save``.
+    """
+
+    name = models.CharField(
+        _("nome"), max_length=200, help_text=_("Name shown for the shared subject.")
+    )
+    notes = models.TextField(_("notas"), blank=True, help_text=_("Free notes of the manager."))
+
+    class Meta:
+        verbose_name = _("disciplina transversal")
+        verbose_name_plural = _("disciplinas transversais")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class CrossCourseSubjectMember(models.Model):
+    """A subject of a study plan that belongs to a cross-course group."""
+
+    cross_course_subject = models.ForeignKey(
+        CrossCourseSubject,
+        on_delete=models.CASCADE,  # members have no meaning without their group
+        related_name="members",
+        verbose_name=_("disciplina transversal"),
+        help_text=_("Group the subject belongs to."),
+    )
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,  # a subject must leave the group before being deleted
+        related_name="cross_course_memberships",
+        verbose_name=_("disciplina"),
+        help_text=_("Subject of a study plan."),
+    )
+
+    class Meta:
+        verbose_name = _("membro de disciplina transversal")
+        verbose_name_plural = _("membros de disciplina transversal")
+        constraints = [
+            # A subject belongs to at most one group (D47, to confirm).
+            models.UniqueConstraint(fields=["subject"], name="unique_cross_course_membership"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.cross_course_subject} – {self.subject}"
+
+
+class CrossCourseSubjectCourse(models.Model):
+    """A course in which a cross-course subject may have merged classes (D22)."""
+
+    cross_course_subject = models.ForeignKey(
+        CrossCourseSubject,
+        on_delete=models.CASCADE,  # meaningless without its group
+        related_name="allowed_courses",
+        verbose_name=_("disciplina transversal"),
+        help_text=_("Group the permission belongs to."),
+    )
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.PROTECT,  # never remove a course that the rule refers to
+        related_name="cross_course_subjects",
+        verbose_name=_("curso"),
+        help_text=_("Course whose classes may be merged."),
+    )
+
+    class Meta:
+        verbose_name = _("curso de disciplina transversal")
+        verbose_name_plural = _("cursos de disciplina transversal")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cross_course_subject", "course"], name="unique_cross_course_course"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.cross_course_subject} – {self.course}"
+
+
+class RejectedCrossCourseSuggestion(models.Model):
+    """A pair of subjects the manager refused to declare equivalent; not suggested again."""
+
+    subject_low = models.ForeignKey(
+        Subject,
+        on_delete=models.CASCADE,  # the rejection is moot once a subject is gone
+        related_name="+",
+        verbose_name=_("disciplina (id menor)"),
+        help_text=_("Subject of the pair with the lower id."),
+    )
+    subject_high = models.ForeignKey(
+        Subject,
+        on_delete=models.CASCADE,
+        related_name="+",
+        verbose_name=_("disciplina (id maior)"),
+        help_text=_("Subject of the pair with the higher id."),
+    )
+
+    class Meta:
+        verbose_name = _("sugestão rejeitada")
+        verbose_name_plural = _("sugestões rejeitadas")
+        constraints = [
+            # Ordered pair, so (a, b) and (b, a) are the same rejection.
+            models.CheckConstraint(
+                condition=models.Q(subject_low__lt=models.F("subject_high")),
+                name="rejected_suggestion_ordered",
+            ),
+            models.UniqueConstraint(
+                fields=["subject_low", "subject_high"], name="unique_rejected_suggestion"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.subject_low_id} / {self.subject_high_id}"

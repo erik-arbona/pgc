@@ -137,6 +137,8 @@ registry.register("room.edit", {Profile.FACILITIES}, write=True)  # Património 
 registry.register("enrollment.edit", {Profile.ACADEMIC_SERVICES}, write=True)  # enrollments
 # The PGC manager configures the class types (D45).
 registry.register("class_type.edit", {Profile.PGC_MANAGER}, write=True)
+# The PGC manager declares cross-course subjects (D06, D22).
+registry.register("cross_course_subject.edit", {Profile.PGC_MANAGER}, write=True)
 
 
 def can(user, code: str, scope_kind: str | None = None, scope_id: int | None = None) -> bool:
