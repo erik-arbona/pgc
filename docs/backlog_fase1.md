@@ -18,7 +18,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 - [x] T2.1 Faculdade, coordenação, curso (licenciatura, mestrado, doutoramento), ano letivo.
 - [x] T2.2 Plano de estudos e disciplina (código, ECTS, ano, semestre, coordenação responsável, carga semestral e semanal por tipo de aula).
 - [x] T2.3 Tipos de aula configuráveis (T, TP, P, L, outra) — *questão em aberto: que outros tipos existem*.
-- [x] T2.4 Disciplinas transversais: declarar o mesmo programa em vários cursos e **indicar os cursos** em que é transversal; aviso quando carga ou semestre diferem; sugestões do sistema.
+- [x] T2.4 Disciplinas transversais: declarar o mesmo programa em vários cursos e **indicar os cursos** em que é transversal; aviso quando carga ou semestre diferem (sem sugestões do sistema, D47).
 - [ ] T2.5 Turmas por curso e ano curricular: **uma por defeito**, modelo preparado para várias (1.º A, 1.º B). *(A junção e os grupos ficam para a fase 2.)*
 - [ ] T2.6 Área do gestor da PGC para introduzir e editar estes dados.
 

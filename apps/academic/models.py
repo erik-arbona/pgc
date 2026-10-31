@@ -410,39 +410,3 @@ class CrossCourseSubjectCourse(models.Model):
 
     def __str__(self) -> str:
         return f"{self.cross_course_subject} – {self.course}"
-
-
-class RejectedCrossCourseSuggestion(models.Model):
-    """A pair of subjects the manager refused to declare equivalent; not suggested again."""
-
-    subject_low = models.ForeignKey(
-        Subject,
-        on_delete=models.CASCADE,  # the rejection is moot once a subject is gone
-        related_name="+",
-        verbose_name=_("disciplina (id menor)"),
-        help_text=_("Subject of the pair with the lower id."),
-    )
-    subject_high = models.ForeignKey(
-        Subject,
-        on_delete=models.CASCADE,
-        related_name="+",
-        verbose_name=_("disciplina (id maior)"),
-        help_text=_("Subject of the pair with the higher id."),
-    )
-
-    class Meta:
-        verbose_name = _("sugestão rejeitada")
-        verbose_name_plural = _("sugestões rejeitadas")
-        constraints = [
-            # Ordered pair, so (a, b) and (b, a) are the same rejection.
-            models.CheckConstraint(
-                condition=models.Q(subject_low__lt=models.F("subject_high")),
-                name="rejected_suggestion_ordered",
-            ),
-            models.UniqueConstraint(
-                fields=["subject_low", "subject_high"], name="unique_rejected_suggestion"
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.subject_low_id} / {self.subject_high_id}"

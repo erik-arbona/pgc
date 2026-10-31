@@ -19,7 +19,6 @@ from apps.academic.models import (
     CrossCourseSubjectCourse,
     CrossCourseSubjectMember,
     Faculty,
-    RejectedCrossCourseSuggestion,
     StudyPlan,
     Subject,
     SubjectClassLoad,
@@ -86,17 +85,6 @@ def test_declared_in_two_courses_and_refused_in_a_third(world):
         CrossCourseSubjectCourse.objects.create(cross_course_subject=group, course=courses[key])
     allowed = set(group.allowed_courses.values_list("course__name", flat=True))
     assert allowed == {"EIC", "TM"}
-
-
-def test_rejected_pair_must_be_ordered(world):
-    """The pair is stored with the lower id first, so it exists only once."""
-    subjects, _ = world
-    low, high = sorted([subjects["EIC"], subjects["TM"]], key=lambda s: s.pk)
-    RejectedCrossCourseSuggestion.objects.create(subject_low=low, subject_high=high)
-    with pytest.raises(IntegrityError), transaction.atomic():
-        RejectedCrossCourseSuggestion.objects.create(subject_low=high, subject_high=low)
-    with pytest.raises(IntegrityError), transaction.atomic():
-        RejectedCrossCourseSuggestion.objects.create(subject_low=low, subject_high=low)
 
 
 def test_a_subject_in_a_group_cannot_be_deleted(world):
