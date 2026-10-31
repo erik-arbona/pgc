@@ -26,7 +26,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Disciplina transversal | A mesma disciplina, com o mesmo programa, em cursos diferentes e no mesmo semestre; o gestor indica em que cursos pode ter turmas juntas | `CrossCourseSubject` |
 | Ano letivo | Período anual do DSD e dos exames | `AcademicYear` |
 | Oferta no semestre | A disciplina lecionada num semestre de um ano letivo; pertence a uma versão do DSD | `Offering` |
-| Turma | Conjunto de estudantes de um curso e ano curricular; hoje uma por ano, o modelo admite várias (1.º A, 1.º B) | `ClassGroup` |
+| Turma | Coorte de estudantes de um curso que entra num ano letivo e sobe um ano curricular por ano; hoje uma por entrada, o modelo admite várias (1.º A, 1.º B); mantém o plano de estudos com que entrou; pode terminar (último ano letivo) | `ClassGroup` |
 | Grupo | Divisão de uma turma (normalmente para P ou L) | `SubGroup` |
 | Junção de turmas | Várias turmas numa só aula ou exame: turmas de cursos diferentes só em disciplinas transversais e entre os cursos indicados; turmas do mesmo curso por decisão do coordenador | `Merge` / relação |
 | Atribuição | Liga um docente a um tipo de aula de uma turma ou grupo; normalmente um docente, partilha opcional com percentagem | `Assignment` |
