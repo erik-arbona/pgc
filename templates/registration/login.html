@@ -1,0 +1,22 @@
+{% load i18n %}<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% translate "Entrar" %} · PGC</title>
+</head>
+<body>
+  <main>
+    <h1>{% translate "Entrar na PGC" %}</h1>
+    {% if form.errors %}
+      <p role="alert">{% translate "Utilizador ou palavra-passe incorretos." %}</p>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit">{% translate "Entrar" %}</button>
+    </form>
+  </main>
+</body>
+</html>

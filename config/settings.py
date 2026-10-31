@@ -57,6 +57,18 @@ MIDDLEWARE = [
 
 AUTH_USER_MODEL = "core.User"
 
+# Authentication goes through a pluggable identity provider (D41). The institutional
+# provider (LDAP/AD or SSO) is an open question; until then only the local one exists,
+# allowed with DEBUG on or when ALLOW_LOCAL_LOGIN is set deliberately.
+AUTHENTICATION_BACKENDS = ["apps.core.identity.IdentityProviderBackend"]
+AUTH_IDENTITY_PROVIDER = os.environ.get(
+    "AUTH_IDENTITY_PROVIDER", "apps.core.identity.LocalIdentityProvider"
+)
+ALLOW_LOCAL_LOGIN = _env_bool("ALLOW_LOCAL_LOGIN", False)
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "login"
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
