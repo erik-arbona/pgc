@@ -38,7 +38,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Horas extra | Total de horas letivas menos o máximo do intervalo; só se o docente aceitar; registadas pelo coordenador | `ExtraHours` |
 | Estado da carga | Abaixo da mínima, no intervalo, na máxima, acima da máxima | `LoadStatus` |
 | Proposta de concurso | Disciplina que o coordenador não pode atribuir; justificação obrigatória; decisão do CE | `CompetitionRequest` |
-| Colaborador (habitual) | Docente externo que já leciona na Universidade e pode ser convidado pelo CE; o docente a tempo inteiro é o outro tipo de docente; tem intervalo de horas próprio e configurável | — |
+| Colaborador (habitual) | Docente externo que já leciona na Universidade e pode ser convidado pelo CE; os outros tipos são o docente a tempo inteiro e o docente de concurso; cada tipo tem intervalo de horas próprio e configurável | — |
 | Fecho do DSD | O CE fecha o DSD de uma coordenação; cria versão imutável | `DsdVersion` |
 | Sala | Localização (edifício, número), nome quando tiver, tipo e capacidade | `Room` |
 | Época de exames | 1.ª chamada, 2.ª chamada, recurso, com datas | `ExamPeriod` |
