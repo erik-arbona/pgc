@@ -76,13 +76,13 @@ def make_subject(plan, coordination, **overrides):
 @pytest.fixture
 def theory():
     """The theoretical class type."""
-    return ClassType.objects.create(code="T", name="Teórica")
+    return ClassType.objects.get(code="T")
 
 
 @pytest.fixture
 def practice():
     """The practical class type."""
-    return ClassType.objects.create(code="P", name="Prática")
+    return ClassType.objects.get(code="P")
 
 
 def test_a_course_has_one_study_plan_per_academic_year(course, year):
@@ -192,7 +192,6 @@ def test_weekly_total_is_zero_without_class_loads(plan, coordination):
 
 def test_class_type_code_is_unique():
     """Two class types cannot share a code."""
-    ClassType.objects.create(code="T", name="Teórica")
     with pytest.raises(IntegrityError), transaction.atomic():
         ClassType.objects.create(code="T", name="Outra")
 

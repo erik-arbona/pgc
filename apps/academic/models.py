@@ -8,6 +8,7 @@ See D42 and D44 for the assumptions behind these models.
 
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
@@ -168,9 +169,10 @@ class StudyPlan(models.Model):
 
 
 class ClassType(models.Model):
-    """A type of class (T, TP, P, L, other).
+    """A type of class (T, TP, P, L, other), configured by the PGC manager (D45).
 
-    Minimal table: seeding and management of the types belong to T2.3, which extends it.
+    The initial types are loaded by a data migration; further ones are added as data, never
+    in code. A type in use is deactivated instead of deleted.
     """
 
     code = models.CharField(
@@ -180,11 +182,19 @@ class ClassType(models.Model):
         help_text=_("Short unique code, e.g. 'TP'."),
     )
     name = models.CharField(_("nome"), max_length=100, help_text=_("Name of the class type."))
+    is_active = models.BooleanField(
+        _("ativo"),
+        default=True,
+        help_text=_("Inactive types cannot be given to subjects; existing loads keep them."),
+    )
+    position = models.PositiveSmallIntegerField(
+        _("posição"), default=100, help_text=_("Display order; lower values come first.")
+    )
 
     class Meta:
         verbose_name = _("tipo de aula")
         verbose_name_plural = _("tipos de aula")
-        ordering = ["code"]
+        ordering = ["position", "code"]
 
     def __str__(self) -> str:
         return self.code
@@ -301,3 +311,13 @@ class SubjectClassLoad(models.Model):
 
     def __str__(self) -> str:
         return f"{self.subject.code} {self.class_type.code} {self.weekly_hours} h"
+
+    def save(self, *args, **kwargs) -> None:
+        """Save the load, refusing an inactive class type on a new row.
+
+        Raises:
+            ValidationError: if the load is new and its class type is inactive (D45).
+        """
+        if self._state.adding and not self.class_type.is_active:
+            raise ValidationError({"class_type": _("Este tipo de aula está desativado.")})
+        super().save(*args, **kwargs)
