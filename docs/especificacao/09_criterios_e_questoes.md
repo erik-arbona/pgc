@@ -29,7 +29,7 @@ O projeto é bem-sucedido se, no piloto, o DSD do ano letivo de todas as coorden
 - [ ] Que dados do SII podem ser importados e exportados, e por que meio?
 - [ ] Quais são as datas do calendário do DSD (abertura, prazos e fecho)?
 - [ ] Que servidor e que equipa dos serviços informáticos ficam disponíveis?
-- [x] Que intervalo de horas letivas se aplica aos docentes convidados a tempo parcial? Resolvida em D46: configurável; o máximo é o que importa e o mínimo é opcional; falta confirmar o valor inicial (cerca de 10 horas, a confirmar).
+- [x] Que intervalo de horas letivas se aplica aos docentes convidados a tempo parcial? Resolvida em D46: configurável; o máximo é o que importa e o mínimo é opcional; o valor inicial indicado para o colaborador é de 10 horas semanais por semestre, ou seja, 20 somadas dos dois semestres (unidade de D12), e é o gestor quem o introduz (D58).
 - [ ] Calendário de exames: quem o publica (cada coordenador, o Conselho Executivo ou o gestor da PGC) e a partir de quando deixa de ser rascunho?
 - [ ] Horários: como se fazem hoje, quem os faz e com que ferramenta?
 - [ ] Horários: que restrições devem respeitar (disponibilidade dos docentes, turnos, deslocações entre edifícios)?

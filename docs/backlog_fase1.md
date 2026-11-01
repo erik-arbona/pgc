@@ -24,7 +24,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 
 ## 3. Docentes e contas (bloco 2)
 - [x] T3.1 Docente (identificador único, categoria, coordenação) e cargos atribuídos pelo gestor. *(feita em 4 partes: modelos, categorias e cargos, docentes, cargos no formulário do docente)*
-- [ ] T3.2 Intervalos de horas letivas por categoria e por cargo, **com data de vigência**; função que devolve o intervalo de um docente (máximo mais baixo) — testes exaustivos.
+- [ ] T3.2 Intervalos de horas letivas por categoria e por cargo, **com data de vigência**; função que devolve o intervalo de um docente (máximo mais baixo) — testes exaustivos. *(em curso, 5 partes: 1 função de domínio ✔; 2 modelo; 3 serviços e permissão; 4 telas; 5 coluna na lista de docentes)*
 - [ ] T3.3 Parâmetro da fórmula de preparação (T + (TP+P+L) × 1,5), configurável.
 - [ ] T3.4 Contas por perfil geridas pelo gestor da PGC.
 
