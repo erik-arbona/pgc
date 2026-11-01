@@ -145,7 +145,7 @@ def test_the_subject_list_shows_only_the_managers_faculties(client, a, b):
     b.subject("SB")
     manager_of(client, a.faculty)
     page = client.get(reverse("academic:subject_list")).content.decode()
-    assert "SA" in page and "SB" not in page
+    assert "Disciplina SA" in page and "Disciplina SB" not in page
 
 
 @pytest.mark.parametrize("screen", SCREENS)
@@ -290,9 +290,9 @@ def test_subject_list_filters_by_semester_and_course(client, a, b):
     b.subject("SB")
     url = reverse("academic:subject_list")
     page = client.get(url, {"semester": "2"}).content.decode()
-    assert "S2A" in page and "S1A" not in page
+    assert "Disciplina S2A" in page and "Disciplina S1A" not in page
     page = client.get(url, {"course": a.course.pk}).content.decode()
-    assert "S1A" in page and "SB" not in page
+    assert "Disciplina S1A" in page and "Disciplina SB" not in page
 
 
 def test_an_htmx_request_returns_only_the_table_rows(client, a):
