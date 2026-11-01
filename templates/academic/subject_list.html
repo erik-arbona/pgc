@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p><a href="{% url 'academic:subject_create' %}">{% translate "Nova disciplina" %}</a></p>
+  {# Works without JavaScript (submit button); with HTMX the results refresh in place. #}
+  <form method="get" hx-get="{% url 'academic:subject_list' %}" hx-target="#subject-results"
+        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+    <label>{% translate "Curso" %}
+      <select name="course">
+        <option value="">{% translate "Todos" %}</option>
+        {% for course in courses %}
+        <option value="{{ course.pk }}"{% if selected_course == course.pk|stringformat:"s" %} selected{% endif %}>{{ course }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Semestre" %}
+      <select name="semester">
+        <option value="">{% translate "Todos" %}</option>
+        <option value="1"{% if selected_semester == "1" %} selected{% endif %}>1</option>
+        <option value="2"{% if selected_semester == "2" %} selected{% endif %}>2</option>
+      </select>
+    </label>
+    <button type="submit">{% translate "Filtrar" %}</button>
+  </form>
+  {% include "academic/_subject_results.html" %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/htmx.min.js' %}"></script>{% endblock %}

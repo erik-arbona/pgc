@@ -1,8 +1,8 @@
 {% load i18n %}
 {% if is_paginated %}
 <nav class="pagination" aria-label="{% translate 'Paginação' %}">
-  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">{% translate "Anterior" %}</a>{% endif %}
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{{ query_string }}">{% translate "Anterior" %}</a>{% endif %}
   <span>{% blocktranslate with n=page_obj.number total=paginator.num_pages %}Página {{ n }} de {{ total }}{% endblocktranslate %}</span>
-  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">{% translate "Seguinte" %}</a>{% endif %}
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{{ query_string }}">{% translate "Seguinte" %}</a>{% endif %}
 </nav>
 {% endif %}

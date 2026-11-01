@@ -1,0 +1,26 @@
+{% load i18n %}
+<div id="subject-results">
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Código" %}</th><th>{% translate "Nome" %}</th><th>{% translate "Curso" %}</th>
+        <th>{% translate "Ano" %}</th><th>{% translate "Semestre" %}</th><th>{% translate "ECTS" %}</th>
+        <th>{% translate "Coordenação" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.study_plan.course }}</td>
+        <td>{{ item.curricular_year }}</td><td>{{ item.semester }}</td><td>{{ item.ects }}</td>
+        <td>{{ item.coordination }}</td>
+        <td>
+          <a href="{% url 'academic:subject_update' item.pk %}">{% translate "Editar" %}</a>
+          <a href="{% url 'academic:subject_delete' item.pk %}">{% translate "Eliminar" %}</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+</div>
