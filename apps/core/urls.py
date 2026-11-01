@@ -29,4 +29,19 @@ urlpatterns = [
         views.AccountActivateView.as_view(),
         name="account_activate",
     ),
+    path(
+        "accounts/<int:pk>/roles/add/",
+        views.AccountRoleAddView.as_view(),
+        name="account_role_add",
+    ),
+    path(
+        "accounts/<int:pk>/role-scopes/",
+        views.AccountRoleScopesView.as_view(),
+        name="account_role_scopes",
+    ),
+    path(
+        "accounts/roles/<int:pk>/remove/",
+        views.AccountRoleRemoveView.as_view(),
+        name="account_role_remove",
+    ),
 ]

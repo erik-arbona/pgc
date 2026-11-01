@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
   <h1>{{ title }}: {{ account.username }}</h1>
@@ -13,8 +13,42 @@
   </form>
   <h2>{% translate "Perfis" %}</h2>
   {% if roles %}
-  <ul>{% for role in roles %}<li>{{ role.profile }} – {{ role.scope }}</li>{% endfor %}</ul>
+  <ul>
+    {% for role in roles %}
+    <li>{{ role.profile }} – {{ role.scope }}
+      {% if role.can_revoke %}<a href="{% url 'core:account_role_remove' role.pk %}">{% translate "Retirar" %}</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
   {% else %}
   <p>{% translate "Esta conta ainda não tem perfis." %}</p>
   {% endif %}
+  <h3>{% translate "Atribuir perfil" %}</h3>
+  <form method="post" action="{% url 'core:account_role_add' account.pk %}">
+    {% csrf_token %}
+    <p>
+      <label for="id_role_profile">{% translate "Perfil" %}</label>
+      {# With HTMX, choosing a profile narrows the scope list; without it the whole list is there. #}
+      <select name="profile" id="id_role_profile"
+              hx-get="{% url 'core:account_role_scopes' account.pk %}" hx-target="#id_role_scope"
+              hx-trigger="change">
+        {% for value, label in role_form.fields.profile.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </p>
+    <p>
+      <label for="id_role_scope">{% translate "Âmbito" %}</label>
+      <select name="scope" id="id_role_scope">
+        <option value="">---------</option>
+        {% for value, label in role_form.fields.scope.widget.choices %}{% if value %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}
+      </select>
+    </p>
+    <p>
+      <label for="id_role_reason_choice">{% translate "Motivo (opcional)" %}</label>
+      <select name="reason_choice" id="id_role_reason_choice">
+        {% for value, label in role_form.fields.reason_choice.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </p>
+    <button type="submit">{% translate "Atribuir perfil" %}</button>
+  </form>
 {% endblock %}
+{% block scripts %}<script src="{% static 'vendor/htmx.min.js' %}"></script>{% endblock %}

@@ -50,7 +50,22 @@ class AcademicConfig(AppConfig):
         def coordination_label(scope_id: int) -> str:
             return str(Coordination.objects.filter(pk=scope_id).first() or "—")
 
-        register_scope(ScopeKind.FACULTY, faculty_scope, faculties_in, faculty_label)
+        def faculty_options(faculty_ids: set[int]) -> list[tuple[int, str]]:
+            return [(f.pk, str(f)) for f in Faculty.objects.filter(pk__in=faculty_ids)]
+
+        def coordination_options(faculty_ids: set[int]) -> list[tuple[int, str]]:
+            found = Coordination.objects.filter(faculty_id__in=faculty_ids).select_related(
+                "faculty"
+            )
+            return [(c.pk, f"{c.faculty.code} – {c.name}") for c in found]
+
         register_scope(
-            ScopeKind.COORDINATION, coordination_scope, coordinations_in, coordination_label
+            ScopeKind.FACULTY, faculty_scope, faculties_in, faculty_label, faculty_options
+        )
+        register_scope(
+            ScopeKind.COORDINATION,
+            coordination_scope,
+            coordinations_in,
+            coordination_label,
+            coordination_options,
         )
