@@ -110,7 +110,13 @@ def test_creating_a_class_type_writes_one_audit_entry_without_reason(manager_cli
     """Creating needs no reason (D40) and is audited with the actor."""
     response = manager_client.post(
         reverse("academic:classtype_create"),
-        {"code": "S", "name": "Seminário", "position": 60, "is_active": "on"},
+        {
+            "code": "S",
+            "name": "Seminário",
+            "position": 60,
+            "is_active": "on",
+            "preparation_weight": "0",
+        },
     )
     assert response.status_code == 302
     created = ClassType.objects.get(code="S")
@@ -125,7 +131,14 @@ def test_updating_without_a_reason_is_refused(manager_client):
     target = ClassType.objects.get(code="OUT")
     response = manager_client.post(
         reverse("academic:classtype_update", kwargs={"pk": target.pk}),
-        {"code": "OUT", "name": "Renomeada", "position": 50, "is_active": "on", "reason": ""},
+        {
+            "code": "OUT",
+            "name": "Renomeada",
+            "position": 50,
+            "is_active": "on",
+            "preparation_weight": "0",
+            "reason": "",
+        },
     )
     assert response.status_code == 200
     assert "reason" in response.context["form"].errors
@@ -144,6 +157,7 @@ def test_updating_with_a_reason_is_audited_with_old_and_new_values(manager_clien
             "name": "Outras",
             "position": 50,
             "is_active": "on",
+            "preparation_weight": "0",
             "reason": "Plural",
         },
     )
@@ -157,7 +171,13 @@ def test_updating_with_a_reason_is_audited_with_old_and_new_values(manager_clien
 def test_deactivating_a_class_type_counts_as_an_update_with_reason(manager_client):
     """Unchecking 'active' needs a reason like any other update."""
     target = ClassType.objects.get(code="OUT")
-    data = {"code": "OUT", "name": "Outra", "position": 50, "reason": ""}
+    data = {
+        "code": "OUT",
+        "name": "Outra",
+        "position": 50,
+        "preparation_weight": "0",
+        "reason": "",
+    }
     manager_client.post(reverse("academic:classtype_update", kwargs={"pk": target.pk}), data)
     target.refresh_from_db()
     assert target.is_active

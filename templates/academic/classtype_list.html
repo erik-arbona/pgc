@@ -8,13 +8,13 @@
     <thead>
       <tr>
         <th>{% translate "Código" %}</th><th>{% translate "Nome" %}</th>
-        <th>{% translate "Posição" %}</th><th>{% translate "Ativo" %}</th><th></th>
+        <th>{% translate "Posição" %}</th><th>{% translate "Peso na preparação" %}</th><th>{% translate "Ativo" %}</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for item in object_list %}
       <tr>
-        <td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.position }}</td>
+        <td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.position }}</td><td>{{ item.preparation_weight }}</td>
         <td>{% if item.is_active %}{% translate "Sim" %}{% else %}{% translate "Não" %}{% endif %}</td>
         <td>
           <a href="{% url 'academic:classtype_update' item.pk %}">{% translate "Editar" %}</a>
