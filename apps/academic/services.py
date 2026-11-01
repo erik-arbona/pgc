@@ -80,20 +80,28 @@ def create_class_group(
     intake_year: AcademicYear,
     label: str = "",
     last_year: AcademicYear | None = None,
+    *,
+    actor,
+    reason: str = "",
 ) -> ClassGroup:
     """Create a turma with the plan in force for the first year of its intake (D48, D49).
+
+    The creation is written through ``audited_save`` (D54).
 
     Args:
         course: course of the turma.
         intake_year: academic year in which the turma enters.
         label: letter to tell turmas of the same year apart; empty for the default turma.
         last_year: last academic year, if the turma already ended.
+        actor: the user creating the turma.
+        reason: optional reason (D40).
 
     Returns:
         The saved turma.
 
     Raises:
-        ValidationError: if no plan of the course has reached the first year at the intake.
+        ValidationError: if no plan of the course has reached the first year at the intake,
+            or if the turma itself is invalid (for example its last year precedes the intake).
     """
     plans = [
         PlanFacts(id=p.pk, start_year=p.academic_year.start_year)
@@ -102,13 +110,15 @@ def create_class_group(
     plan_id = plan_in_force(plans, 1, intake_year.start_year)
     if plan_id is None:
         raise ValidationError(_("Nenhum plano de estudos está em vigor para esta entrada."))
-    return ClassGroup.objects.create(
+    group = ClassGroup(
         course=course,
         intake_year=intake_year,
         label=label,
-        study_plan_id=plan_id,
+        study_plan=StudyPlan.objects.get(pk=plan_id),
         last_academic_year=last_year,
     )
+    audited_save(group, actor, reason)
+    return group
 
 
 def save_subject_with_loads(

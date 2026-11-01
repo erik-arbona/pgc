@@ -21,6 +21,8 @@ from apps.core.generic import (
 
 from .forms import (
     AcademicYearForm,
+    ClassGroupCreateForm,
+    ClassGroupUpdateForm,
     ClassTypeForm,
     CoordinationForm,
     CourseForm,
@@ -28,8 +30,17 @@ from .forms import (
     StudyPlanForm,
     SubjectForm,
 )
-from .models import AcademicYear, ClassType, Coordination, Course, Faculty, StudyPlan, Subject
-from .services import save_subject_with_loads
+from .models import (
+    AcademicYear,
+    ClassGroup,
+    ClassType,
+    Coordination,
+    Course,
+    Faculty,
+    StudyPlan,
+    Subject,
+)
+from .services import create_class_group, save_subject_with_loads
 
 
 class ClassTypeMixin:
@@ -347,3 +358,62 @@ class SubjectDeleteView(SubjectMixin, ScopedDeleteView):
     """Delete a subject that has no weekly hours rows or group membership."""
 
     title = _("Eliminar disciplina")
+
+
+class ClassGroupMixin:
+    """Settings shared by the turma screens (limited to the manager's Faculties, D54)."""
+
+    model = ClassGroup
+    permission_action = "class_group.edit"
+    scope_field = "course.faculty_id"
+    scope_lookup = "course__faculty__in"
+    success_url = reverse_lazy("academic:classgroup_list")
+
+
+class ClassGroupListView(ClassGroupMixin, ScopedListView):
+    """List the turmas of the manager's courses."""
+
+    template_name = "academic/classgroup_list.html"
+    title = _("Turmas")
+
+    def get_queryset(self):
+        """Load the related rows shown in the table."""
+        return (
+            super()
+            .get_queryset()
+            .select_related(
+                "course", "intake_year", "study_plan__academic_year", "last_academic_year"
+            )
+        )
+
+
+class ClassGroupCreateView(ClassGroupMixin, ScopedCreateView):
+    """Add a turma; the study plan is resolved from the intake year."""
+
+    form_class = ClassGroupCreateForm
+    title = _("Nova turma")
+
+    def save_form(self, form):
+        """Create the turma through the audited service."""
+        data = form.cleaned_data
+        return create_class_group(
+            data["course"],
+            data["intake_year"],
+            data["label"],
+            data["last_academic_year"],
+            actor=self.request.user,
+            reason=data.get("reason", ""),
+        )
+
+
+class ClassGroupUpdateView(ClassGroupMixin, ScopedUpdateView):
+    """Edit the label or the last academic year of a turma (needs a reason)."""
+
+    form_class = ClassGroupUpdateForm
+    title = _("Editar turma")
+
+
+class ClassGroupDeleteView(ClassGroupMixin, ScopedDeleteView):
+    """Delete a turma."""
+
+    title = _("Eliminar turma")

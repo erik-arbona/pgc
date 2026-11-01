@@ -66,4 +66,16 @@ urlpatterns = [
     path("subjects/new/", views.SubjectCreateView.as_view(), name="subject_create"),
     path("subjects/<int:pk>/edit/", views.SubjectUpdateView.as_view(), name="subject_update"),
     path("subjects/<int:pk>/delete/", views.SubjectDeleteView.as_view(), name="subject_delete"),
+    path("class-groups/", views.ClassGroupListView.as_view(), name="classgroup_list"),
+    path("class-groups/new/", views.ClassGroupCreateView.as_view(), name="classgroup_create"),
+    path(
+        "class-groups/<int:pk>/edit/",
+        views.ClassGroupUpdateView.as_view(),
+        name="classgroup_update",
+    ),
+    path(
+        "class-groups/<int:pk>/delete/",
+        views.ClassGroupDeleteView.as_view(),
+        name="classgroup_delete",
+    ),
 ]

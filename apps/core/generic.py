@@ -60,7 +60,7 @@ class ScopedModelForm(ReasonModelForm):
 
     def __init__(self, *args, allowed_scope_ids=None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        if allowed_scope_ids is not None:
+        if allowed_scope_ids is not None and self.scope_field in self.fields:
             field = self.fields[self.scope_field]
             field.queryset = field.queryset.filter(**{self.scope_filter: allowed_scope_ids})
 
@@ -123,7 +123,8 @@ class AuditedSaveMixin:
         except ValidationError as error:
             add_validation_errors(form, error)
             return self.form_invalid(form)
-        form.save_m2m()
+        if hasattr(form, "save_m2m"):  # absent when save_form did not call form.save(commit=False)
+            form.save_m2m()
         self.object = instance
         messages.success(self.request, self.success_message)
         return redirect(self.get_success_url())
