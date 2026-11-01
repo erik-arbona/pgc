@@ -10,7 +10,7 @@
 
 **Screens (PGC manager area):** categories (`/staff/categories/`) and positions (`/staff/positions/`): list, create, edit/deactivate (reason required) and delete when unused, with the generic views of `core.generic` (D50).
 
-Teachers (`/staff/teachers/`; the form also edits the positions of full-time teachers through `services.save_teacher_with_positions`, one audit entry per row): scoped to the manager's Faculties through the teacher's coordination (D51), filtered with HTMX by coordination, type and activity; deleting a teacher audits their position assignments first (`services.delete_teacher`).
+Teachers (`/staff/teachers/`; the list shows each teacher's hours range in force today, resolved for the whole page with `services.load_ranges_for`; the form also edits the positions of full-time teachers through `services.save_teacher_with_positions`, one audit entry per row): scoped to the manager's Faculties through the teacher's coordination (D51), filtered with HTMX by coordination, type and activity; deleting a teacher audits their position assignments first (`services.delete_teacher`).
 
 **Permissions:** `teacher.edit` (scoped to the Faculty of the teacher's coordination), `position.edit`, `category.edit`, `load_range.edit` (no scope: ranges are University-wide); PGC manager only. See D56.
 

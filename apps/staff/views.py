@@ -27,6 +27,7 @@ from .models import Category, LoadRange, Position, Teacher
 from .services import (
     delete_load_range,
     delete_teacher,
+    load_ranges_for,
     save_load_range,
     save_teacher_with_positions,
 )
@@ -149,6 +150,12 @@ class TeacherListView(TeacherMixin, ScopedListView):
         context = super().get_context_data(**kwargs)
         context["coordinations"] = Coordination.objects.filter(faculty__in=self.allowed_scope_ids())
         context["types"] = Teacher.Type.choices
+        # One lookup for the whole page: the range in force today for each teacher (D58).
+        teachers = list(context["object_list"])
+        ranges = load_ranges_for(teachers)
+        for teacher in teachers:
+            teacher.load_range = ranges[teacher.pk]
+        context["object_list"] = teachers
         params = self.request.GET
         context["selected_coordination"] = params.get("coordination", "")
         context["selected_type"] = params.get("teacher_type", "")
