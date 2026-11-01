@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p><a href="{% url 'core:account_create' %}">{% translate "Nova conta" %}</a></p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Utilizador" %}</th><th>{% translate "Nome" %}</th>
+        <th>{% translate "Perfis" %}</th><th>{% translate "Estado" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.username }}</td><td>{{ item.get_full_name }}</td>
+        <td>{% for role in item.roles %}{{ role }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
+        <td>{% if item.is_active %}{% translate "Ativa" %}{% else %}{% translate "Desativada" %}{% endif %}</td>
+        <td>
+          {% if item.can_manage %}
+          <a href="{% url 'core:account_update' item.pk %}">{% translate "Editar" %}</a>
+          {% if item.is_active %}
+          <a href="{% url 'core:account_deactivate' item.pk %}">{% translate "Desativar" %}</a>
+          {% else %}
+          <a href="{% url 'core:account_activate' item.pk %}">{% translate "Ativar" %}</a>
+          {% endif %}
+          {% else %}
+          <em>{% translate "Só leitura" %}</em>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+{% endblock %}

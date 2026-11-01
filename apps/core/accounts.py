@@ -17,13 +17,14 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from .audit import audited_delete, audited_save
 from .models import RoleAssignment
 from .permissions import registry
 from .roles import Profile, ScopeKind, scope_kind_allowed
-from .scopes import ScopeNotFound, faculty_of_scope
+from .scopes import ScopeNotFound, faculty_of_scope, scope_ids_in_faculties
 
 ACTION = "account.edit"
 
@@ -69,6 +70,38 @@ def can_manage_account(actor, target) -> bool:
         if faculty_id is None or faculty_id not in faculties:
             return False
     return True
+
+
+def visible_accounts(actor):
+    """Return the accounts a manager sees in the list.
+
+    These are the accounts with no roles and those with at least one role inside the actor's
+    Faculties. The actor themselves and the administrators are left out. An account that also has
+    roles elsewhere is listed but cannot be managed (``can_manage_account``).
+
+    Args:
+        actor: the user acting.
+
+    Returns:
+        A queryset of users ordered by username (empty if the actor manages no Faculty).
+    """
+    user_model = get_user_model()
+    faculties = _managed_faculties(actor)
+    if not faculties:
+        return user_model.objects.none()
+    inside = Q(role_assignments__isnull=True)
+    for kind in (ScopeKind.FACULTY, ScopeKind.COORDINATION, ScopeKind.TEACHER):
+        ids = scope_ids_in_faculties(kind, faculties)
+        inside |= Q(role_assignments__scope_kind=kind, role_assignments__scope_id__in=ids)
+    return (
+        user_model.objects.filter(inside)
+        .exclude(pk=actor.pk)
+        .exclude(is_superuser=True)
+        .exclude(is_staff=True)
+        .distinct()
+        .order_by("username")
+        .prefetch_related("role_assignments")
+    )
 
 
 def _require_manage(actor, target) -> None:

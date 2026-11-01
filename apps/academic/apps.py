@@ -36,5 +36,21 @@ class AcademicConfig(AppConfig):
                 raise ScopeNotFound(f"Coordination {scope_id} does not exist.")
             return faculty_id
 
-        register_scope(ScopeKind.FACULTY, faculty_scope)
-        register_scope(ScopeKind.COORDINATION, coordination_scope)
+        def faculties_in(faculty_ids: set[int]) -> set[int]:
+            return set(Faculty.objects.filter(pk__in=faculty_ids).values_list("pk", flat=True))
+
+        def coordinations_in(faculty_ids: set[int]) -> set[int]:
+            return set(
+                Coordination.objects.filter(faculty_id__in=faculty_ids).values_list("pk", flat=True)
+            )
+
+        def faculty_label(scope_id: int) -> str:
+            return str(Faculty.objects.filter(pk=scope_id).first() or "—")
+
+        def coordination_label(scope_id: int) -> str:
+            return str(Coordination.objects.filter(pk=scope_id).first() or "—")
+
+        register_scope(ScopeKind.FACULTY, faculty_scope, faculties_in, faculty_label)
+        register_scope(
+            ScopeKind.COORDINATION, coordination_scope, coordinations_in, coordination_label
+        )
