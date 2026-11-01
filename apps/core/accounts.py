@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
@@ -142,6 +143,42 @@ def create_account(
     user.set_unusable_password()
     audited_save(user, actor, reason)
     return user
+
+
+def create_account_with_role(
+    actor,
+    *,
+    username: str,
+    first_name: str,
+    last_name: str,
+    email: str,
+    profile: str,
+    scope_kind: str,
+    scope_id: int | None,
+    reason: str = "",
+):
+    """Create an account and its first role in one transaction (D62).
+
+    Used to give a teacher an account from the teacher list. If the role is refused (for
+    example a teacher of another Faculty), nothing is created, not even the account.
+
+    Returns:
+        The new user.
+
+    Raises:
+        PermissionDenied, ValidationError: as ``create_account`` and ``assign_role``.
+    """
+    with transaction.atomic():
+        user = create_account(
+            actor,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            reason=reason,
+        )
+        assign_role(actor, user, profile, scope_kind, scope_id, reason)
+        return user
 
 
 def update_account(actor, user, *, first_name: str, last_name: str, email: str, reason: str):

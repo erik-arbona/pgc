@@ -38,4 +38,9 @@ urlpatterns = [
         views.LoadRangeDeleteView.as_view(),
         name="loadrange_delete",
     ),
+    path(
+        "teachers/<int:pk>/account/",
+        views.TeacherAccountView.as_view(),
+        name="teacher_account",
+    ),
 ]
