@@ -226,20 +226,22 @@ def test_moving_to_another_faculty_needs_both(client, a, b):
     assert teacher.coordination == b.coordination
 
 
-def test_a_teacher_with_positions_cannot_become_a_collaborator(client, a):
-    """The type change is refused with a message on the type field."""
+def test_a_teacher_keeping_positions_cannot_become_a_collaborator(client, a):
+    """With the position still ticked, the type change is a form error on the positions."""
     teacher = a.teacher()
-    TeacherPosition.objects.create(teacher=teacher, position=Position.objects.create(name="Chefe"))
+    chief = Position.objects.create(name="Chefe")
+    TeacherPosition.objects.create(teacher=teacher, position=chief)
     manager_of(client, a.faculty)
     response = client.post(
         reverse("staff:teacher_update", kwargs={"pk": teacher.pk}),
         {
             **a.post_data(identifier=teacher.identifier, teacher_type="habitual_collaborator"),
+            "positions": [chief.pk],
             "reason": "Mudou de regime",
         },
     )
     assert response.status_code == 200
-    assert "teacher_type" in response.context["form"].errors
+    assert "positions" in response.context["form"].errors
     teacher.refresh_from_db()
     assert teacher.teacher_type == Teacher.Type.FULL_TIME
 

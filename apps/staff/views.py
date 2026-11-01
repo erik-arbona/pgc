@@ -21,7 +21,7 @@ from apps.core.generic import (
 
 from .forms import CategoryForm, PositionForm, TeacherForm
 from .models import Category, Position, Teacher
-from .services import delete_teacher
+from .services import delete_teacher, save_teacher_with_positions
 
 
 class CategoryMixin:
@@ -148,14 +148,36 @@ class TeacherListView(TeacherMixin, ScopedListView):
         return context
 
 
-class TeacherCreateView(TeacherMixin, ScopedCreateView):
+class TeacherSaveMixin:
+    """Save the teacher together with their positions (D56)."""
+
+    def save_form(self, form):
+        """Save the teacher and the positions in one audited transaction.
+
+        The teacher itself is written only when it is new or one of its own fields changed.
+        """
+        teacher = form.save(commit=False)
+        teacher_changed = teacher._state.adding or bool(
+            set(form.changed_data) & set(form._meta.fields)
+        )
+        save_teacher_with_positions(
+            teacher,
+            {p.pk for p in form.cleaned_data["positions"]},
+            self.request.user,
+            form.cleaned_data.get("reason", ""),
+            save_teacher=teacher_changed,
+        )
+        return teacher
+
+
+class TeacherCreateView(TeacherMixin, TeacherSaveMixin, ScopedCreateView):
     """Add a teacher to one of the manager's coordinations."""
 
     form_class = TeacherForm
     title = _("Novo docente")
 
 
-class TeacherUpdateView(TeacherMixin, ScopedUpdateView):
+class TeacherUpdateView(TeacherMixin, TeacherSaveMixin, ScopedUpdateView):
     """Edit a teacher (needs a reason)."""
 
     form_class = TeacherForm
