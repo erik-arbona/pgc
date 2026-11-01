@@ -27,6 +27,8 @@
       {% if can_groups %}<a href="{% url 'academic:classgroup_list' %}">{% translate "Turmas" %}</a>{% endif %}
       {% has_scope "cross_course_subject.edit" "faculty" as can_cross %}
       {% if can_cross %}<a href="{% url 'academic:crosscourse_list' %}">{% translate "Disciplinas transversais" %}</a>{% endif %}
+      {% has_scope "teacher.edit" "faculty" as can_teachers %}
+      {% if can_teachers %}<a href="{% url 'staff:teacher_list' %}">{% translate "Docentes" %}</a>{% endif %}
       {% can "category.edit" as can_categories %}
       {% if can_categories %}<a href="{% url 'staff:category_list' %}">{% translate "Categorias" %}</a>{% endif %}
       {% can "position.edit" as can_positions %}
