@@ -161,6 +161,8 @@ registry = PermissionRegistry()
 
 # Rules stated unambiguously in docs/especificacao/02_perfis_e_dados.md.
 registry.register("room.edit", {Profile.FACILITIES}, write=True)  # Património enters rooms
+# Room types are configured by Património too; rooms are University-wide, so no scope (D63).
+registry.register("room_type.edit", {Profile.FACILITIES}, write=True)
 registry.register("enrollment.edit", {Profile.ACADEMIC_SERVICES}, write=True)  # enrollments
 # The PGC manager configures the class types (D45).
 registry.register("class_type.edit", {Profile.PGC_MANAGER}, write=True)

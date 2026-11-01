@@ -13,7 +13,7 @@ from django.db import models
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 
-from apps.core.models import RoleAssignment
+from apps.core.models import RoleAssignment, VersionedModel
 from apps.core.roles import ScopeKind
 
 from .class_groups import curricular_year_in
@@ -455,7 +455,7 @@ class CrossCourseSubjectCourse(models.Model):
         return f"{self.cross_course_subject} – {self.course}"
 
 
-class ClassGroup(models.Model):
+class ClassGroup(VersionedModel):
     """A turma: a cohort of students of a course that moves up one year every year (D49).
 
     It is created once, with its intake year, and keeps the study plan in force for the
@@ -499,11 +499,6 @@ class ClassGroup(models.Model):
         verbose_name=_("último ano letivo"),
         help_text=_("Last academic year of the turma; empty while it is active."),
     )
-    version = models.PositiveIntegerField(
-        _("versão"),
-        default=1,
-        help_text=_("Optimistic lock: grows by one on every save (D54)."),
-    )
 
     class Meta:
         verbose_name = _("turma")
@@ -545,15 +540,5 @@ class ClassGroup(models.Model):
             stored = type(self).objects.filter(pk=self.pk).values_list("study_plan_id", flat=True)
             if stored and stored[0] != self.study_plan_id:
                 raise ValidationError({"study_plan": _("Uma turma não muda de plano.")})
-            # Optimistic lock: only the editor who saw the current version may save.
-            updated = (
-                type(self)
-                .objects.filter(pk=self.pk, version=self.version)
-                .update(version=models.F("version") + 1)
-            )
-            if not updated:
-                raise ValidationError(
-                    _("Esta turma foi alterada por outra pessoa. Recarregue a página.")
-                )
-            self.version += 1
+        # The optimistic lock (version) is checked by ``VersionedModel.save``.
         super().save(*args, **kwargs)
