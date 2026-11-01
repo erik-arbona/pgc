@@ -5,7 +5,7 @@ Implements: D47 – keeps ``cross_course`` free of Django.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Iterable, Mapping
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -14,13 +14,23 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.core.audit import audited_delete, audited_save
 
-from .cross_course import SubjectFacts, effective_members
+from .cross_course import (
+    CrossCourseWarning,
+    GroupError,
+    SubjectFacts,
+    check_group,
+    compare_members,
+    effective_members,
+)
+from .messages import GROUP_ERROR_TEXT
 from .models import (
     AcademicYear,
     ClassGroup,
     ClassType,
     Course,
     CrossCourseSubject,
+    CrossCourseSubjectCourse,
+    CrossCourseSubjectMember,
     StudyPlan,
     Subject,
     SubjectClassLoad,
@@ -164,3 +174,96 @@ def save_subject_with_loads(
             elif row.weekly_hours != hours:
                 row.weekly_hours = hours
                 audited_save(row, actor, reason)
+
+
+def evaluate_selection(
+    subjects: Iterable[Subject], courses: Collection[Course]
+) -> tuple[list[GroupError], list[CrossCourseWarning]]:
+    """Check a proposed group and compare its members (D47).
+
+    Args:
+        subjects: the subjects proposed as members.
+        courses: the courses in which the subject would be cross-course.
+
+    Returns:
+        The blocking errors and the non-blocking warnings.
+    """
+    members = [facts_for(s) for s in subjects]
+    errors = check_group(members, {c.pk for c in courses})
+    return errors, compare_members(members)
+
+
+def save_cross_course_group(
+    group: CrossCourseSubject,
+    subjects: Collection[Subject],
+    courses: Collection[Course],
+    actor,
+    reason: str,
+    *,
+    save_group: bool,
+) -> None:
+    """Save a group with its members and allowed courses in one audited transaction (D55).
+
+    The group is validated first with ``check_group``. Each row created or removed (the group
+    itself, members, allowed courses) gets its own audit entry sharing the same reason.
+
+    Args:
+        group: the group, new or existing.
+        subjects: the subjects that must be members afterwards.
+        courses: the courses in which the group is cross-course afterwards.
+        actor: the user making the change.
+        reason: why; required when the group already exists (D40).
+        save_group: whether the group's own fields (name, notes) must be saved.
+
+    Raises:
+        ValidationError: if the group is invalid or a row is refused. Nothing is saved.
+    """
+    errors = check_group([facts_for(s) for s in subjects], {c.pk for c in courses})
+    if errors:
+        raise ValidationError([str(GROUP_ERROR_TEXT[e]) for e in errors])
+    with transaction.atomic():
+        if save_group or group._state.adding:
+            audited_save(group, actor, reason)
+        members = {m.subject_id: m for m in group.members.all()}
+        allowed = {c.course_id: c for c in group.allowed_courses.all()}
+        wanted_subjects = {s.pk: s for s in subjects}
+        wanted_courses = {c.pk: c for c in courses}
+        for subject_id, row in members.items():
+            if subject_id not in wanted_subjects:
+                audited_delete(row, actor, reason)
+        for course_id, row in allowed.items():
+            if course_id not in wanted_courses:
+                audited_delete(row, actor, reason)
+        for subject_id, subject in wanted_subjects.items():
+            if subject_id not in members:
+                audited_save(
+                    CrossCourseSubjectMember(cross_course_subject=group, subject=subject),
+                    actor,
+                    reason,
+                )
+        for course_id, course in wanted_courses.items():
+            if course_id not in allowed:
+                audited_save(
+                    CrossCourseSubjectCourse(cross_course_subject=group, course=course),
+                    actor,
+                    reason,
+                )
+
+
+def delete_cross_course_group(group: CrossCourseSubject, actor, reason: str) -> None:
+    """Delete a group after deleting its member and course rows, each with an audit entry.
+
+    Args:
+        group: the group to delete.
+        actor: the user deleting it.
+        reason: why (required, D40).
+
+    Raises:
+        ValidationError: if the reason is blank. Nothing is deleted.
+    """
+    with transaction.atomic():
+        for row in group.members.all():
+            audited_delete(row, actor, reason)
+        for row in group.allowed_courses.all():
+            audited_delete(row, actor, reason)
+        audited_delete(group, actor, reason)

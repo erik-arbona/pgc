@@ -43,6 +43,14 @@ class SubjectFacts:
     curricular_year: int = 1
 
 
+class GroupError(StrEnum):
+    """Reasons why a group is not valid (blocking)."""
+
+    TOO_FEW_COURSES = "too_few_courses"
+    TOO_FEW_ALLOWED = "too_few_allowed"
+    ALLOWED_NOT_IN_MEMBERS = "allowed_not_in_members"
+
+
 class WarningKind(StrEnum):
     """Kinds of difference between the members of a group."""
 
@@ -66,7 +74,7 @@ class CrossCourseWarning:
 
 def check_group(
     members: Collection[SubjectFacts], allowed_course_ids: Collection[int]
-) -> list[str]:
+) -> list[GroupError]:
     """Return the blocking errors of a group (empty when it is valid).
 
     A group needs at least two different courses among its members, and the courses in which
@@ -78,17 +86,17 @@ def check_group(
         allowed_course_ids: courses in which classes of the subject may be merged.
 
     Returns:
-        A list of error messages in English; the caller translates them for the interface.
+        The error codes, empty when the group is valid; the interface maps them to texts.
     """
     member_courses = {m.course_id for m in members}
     allowed = set(allowed_course_ids)
-    errors: list[str] = []
+    errors: list[GroupError] = []
     if len(member_courses) < 2:
-        errors.append("A cross-course subject needs members from at least two courses.")
+        errors.append(GroupError.TOO_FEW_COURSES)
     if len(allowed) < 2:
-        errors.append("At least two courses must be allowed.")
+        errors.append(GroupError.TOO_FEW_ALLOWED)
     if not allowed <= member_courses:
-        errors.append("Allowed courses must be courses of the group's members.")
+        errors.append(GroupError.ALLOWED_NOT_IN_MEMBERS)
     return errors
 
 

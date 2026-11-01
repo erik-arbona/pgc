@@ -7,19 +7,24 @@ PGC manager. Every form that edits an existing record asks for a reason (D40).
 from decimal import Decimal
 
 from django import forms
+from django.db.models import Q
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.generic import ReasonModelForm, ScopedModelForm
 
+from .messages import GROUP_ERROR_TEXT
 from .models import (
     AcademicYear,
     ClassGroup,
     ClassType,
     Coordination,
     Course,
+    CrossCourseSubject,
     Faculty,
     StudyPlan,
     Subject,
 )
+from .services import evaluate_selection
 
 
 class ClassTypeForm(ReasonModelForm):
@@ -150,3 +155,68 @@ class ClassGroupUpdateForm(ScopedModelForm):
         model = ClassGroup
         fields = ["label", "last_academic_year", "version"]
         widgets = {"version": forms.HiddenInput()}
+
+
+class SubjectChoiceField(forms.ModelMultipleChoiceField):
+    """Multiple choice of subjects labelled with course, code and name."""
+
+    def label_from_instance(self, obj) -> str:
+        """Return e.g. ``Curso (Mestrado) · P1 – Introdução (1.º semestre)``."""
+        return (
+            f"{obj.study_plan.course} · {obj.code} – {obj.name} "
+            f"({obj.curricular_year}.º ano, {obj.semester}.º semestre)"
+        )
+
+
+class CrossCourseGroupForm(ReasonModelForm):
+    """Create or edit a cross-course group with its members and allowed courses (D55).
+
+    The member choices are the subjects of the manager's Faculties that are not in another
+    group; the course choices are the manager's courses. The group is validated with the
+    domain rules (at least two courses, allowed courses among the members' courses).
+    """
+
+    subjects = SubjectChoiceField(
+        queryset=Subject.objects.none(),
+        label=_("Disciplinas do grupo"),
+        help_text=_("As disciplinas equivalentes, em planos e cursos diferentes."),
+    )
+    courses = forms.ModelMultipleChoiceField(
+        queryset=Course.objects.none(),
+        label=_("Cursos em que é transversal"),
+        help_text=_("Só se juntam turmas destes cursos."),
+    )
+
+    class Meta:
+        model = CrossCourseSubject
+        fields = ["name", "notes"]
+
+    def __init__(self, *args, allowed_scope_ids=None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        allowed = allowed_scope_ids or set()
+        in_this_group = Q(pk__in=[])
+        if self.instance.pk:
+            in_this_group = Q(cross_course_memberships__cross_course_subject=self.instance)
+        self.fields["subjects"].queryset = (
+            Subject.objects.filter(study_plan__course__faculty_id__in=allowed)
+            .filter(Q(cross_course_memberships__isnull=True) | in_this_group)
+            .select_related("study_plan__course")
+            .distinct()
+        )
+        self.fields["courses"].queryset = Course.objects.filter(faculty_id__in=allowed)
+        if self.instance.pk:
+            self.fields["subjects"].initial = [m.subject_id for m in self.instance.members.all()]
+            self.fields["courses"].initial = [
+                c.course_id for c in self.instance.allowed_courses.all()
+            ]
+        self.fields["reason"] = self.fields.pop("reason")
+
+    def clean(self):
+        """Apply the domain rules to the proposed members and courses."""
+        cleaned = super().clean()
+        subjects, courses = cleaned.get("subjects"), cleaned.get("courses")
+        if subjects is not None and courses is not None:
+            errors, _warnings = evaluate_selection(subjects, courses)
+            for error in errors:
+                self.add_error(None, GROUP_ERROR_TEXT[error])
+        return cleaned

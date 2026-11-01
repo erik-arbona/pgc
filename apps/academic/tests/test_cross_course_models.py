@@ -139,7 +139,9 @@ def test_only_the_pgc_manager_can_edit_cross_course_subjects(profile):
     RoleAssignment.objects.create(
         user=user, profile=profile, scope_kind=kind, scope_id=None if kind == "none" else 1
     )
-    assert can(user, "cross_course_subject.edit") is (profile == Profile.PGC_MANAGER)
+    assert can(user, "cross_course_subject.edit", ScopeKind.FACULTY, 1) is (
+        profile == Profile.PGC_MANAGER
+    )
 
 
 def test_effective_group_members_drop_old_plan_subjects_year_by_year(world):
