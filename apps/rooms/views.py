@@ -7,16 +7,19 @@ pattern), D63. Only the Património profile reaches these screens (actions ``roo
 
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
+from django.views.generic import TemplateView
 
 from apps.core.generic import (
     ManagedCreateView,
     ManagedDeleteView,
     ManagedListView,
     ManagedUpdateView,
+    ManagedViewMixin,
 )
 
 from .forms import RoomForm, RoomTypeForm
 from .models import Room, RoomType
+from .services import room_summary
 
 
 class RoomTypeMixin:
@@ -117,3 +120,32 @@ class RoomDeleteView(RoomMixin, ManagedDeleteView):
     """Delete a room."""
 
     title = _("Eliminar sala")
+
+
+class RoomSummaryView(ManagedViewMixin, TemplateView):
+    """How many rooms exist of each type and capacity, filtered by type and minimum capacity.
+
+    Read-only, for the coordinator, Consulta and Património (``room.view``, D64). It shows
+    quantities only. A request made by HTMX gets only the results fragment (D50).
+    """
+
+    permission_action = "room.view"
+    title = _("Salas disponíveis")
+
+    def get_template_names(self) -> list[str]:
+        """Return the fragment for HTMX requests and the full page otherwise."""
+        if self.request.headers.get("HX-Request"):
+            return ["rooms/_summary_results.html"]
+        return ["rooms/room_summary.html"]
+
+    def get_context_data(self, **kwargs):
+        """Add the summary rows and the filter choices."""
+        context = super().get_context_data(**kwargs)
+        params = self.request.GET
+        room_type = int(params["room_type"]) if params.get("room_type", "").isdigit() else None
+        capacity = int(params["min_capacity"]) if params.get("min_capacity", "").isdigit() else None
+        context["rows"] = room_summary(room_type, capacity)
+        context["room_types"] = RoomType.objects.all()
+        context["selected_type"] = params.get("room_type", "")
+        context["selected_capacity"] = params.get("min_capacity", "")
+        return context

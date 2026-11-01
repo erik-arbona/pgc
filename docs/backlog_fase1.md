@@ -30,7 +30,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 
 ## 4. Salas (bloco 8)
 - [x] T4.1 Sala (edifício, número, nome opcional, tipo, capacidade) introduzida pelo Património. *(feita em 2 partes: modelos e bloqueio otimista, telas)*
-- [ ] T4.2 Consulta de salas por tipo e capacidade.
+- [x] T4.2 Consulta de salas por tipo e capacidade.
 
 ## 5. SII
 - [ ] T5.1 Interface (contrato) de importação de matrículas, inscritos e docentes, com implementação por ficheiro CSV de teste. *Questão em aberto: que dados, por que meio e quando — não implementar a ligação real até haver resposta.*

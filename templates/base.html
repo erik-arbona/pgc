@@ -33,6 +33,8 @@
       {% if can_categories %}<a href="{% url 'staff:category_list' %}">{% translate "Categorias" %}</a>{% endif %}
       {% has_scope "account.edit" "faculty" as can_accounts %}
       {% if can_accounts %}<a href="{% url 'core:account_list' %}">{% translate "Contas" %}</a>{% endif %}
+      {% can "room.view" as can_view_rooms %}
+      {% if can_view_rooms %}<a href="{% url 'rooms:summary' %}">{% translate "Salas disponíveis" %}</a>{% endif %}
       {% can "room.edit" as can_rooms %}
       {% if can_rooms %}<a href="{% url 'rooms:room_list' %}">{% translate "Salas" %}</a>{% endif %}
       {% can "room_type.edit" as can_room_types %}

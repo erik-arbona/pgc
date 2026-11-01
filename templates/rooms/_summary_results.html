@@ -1,0 +1,15 @@
+{% load i18n %}
+<div id="summary-results">
+  <table>
+    <thead>
+      <tr><th>{% translate "Tipo" %}</th><th>{% translate "Capacidade" %}</th><th>{% translate "Salas" %}</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr><td>{{ row.room_type_name }}</td><td>{{ row.capacity }}</td><td>{{ row.rooms }}</td></tr>
+      {% empty %}
+      <tr><td colspan="3">{% translate "Não há salas com estes critérios." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
