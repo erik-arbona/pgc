@@ -112,6 +112,33 @@ class PermissionRegistry:
             assignments = assignments.filter(scope_kind=scope_kind, scope_id=scope_id)
         return assignments.exists()
 
+    def scope_ids(self, user, code: str, scope_kind: str) -> set[int]:
+        """Return the ids of the scopes of one kind where the user may perform an action.
+
+        Used to filter lists and to limit the choices of a form to what the user manages.
+
+        Args:
+            user: the requesting user (may be anonymous).
+            code: action code.
+            scope_kind: kind of scope, e.g. ``ScopeKind.FACULTY``.
+
+        Returns:
+            The scope ids; empty for anonymous or inactive users and when none applies.
+
+        Raises:
+            LookupError: if the action is not registered (fail closed).
+        """
+        try:
+            action = self._actions[code]
+        except KeyError:
+            raise LookupError(f"Unknown action: {code}") from None
+        if not (user.is_authenticated and user.is_active):
+            return set()
+        ids = user.role_assignments.filter(
+            profile__in=action.profiles, scope_kind=scope_kind
+        ).values_list("scope_id", flat=True)
+        return {i for i in ids if i is not None}
+
     def require(
         self,
         user,
@@ -144,6 +171,9 @@ registry.register("class_group.edit", {Profile.PGC_MANAGER}, write=True)
 # Faculties and academic years are not limited to a Faculty: any PGC manager (D50, to confirm).
 registry.register("faculty.edit", {Profile.PGC_MANAGER}, write=True)
 registry.register("academic_year.edit", {Profile.PGC_MANAGER}, write=True)
+# Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
+registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
+registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 
 
 def can(user, code: str, scope_kind: str | None = None, scope_id: int | None = None) -> bool:

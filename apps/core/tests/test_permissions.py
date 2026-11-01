@@ -211,3 +211,29 @@ def test_view_mixin_denies_without_permission_and_allows_with_it():
     request = factory.get("/")
     request.user = make_user(Profile.FACILITIES, username="p")
     assert _RoomEditView.as_view()(request).status_code == 200
+
+
+@pytest.mark.django_db
+def test_scope_ids_lists_the_scopes_where_the_user_holds_an_allowed_profile():
+    """The Faculties a PGC manager is assigned to, and only those."""
+    reg = PermissionRegistry()
+    reg.register("thing.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
+    user = make_user(Profile.PGC_MANAGER, ScopeKind.FACULTY, 3, username="m")
+    RoleAssignment.objects.create(
+        user=user, profile=Profile.PGC_MANAGER, scope_kind=ScopeKind.FACULTY, scope_id=7
+    )
+    RoleAssignment.objects.create(
+        user=user, profile=Profile.COORDINATOR, scope_kind=ScopeKind.COORDINATION, scope_id=9
+    )
+    assert reg.scope_ids(user, "thing.edit", ScopeKind.FACULTY) == {3, 7}
+    assert reg.scope_ids(user, "thing.edit", ScopeKind.COORDINATION) == set()
+
+
+@pytest.mark.django_db
+def test_scope_ids_is_empty_for_anonymous_and_unknown_actions_fail_closed():
+    """Anonymous users have no scopes; an unregistered action raises."""
+    reg = PermissionRegistry()
+    reg.register("thing.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
+    assert reg.scope_ids(AnonymousUser(), "thing.edit", ScopeKind.FACULTY) == set()
+    with pytest.raises(LookupError):
+        reg.scope_ids(AnonymousUser(), "nope", ScopeKind.FACULTY)

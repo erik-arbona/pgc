@@ -1,9 +1,12 @@
 """Shared building blocks for the data-entry screens (list, create, edit, delete).
 
 Implements: docs/especificacao/07_arquitetura.md – permissions checked on the server and
-audit of every change; D40 (reason), D50 (UI pattern).
+audit of every change; D40 (reason), D50 (UI pattern), D51 (scoped screens).
 Every write goes through ``audited_save`` / ``audited_delete``; updates and deletions need a
 reason. Screens work with plain forms (POST, redirect, GET) and need no JavaScript.
+
+Two families of views: ``Managed*`` for unscoped actions and ``Scoped*`` for actions bound to
+a scope (for example a Faculty), which only show and accept what the user manages.
 """
 
 from __future__ import annotations
@@ -11,7 +14,7 @@ from __future__ import annotations
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import redirect
@@ -20,6 +23,8 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from .audit import audited_delete, audited_save
 from .mixins import PermissionRequiredMixin
+from .permissions import registry
+from .roles import ScopeKind
 
 PAGE_SIZE = 25
 REASON_LABEL = _("Motivo")
@@ -40,6 +45,21 @@ class ReasonModelForm(forms.ModelForm):
         self.fields["reason"].required = self.instance.pk is not None
 
 
+class ScopedModelForm(ReasonModelForm):
+    """Reason form whose ``scope_field`` choices are limited to the user's scopes (D51).
+
+    Set ``scope_field`` (default ``"faculty"``). The view passes ``allowed_scope_ids``.
+    """
+
+    scope_field = "faculty"
+
+    def __init__(self, *args, allowed_scope_ids=None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if allowed_scope_ids is not None:
+            field = self.fields[self.scope_field]
+            field.queryset = field.queryset.filter(pk__in=allowed_scope_ids)
+
+
 class DeleteReasonForm(forms.Form):
     """Confirmation form of a deletion: the reason is always required."""
 
@@ -48,23 +68,17 @@ class DeleteReasonForm(forms.Form):
     )
 
 
-class ManagedViewMixin(LoginRequiredMixin, PermissionRequiredMixin):
-    """Require a session (redirect to login) and then the view's ``permission_action``."""
+class PageMixin:
+    """Add the page title and the cancel link to the template context."""
 
     title: str = ""
 
     def get_context_data(self, **kwargs):
-        """Add the page title to the context."""
+        """Add ``title`` and ``cancel_url`` to the context."""
         context = super().get_context_data(**kwargs)
         context["title"] = self.title
         context["cancel_url"] = getattr(self, "success_url", None) or "/"
         return context
-
-
-class ManagedListView(ManagedViewMixin, ListView):
-    """Paginated list (25 per page) restricted to who holds the permission."""
-
-    paginate_by = PAGE_SIZE
 
 
 def _add_validation_errors(form: forms.Form, error: ValidationError) -> None:
@@ -76,7 +90,7 @@ def _add_validation_errors(form: forms.Form, error: ValidationError) -> None:
         form.add_error(None, error.messages)
 
 
-class AuditedFormMixin(ManagedViewMixin):
+class AuditedSaveMixin:
     """Save through ``audited_save`` and report model-level errors on the form."""
 
     template_name = "core/form.html"
@@ -97,15 +111,7 @@ class AuditedFormMixin(ManagedViewMixin):
         return redirect(self.get_success_url())
 
 
-class ManagedCreateView(AuditedFormMixin, CreateView):
-    """Create a record; the reason is optional (D40)."""
-
-
-class ManagedUpdateView(AuditedFormMixin, UpdateView):
-    """Edit a record; the form requires a reason."""
-
-
-class ManagedDeleteView(ManagedViewMixin, DeleteView):
+class AuditedDeleteMixin:
     """Ask for a reason, then delete through ``audited_delete``.
 
     A record that other records still use (``PROTECT``) is kept; the user gets a message
@@ -124,3 +130,112 @@ class ManagedDeleteView(ManagedViewMixin, DeleteView):
             return redirect(self.get_success_url())
         messages.success(self.request, _("Eliminado."))
         return redirect(self.get_success_url())
+
+
+# --- Unscoped screens -------------------------------------------------------------------
+
+
+class ManagedViewMixin(PageMixin, LoginRequiredMixin, PermissionRequiredMixin):
+    """Require a session (redirect to login) and then the view's ``permission_action``."""
+
+
+class ManagedListView(ManagedViewMixin, ListView):
+    """Paginated list (25 per page) restricted to who holds the permission."""
+
+    paginate_by = PAGE_SIZE
+
+
+class ManagedCreateView(ManagedViewMixin, AuditedSaveMixin, CreateView):
+    """Create a record; the reason is optional (D40)."""
+
+
+class ManagedUpdateView(ManagedViewMixin, AuditedSaveMixin, UpdateView):
+    """Edit a record; the form requires a reason."""
+
+
+class ManagedDeleteView(ManagedViewMixin, AuditedDeleteMixin, DeleteView):
+    """Delete a record after asking for a reason."""
+
+
+# --- Scoped screens (D51) ---------------------------------------------------------------
+
+
+class ScopedViewMixin(PageMixin, LoginRequiredMixin):
+    """Limit a screen to the scopes (for example Faculties) the user manages.
+
+    Set ``permission_action`` (a scoped action), ``scope_kind``, ``scope_field`` (attribute
+    of the model that holds the scope id, for example ``"faculty_id"``) and
+    ``scope_lookup`` (queryset filter, for example ``"faculty__in"``). A user with no scope
+    for the action gets 403; anonymous users are sent to the login page.
+    """
+
+    permission_action: str = ""
+    scope_kind: str = ScopeKind.FACULTY
+    scope_field: str = "faculty_id"
+    scope_lookup: str = "faculty__in"
+
+    def allowed_scope_ids(self) -> set[int]:
+        """Return the scope ids the current user may act on."""
+        return registry.scope_ids(self.request.user, self.permission_action, self.scope_kind)
+
+    def require_scope_of(self, obj) -> None:
+        """Raise ``PermissionDenied`` unless the user may act on the object's scope."""
+        registry.require(
+            self.request.user,
+            self.permission_action,
+            self.scope_kind,
+            getattr(obj, self.scope_field),
+        )
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users without any scope for the action before running a handler."""
+        if request.user.is_authenticated and not self.allowed_scope_ids():
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+
+class ScopedObjectMixin(ScopedViewMixin):
+    """For views on one object: check the object's scope when it is loaded."""
+
+    def get_object(self, queryset=None):
+        """Return the object after checking that the user manages its scope."""
+        obj = super().get_object(queryset)
+        self.require_scope_of(obj)
+        return obj
+
+
+class ScopedFormMixin(ScopedObjectMixin, AuditedSaveMixin):
+    """Forms limited to the user's scopes; the new scope is checked again on save."""
+
+    def get_form_kwargs(self):
+        """Pass the allowed scope ids to the form."""
+        kwargs = super().get_form_kwargs()
+        kwargs["allowed_scope_ids"] = self.allowed_scope_ids()
+        return kwargs
+
+    def form_valid(self, form) -> HttpResponse:
+        """Re-check the scope of the saved values, then save."""
+        self.require_scope_of(form.instance)
+        return super().form_valid(form)
+
+
+class ScopedListView(ScopedViewMixin, ListView):
+    """Paginated list showing only what the user manages."""
+
+    paginate_by = PAGE_SIZE
+
+    def get_queryset(self):
+        """Filter the list to the user's scopes."""
+        return super().get_queryset().filter(**{self.scope_lookup: self.allowed_scope_ids()})
+
+
+class ScopedCreateView(ScopedFormMixin, CreateView):
+    """Create a record in one of the user's scopes."""
+
+
+class ScopedUpdateView(ScopedFormMixin, UpdateView):
+    """Edit a record the user manages; the form requires a reason."""
+
+
+class ScopedDeleteView(ScopedObjectMixin, AuditedDeleteMixin, DeleteView):
+    """Delete a record the user manages, after asking for a reason."""
