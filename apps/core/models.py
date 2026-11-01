@@ -22,6 +22,9 @@ class User(AbstractUser):
     very costly. Profiles and scopes live in ``RoleAssignment``.
     """
 
+    # Never copied into the append-only audit log (D62).
+    AUDIT_EXCLUDE = frozenset({"password", "last_login"})
+
 
 class AuditQuerySet(models.QuerySet):
     """Queryset that refuses bulk updates and deletes: the audit log is append-only."""

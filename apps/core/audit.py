@@ -23,9 +23,16 @@ def snapshot(instance: models.Model) -> dict[str, Any]:
         instance: any saved or unsaved model instance.
 
     Returns:
-        A dict of field name to value (JSON-encodable by ``DjangoJSONEncoder``).
+        A dict of field name to value (JSON-encodable by ``DjangoJSONEncoder``). Fields named in
+        the model's ``AUDIT_EXCLUDE`` are left out: secrets such as a password hash must never
+        enter the append-only log (D62).
     """
-    return {f.name: f.value_from_object(instance) for f in instance._meta.concrete_fields}
+    excluded = getattr(type(instance), "AUDIT_EXCLUDE", frozenset())
+    return {
+        f.name: f.value_from_object(instance)
+        for f in instance._meta.concrete_fields
+        if f.name not in excluded
+    }
 
 
 def _entity_label(instance: models.Model) -> str:

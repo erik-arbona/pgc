@@ -21,7 +21,10 @@ def make_user(db):
         user = get_user_model().objects.create_user(username=username, password="x")
         kind = SCOPE_FOR.get(profile, ScopeKind.NONE)
         RoleAssignment.objects.create(
-            user=user, profile=profile, scope_kind=kind, scope_id=None if kind == "none" else 1
+            user=user,
+            profile=profile,
+            scope_kind=kind,
+            scope_id=None if kind == "none" else 999_999,
         )
         return user
 
