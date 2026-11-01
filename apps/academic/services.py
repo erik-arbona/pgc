@@ -5,13 +5,26 @@ Implements: D47 – keeps ``cross_course`` free of Django.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.audit import audited_delete, audited_save
+
 from .cross_course import SubjectFacts, effective_members
-from .models import AcademicYear, ClassGroup, Course, CrossCourseSubject, StudyPlan, Subject
+from .models import (
+    AcademicYear,
+    ClassGroup,
+    ClassType,
+    Course,
+    CrossCourseSubject,
+    StudyPlan,
+    Subject,
+    SubjectClassLoad,
+)
 from .plans import PlanFacts, plan_in_force
 
 
@@ -96,3 +109,48 @@ def create_class_group(
         study_plan_id=plan_id,
         last_academic_year=last_year,
     )
+
+
+def save_subject_with_loads(
+    subject: Subject,
+    loads: Mapping[int, Decimal | None],
+    actor,
+    reason: str,
+    *,
+    save_subject: bool,
+) -> None:
+    """Save a subject and its weekly hours per class type in one audited transaction (D53).
+
+    Each row written (the subject, and every weekly load created, changed or removed) gets
+    its own audit entry sharing the same reason. A blank or zero value removes the row of
+    that class type. Rows that do not change write nothing.
+
+    Args:
+        subject: the subject, new or existing.
+        loads: weekly hours keyed by class type id; ``None`` or zero means no hours.
+        actor: the user making the change.
+        reason: why; required when the subject already exists (D40).
+        save_subject: whether the subject's own fields changed and must be saved.
+
+    Raises:
+        ValidationError: if a row is refused (for example a missing reason on an update, or
+            a new load of an inactive class type). Nothing is saved in that case.
+    """
+    with transaction.atomic():
+        if save_subject:
+            audited_save(subject, actor, reason)
+        existing = {
+            load.class_type_id: load for load in subject.class_loads.select_related("class_type")
+        }
+        for class_type_id, hours in loads.items():
+            row = existing.get(class_type_id)
+            if hours is None or hours == 0:
+                if row is not None:
+                    audited_delete(row, actor, reason)
+            elif row is None:
+                class_type = ClassType.objects.get(pk=class_type_id)
+                load = SubjectClassLoad(subject=subject, class_type=class_type, weekly_hours=hours)
+                audited_save(load, actor, reason)
+            elif row.weekly_hours != hours:
+                row.weekly_hours = hours
+                audited_save(row, actor, reason)

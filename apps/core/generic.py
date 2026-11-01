@@ -91,7 +91,7 @@ class PageMixin:
         return context
 
 
-def _add_validation_errors(form: forms.Form, error: ValidationError) -> None:
+def add_validation_errors(form: forms.Form, error: ValidationError) -> None:
     """Show a ``ValidationError`` raised while saving on the form it came from."""
     if hasattr(error, "error_dict"):
         for field, messages_ in error.message_dict.items():
@@ -106,14 +106,22 @@ class AuditedSaveMixin:
     template_name = "core/form.html"
     success_message = _("Guardado.")
 
+    def save_form(self, form):
+        """Save the form's record through ``audited_save`` and return it.
+
+        Override to save more than one record in the same transaction (see the subject
+        form with its weekly hours). May raise ``ValidationError``.
+        """
+        instance = form.save(commit=False)
+        audited_save(instance, self.request.user, form.cleaned_data.get("reason", ""))
+        return instance
+
     def form_valid(self, form) -> HttpResponse:
         """Save the record with the audit entry, or show the validation error."""
-        instance = form.save(commit=False)
-        reason = form.cleaned_data.get("reason", "")
         try:
-            audited_save(instance, self.request.user, reason)
+            instance = self.save_form(form)
         except ValidationError as error:
-            _add_validation_errors(form, error)
+            add_validation_errors(form, error)
             return self.form_invalid(form)
         form.save_m2m()
         self.object = instance
