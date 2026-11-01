@@ -26,4 +26,16 @@ urlpatterns = [
         views.TeacherDeleteView.as_view(),
         name="teacher_delete",
     ),
+    path("load-ranges/", views.LoadRangeListView.as_view(), name="loadrange_list"),
+    path("load-ranges/new/", views.LoadRangeCreateView.as_view(), name="loadrange_create"),
+    path(
+        "load-ranges/<int:pk>/edit/",
+        views.LoadRangeUpdateView.as_view(),
+        name="loadrange_update",
+    ),
+    path(
+        "load-ranges/<int:pk>/delete/",
+        views.LoadRangeDeleteView.as_view(),
+        name="loadrange_delete",
+    ),
 ]

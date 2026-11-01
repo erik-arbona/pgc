@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{% translate "Horas letivas semanais somadas dos dois semestres. Uma regra em vigor corrige-se acrescentando outra com data posterior." %}</p>
+  <p><a href="{% url 'staff:loadrange_create' %}">{% translate "Novo intervalo de horas" %}</a></p>
+  {# Works without JavaScript (submit button); with HTMX the results refresh in place. #}
+  <form method="get" hx-get="{% url 'staff:loadrange_list' %}" hx-target="#loadrange-results"
+        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+    <label>{% translate "Tipo de regra" %}
+      <select name="kind">
+        <option value="">{% translate "Todos" %}</option>
+        {% for value, label in kinds %}
+        <option value="{{ value }}"{% if selected_kind == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">{% translate "Filtrar" %}</button>
+  </form>
+  {% include "staff/_loadrange_results.html" %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/htmx.min.js' %}"></script>{% endblock %}
