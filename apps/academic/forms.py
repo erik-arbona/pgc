@@ -126,7 +126,7 @@ class SubjectForm(ScopedModelForm):
             )
             self.class_type_ids.append(class_type.pk)
         # Keep the reason as the last field.
-        self.fields["reason"] = self.fields.pop("reason")
+        self.move_reason_last()
 
     def class_loads(self) -> dict[int, Decimal | None]:
         """Return the weekly hours entered, keyed by class type id (``None`` if blank)."""
@@ -209,7 +209,7 @@ class CrossCourseGroupForm(ReasonModelForm):
             self.fields["courses"].initial = [
                 c.course_id for c in self.instance.allowed_courses.all()
             ]
-        self.fields["reason"] = self.fields.pop("reason")
+        self.move_reason_last()
 
     def clean(self):
         """Apply the domain rules to the proposed members and courses."""
