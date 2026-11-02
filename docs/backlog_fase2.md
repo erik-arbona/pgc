@@ -34,7 +34,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 
 ## 4. Regras de cálculo (módulo de domínio puro, bloco 6)
 - [x] T4.1 Horas letivas por semestre: junção conta uma vez, grupos N vezes, quota (`05`). Testes exaustivos.
-- [ ] T4.2 Preparação por docente com os pesos (D14, D61). ⚑ Q10
+- [x] T4.2 Preparação por docente com os pesos (D14, D61). ⚑ Q10
 - [ ] T4.3 Total anual = soma dos semestres; intervalo por `resolve_load_range` com data de referência (D12, D58). ⚑ Q11
 - [ ] T4.4 Quatro estados mais «sem intervalo»; mínimo opcional (D46, D58); horas extra = total − máximo (D13).
 - [ ] T4.5 Alertas: unidade sem docente, quotas ≠ 100%, sem sala pedida, fora do intervalo (`05`).
@@ -92,7 +92,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - **Q7** (T3.2): um grupo pode misturar alunos de turmas juntas? *Defeito:* não, os grupos são por turma.
 - **Q8** (T3.4): numa junção entre cursos com horas diferentes ou coordenações diferentes, que horas contam e quem atribui? *Defeito:* bloquear junção entre coordenações.
 - **Q9** (T3.5): a sala pede-se por turma/grupo ou por unidade letiva? *Defeito:* por unidade letiva.
-- **Q10** (T4.2): a preparação conta por repetição (N grupos) e pesa-se pela quota? *Defeito:* aplicar às horas letivas do docente e acertar na Porta 1.
+- ~~**Q10** (T4.2): a preparação conta por repetição (N grupos) e pesa-se pela quota?~~ Resolvida: acompanha cada hora letiva, repetida por grupo e pela quota (D71); confirmar na Porta 1.
 - **Q11** (T4.3): que data resolve o intervalo com o DSD aberto, e que estado anual há com só um semestre fechado? *Defeito:* hoje enquanto aberto.
 - **Q12** (T5.2): as quotas somam exatamente 100% ao guardar ou é só aviso? *Defeito:* aviso (como em `05`).
 - **Q13** (T5.4): horas extra aceites por docente e ano ou por atribuição? *Defeito:* por docente e ano, com nº de horas.

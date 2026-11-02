@@ -4,5 +4,6 @@
 
 **Rules (pure Python, no Django):**
 - `teaching_hours.semester_teaching_hours` – weekly and semester teaching hours of each teacher: weekly hours of the class type x the teacher's share / 100, summed. A merged class is one teaching unit and counts once; each group is one unit, so N groups count N times. Exact `Decimal` arithmetic, no rounding. Returns the lines that explain each number and the share total of each unit for the alerts. See D70.
+- `preparation.teacher_preparation_hours` / `preparation_by_teacher` – weekly preparation hours of each teacher: the weights per class type (`academic.preparation`) applied to the teacher's weekly hours, so preparation follows each lesson hour (repeated per group, per share). See D71.
 
-**Dependencies:** none yet (the Django adapter will use `academic`, `staff` and `core.parameters`).
+**Dependencies:** `academic.preparation` (a pure function); nothing else yet (the Django adapter will use `academic`, `staff` and `core.parameters`).
