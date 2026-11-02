@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <form method="get">
+    <label>{% translate "Ano letivo" %}
+      <select name="academic_year">
+        {% for item in years %}
+        <option value="{{ item.pk }}"{% if selected_year and selected_year.pk == item.pk %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Curso" %}
+      <select name="course">
+        <option value="">{% translate "Todos" %}</option>
+        {% for item in courses %}
+        <option value="{{ item.pk }}"{% if selected_course and selected_course.pk == item.pk %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">{% translate "Ver" %}</button>
+  </form>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Curso" %}</th><th>{% translate "Turma" %}</th><th>{% translate "Ano curricular" %}</th>
+        <th>{% translate "Estimada" %}</th><th>{% translate "Real" %}</th><th>{% translate "Conta" %}</th>
+        <th>{% translate "Diferença" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.group.course }}</td><td>{{ row.group }}</td><td>{{ row.curricular_year }}</td>
+        <td>{{ row.estimated|default_if_none:"—" }}</td><td>{{ row.actual|default_if_none:"—" }}</td>
+        <td>
+          {% if row.effective %}{{ row.effective.students }}{% if row.effective.provisional %} ({% translate "provisório" %}){% endif %}
+          {% else %}{% translate "sem matrícula" %}{% endif %}
+        </td>
+        <td>{% if row.change is not None %}{{ row.change }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7">{% translate "Nenhuma turma neste ano letivo." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

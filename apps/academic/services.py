@@ -6,6 +6,7 @@ Implements: D47 – keeps ``cross_course`` free of Django.
 from __future__ import annotations
 
 from collections.abc import Collection, Iterable, Mapping
+from dataclasses import dataclass
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -24,7 +25,7 @@ from .cross_course import (
     compare_members,
     effective_members,
 )
-from .enrollment import EffectiveStudents, effective_students
+from .enrollment import EffectiveStudents, effective_students, size_change
 from .messages import GROUP_ERROR_TEXT
 from .models import (
     AcademicYear,
@@ -403,6 +404,71 @@ def class_group_size(group: ClassGroup, academic_year: AcademicYear) -> Effectiv
     return effective_students(
         numbers.get(Enrollment.Kind.ESTIMATED), numbers.get(Enrollment.Kind.ACTUAL)
     )
+
+
+@dataclass(frozen=True)
+class ClassGroupSizeRow:
+    """The size of one turma in an academic year, as the coordinator reads it (D84).
+
+    Attributes:
+        group: the turma.
+        curricular_year: its curricular year in that academic year.
+        estimated: the estimated number, or ``None``.
+        actual: the real number, or ``None``.
+        effective: the number that counts (the real one if it exists, else the estimate marked
+            as provisional), or ``None`` when no number was entered.
+        change: real minus estimated when both exist, otherwise ``None`` (D76).
+    """
+
+    group: ClassGroup
+    curricular_year: int
+    estimated: int | None
+    actual: int | None
+    effective: EffectiveStudents | None
+    change: int | None
+
+
+def class_group_size_rows(
+    academic_year: AcademicYear, course: Course | None = None
+) -> list[ClassGroupSizeRow]:
+    """Return the size of every turma that exists in an academic year (D49, D79).
+
+    Args:
+        academic_year: the academic year.
+        course: limit the rows to the turmas of this course, or ``None`` for all.
+
+    Returns:
+        One row per turma that has a curricular year in that year, with or without numbers, in
+        the natural order of the turmas (course, intake, track, label).
+    """
+    groups = ClassGroup.objects.select_related(
+        "course", "intake_year", "last_academic_year", "study_plan", "track"
+    )
+    if course is not None:
+        groups = groups.filter(course=course)
+    rows = Enrollment.objects.filter(academic_year=academic_year).values_list(
+        "class_group_id", "kind", "students"
+    )
+    numbers = _numbers(rows)
+    result = []
+    for group in groups:
+        curricular_year = group.curricular_year_in(academic_year.start_year)
+        if curricular_year is None:
+            continue
+        mine = numbers.get(group.pk, {})
+        estimated = mine.get(Enrollment.Kind.ESTIMATED)
+        actual = mine.get(Enrollment.Kind.ACTUAL)
+        result.append(
+            ClassGroupSizeRow(
+                group=group,
+                curricular_year=curricular_year,
+                estimated=estimated,
+                actual=actual,
+                effective=effective_students(estimated, actual),
+                change=size_change(estimated, actual),
+            )
+        )
+    return result
 
 
 def class_group_sizes(academic_year: AcademicYear) -> dict[int, EffectiveStudents]:

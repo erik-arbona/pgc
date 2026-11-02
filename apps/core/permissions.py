@@ -337,6 +337,9 @@ registry.register(
 # Room types are configured by Património too; rooms are University-wide, so no scope (D63).
 registry.register("room_type.edit", {Profile.FACILITIES}, write=True)
 registry.register("enrollment.edit", {Profile.ACADEMIC_SERVICES}, write=True)  # enrollments
+# The coordinator reads the size of every turma, of any course and Faculty, and never writes
+# (D84).
+registry.register("enrollment.view", {Profile.COORDINATOR}, write=False)
 # The PGC manager configures the class types (D45).
 registry.register("class_type.edit", {Profile.PGC_MANAGER}, write=True)
 # The PGC manager declares cross-course subjects; a group needs scope over every member's
