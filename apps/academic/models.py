@@ -117,6 +117,19 @@ class Course(models.Model):
         choices=Level.choices,
         help_text=_("Bachelor, master or doctorate."),
     )
+    responsible_coordination = models.ForeignKey(
+        "Coordination",
+        null=True,
+        blank=True,
+        # A coordination that directs a course cannot be removed (D67).
+        on_delete=models.PROTECT,
+        related_name="directed_courses",
+        verbose_name=_("coordenação responsável"),
+        help_text=_(
+            "Coordination that directs the course; its coordinator is the course director "
+            "(D10). It must belong to the same Faculty as the course."
+        ),
+    )
 
     class Meta:
         verbose_name = _("curso")
@@ -131,6 +144,25 @@ class Course(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.get_level_display()})"
+
+    def clean(self) -> None:
+        """Require the responsible coordination to belong to the course's Faculty.
+
+        This cannot be a database constraint (it compares two tables), so the check lives
+        here and runs through every ModelForm. See D67.
+
+        Raises:
+            ValidationError: if the coordination belongs to another Faculty.
+        """
+        coordination = self.responsible_coordination
+        if coordination is not None and coordination.faculty_id != self.faculty_id:
+            raise ValidationError(
+                {
+                    "responsible_coordination": _(
+                        "A coordenação responsável tem de ser da mesma Faculdade do curso."
+                    )
+                }
+            )
 
 
 class AcademicYear(models.Model):

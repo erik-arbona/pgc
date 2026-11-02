@@ -58,6 +58,9 @@ COURSES = [
     ("M", "Curso M", Course.Level.MASTER, "FT1", "C4"),
 ]
 
+# Coordination that directs each course; always one of the course's own Faculty (D67).
+COURSE_DIRECTORS = {"A": "C1", "B": "C2", "C": "C3", "M": "C2"}
+
 # (identifier, name, type, category, coordination, positions)
 TEACHERS = [
     ("DT001", "Docente A", Teacher.Type.FULL_TIME, "Doutor", "C1", []),
@@ -142,7 +145,9 @@ class DemoLoader:
         courses, plans = {}, {}
         for code, name, level, faculty, _second in COURSES:
             courses[code] = self._ensure(
-                Course, {"faculty": faculties[faculty], "name": name, "level": level}
+                Course,
+                {"faculty": faculties[faculty], "name": name, "level": level},
+                {"responsible_coordination": coordinations[COURSE_DIRECTORS[code]]},
             )
             plans[code] = self._ensure(StudyPlan, {"course": courses[code], "academic_year": year})
         subjects = self._load_subjects(plans, coordinations)
