@@ -4,7 +4,7 @@ Implements: docs/especificacao/03_requisitos_funcionais.md – block 1; D45 (cla
 D50 (UI pattern). Permissions are checked on the server with the registered actions.
 """
 
-from django.db.models import Sum
+from django.db.models import Count, Sum
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
@@ -35,6 +35,7 @@ from .forms import (
     FacultyForm,
     StudyPlanForm,
     SubjectForm,
+    TrackForm,
 )
 from .messages import GROUP_ERROR_TEXT, WARNING_TEXT
 from .models import (
@@ -47,6 +48,7 @@ from .models import (
     Faculty,
     StudyPlan,
     Subject,
+    Track,
 )
 from .services import (
     create_class_group,
@@ -282,6 +284,61 @@ class StudyPlanDeleteView(StudyPlanMixin, ScopedDeleteView):
     title = _("Eliminar plano de estudos")
 
 
+class TrackMixin:
+    """Settings shared by the track screens (limited to the manager's Faculties, D51)."""
+
+    model = Track
+    permission_action = "study_plan.edit"
+    scope_field = "study_plan.course.faculty_id"
+    scope_lookup = "study_plan__course__faculty__in"
+    success_url = reverse_lazy("academic:track_list")
+
+
+class TrackListView(TrackMixin, ScopedListView):
+    """List the tracks of the manager's plans, with how many subjects and turmas use each."""
+
+    template_name = "academic/track_list.html"
+    title = _("Percursos")
+
+    def get_queryset(self):
+        """Load the plan and count the subjects and turmas of each track."""
+        return (
+            super()
+            .get_queryset()
+            .select_related("study_plan__course", "study_plan__academic_year")
+            .annotate(
+                subject_count=Count("subjects", distinct=True),
+                group_count=Count("class_groups", distinct=True),
+            )
+            .order_by(
+                "study_plan__course__name",
+                "study_plan__academic_year__start_year",
+                "first_curricular_year",
+                "code",
+            )
+        )
+
+
+class TrackCreateView(TrackMixin, ScopedCreateView):
+    """Add a track to one of the manager's plans."""
+
+    form_class = TrackForm
+    title = _("Novo percurso")
+
+
+class TrackUpdateView(TrackMixin, ScopedUpdateView):
+    """Edit a track (needs a reason)."""
+
+    form_class = TrackForm
+    title = _("Editar percurso")
+
+
+class TrackDeleteView(TrackMixin, ScopedDeleteView):
+    """Delete a track that no subject or turma uses."""
+
+    title = _("Eliminar percurso")
+
+
 class SubjectMixin:
     """Settings shared by the subject screens (limited to the manager's Faculties, D51)."""
 
@@ -403,7 +460,11 @@ class ClassGroupListView(ClassGroupMixin, ScopedListView):
             super()
             .get_queryset()
             .select_related(
-                "course", "intake_year", "study_plan__academic_year", "last_academic_year"
+                "course",
+                "intake_year",
+                "study_plan__academic_year",
+                "last_academic_year",
+                "track",
             )
         )
 

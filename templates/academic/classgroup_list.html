@@ -7,14 +7,14 @@
   <table>
     <thead>
       <tr>
-        <th>{% translate "Curso" %}</th><th>{% translate "Entrada" %}</th><th>{% translate "Turma" %}</th>
+        <th>{% translate "Curso" %}</th><th>{% translate "Entrada" %}</th><th>{% translate "Percurso" %}</th><th>{% translate "Turma" %}</th>
         <th>{% translate "Plano desde" %}</th><th>{% translate "Último ano letivo" %}</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for item in object_list %}
       <tr>
-        <td>{{ item.course }}</td><td>{{ item.intake_year }}</td><td>{{ item.label|default:"—" }}</td>
+        <td>{{ item.course }}</td><td>{{ item.intake_year }}</td><td>{{ item.track|default:"—" }}</td><td>{{ item.label|default:"—" }}</td>
         <td>{{ item.study_plan.academic_year }}</td><td>{{ item.last_academic_year|default:"—" }}</td>
         <td>
           <a href="{% url 'academic:classgroup_update' item.pk %}">{% translate "Editar" %}</a>

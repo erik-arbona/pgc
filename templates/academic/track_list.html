@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p><a href="{% url 'academic:track_create' %}">{% translate "Novo percurso" %}</a></p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Curso" %}</th><th>{% translate "Plano desde" %}</th><th>{% translate "Código" %}</th>
+        <th>{% translate "Nome" %}</th><th>{% translate "A partir do ano" %}</th>
+        <th>{% translate "Disciplinas" %}</th><th>{% translate "Turmas" %}</th><th>{% translate "Ref. SII" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.study_plan.course }}</td><td>{{ item.study_plan.academic_year }}</td>
+        <td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.first_curricular_year }}</td>
+        <td>{{ item.subject_count }}</td><td>{{ item.group_count }}</td><td>{{ item.sii_ref|default:"—" }}</td>
+        <td>
+          <a href="{% url 'academic:track_update' item.pk %}">{% translate "Editar" %}</a>
+          <a href="{% url 'academic:track_delete' item.pk %}">{% translate "Eliminar" %}</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+{% endblock %}
