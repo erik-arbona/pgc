@@ -275,6 +275,39 @@ class ScopedViewMixin(PageMixin, LoginRequiredMixin):
         return super().dispatch(request, *args, **kwargs)
 
 
+class CoordinationScopeMixin:
+    """Scope a ``Scoped*`` view by the coordination each object belongs to (D69).
+
+    List it before the ``Scoped*`` base: ``class X(CoordinationScopeMixin, ScopedUpdateView)``.
+    It replaces the exact-scope check of ``ScopedViewMixin`` with the coordination rule of
+    ``PermissionRegistry.can_on_coordination``: the coordinator needs their own coordination,
+    the Executive Board and the PGC manager the Faculty of the coordination. The 403 for users
+    with no coordination, the origin check on load, the destination check on save, the list
+    filter and the form choices then work unchanged.
+
+    Set ``permission_action`` (a scoped action), ``scope_field`` (attribute holding the
+    coordination id; dotted path allowed, e.g. ``"subject.coordination_id"``) and
+    ``scope_lookup`` (queryset filter, e.g. ``"subject__coordination__in"``). The defaults are
+    for a model with a ``coordination`` field. ``permission_registry`` exists so tests can use
+    an isolated registry.
+    """
+
+    permission_registry = registry
+    scope_kind = ScopeKind.COORDINATION
+    scope_field = "coordination_id"
+    scope_lookup = "coordination__in"
+
+    def allowed_scope_ids(self) -> set[int]:
+        """Return the ids of the coordinations the current user may act on."""
+        return self.permission_registry.coordination_ids(self.request.user, self.permission_action)
+
+    def require_scope_of(self, obj) -> None:
+        """Raise ``PermissionDenied`` unless the user covers the object's coordination."""
+        self.permission_registry.require_on_coordination(
+            self.request.user, self.permission_action, attrgetter(self.scope_field)(obj)
+        )
+
+
 class ScopedObjectMixin(ScopedViewMixin):
     """For views on one object: check the object's scope when it is loaded."""
 
