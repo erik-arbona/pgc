@@ -57,15 +57,15 @@ def enrol(group, year, kind=Enrollment.Kind.ACTUAL, students=30, **extra):
     )
 
 
-def test_a_turma_has_a_forecast_and_a_real_number_in_the_same_year(group, years):
+def test_a_turma_has_an_estimated_and_a_real_number_in_the_same_year(group, years):
     """Both kinds can coexist for one turma and year (D76)."""
-    enrol(group, years[2023], Enrollment.Kind.FORECAST, 30)
+    enrol(group, years[2023], Enrollment.Kind.ESTIMATED, 30)
     enrol(group, years[2023], Enrollment.Kind.ACTUAL, 28)
     assert Enrollment.objects.count() == 2
 
 
 def test_a_second_number_of_the_same_kind_in_a_year_is_refused(group, years):
-    """One forecast and one real number per turma and year, enforced by the database."""
+    """One estimate and one real number per turma and year, enforced by the database."""
     enrol(group, years[2023])
     with pytest.raises(IntegrityError), transaction.atomic():
         enrol(group, years[2023], students=31)
@@ -166,10 +166,10 @@ def test_changes_are_audited_with_the_old_and_new_numbers(group, years):
 # --- the services ------------------------------------------------------------------------------
 
 
-def test_the_size_of_a_turma_is_the_forecast_until_the_real_number_arrives(group, years):
-    """Only a forecast: provisional. With the real number: the real one (D76)."""
+def test_the_size_of_a_turma_is_the_estimate_until_the_real_number_arrives(group, years):
+    """Only an estimate: provisional. With the real number: the real one (D76)."""
     assert class_group_size(group, years[2023]) is None
-    enrol(group, years[2023], Enrollment.Kind.FORECAST, 30)
+    enrol(group, years[2023], Enrollment.Kind.ESTIMATED, 30)
     size = class_group_size(group, years[2023])
     assert (size.students, size.provisional) == (30, True)
     enrol(group, years[2023], Enrollment.Kind.ACTUAL, 27)
@@ -185,9 +185,9 @@ def test_the_sizes_of_a_year_are_given_for_every_turma_with_a_number(course, pla
     third = ClassGroup.objects.create(
         course=course, intake_year=years[2023], study_plan=plan, label="C"
     )
-    enrol(group, years[2024], Enrollment.Kind.FORECAST, 30)
+    enrol(group, years[2024], Enrollment.Kind.ESTIMATED, 30)
     enrol(other, years[2024], Enrollment.Kind.ACTUAL, 25)
-    enrol(other, years[2024], Enrollment.Kind.FORECAST, 28)
+    enrol(other, years[2024], Enrollment.Kind.ESTIMATED, 28)
     sizes = class_group_sizes(years[2024])
     assert set(sizes) == {group.pk, other.pk} and third.pk not in sizes
     assert (sizes[group.pk].students, sizes[group.pk].provisional) == (30, True)

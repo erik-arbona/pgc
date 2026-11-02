@@ -393,7 +393,7 @@ def class_group_size(group: ClassGroup, academic_year: AcademicYear) -> Effectiv
         academic_year: the academic year.
 
     Returns:
-        The real number if it has arrived, otherwise the forecast marked as provisional;
+        The real number if it has arrived, otherwise the estimate marked as provisional;
         ``None`` if no number was entered.
     """
     rows = Enrollment.objects.filter(class_group=group, academic_year=academic_year).values_list(
@@ -401,7 +401,7 @@ def class_group_size(group: ClassGroup, academic_year: AcademicYear) -> Effectiv
     )
     numbers = _numbers(rows).get(group.pk, {})
     return effective_students(
-        numbers.get(Enrollment.Kind.FORECAST), numbers.get(Enrollment.Kind.ACTUAL)
+        numbers.get(Enrollment.Kind.ESTIMATED), numbers.get(Enrollment.Kind.ACTUAL)
     )
 
 
@@ -419,7 +419,7 @@ def class_group_sizes(academic_year: AcademicYear) -> dict[int, EffectiveStudent
     )
     return {
         turma_id: effective_students(
-            numbers.get(Enrollment.Kind.FORECAST), numbers.get(Enrollment.Kind.ACTUAL)
+            numbers.get(Enrollment.Kind.ESTIMATED), numbers.get(Enrollment.Kind.ACTUAL)
         )
         for turma_id, numbers in _numbers(rows).items()
     }

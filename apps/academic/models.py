@@ -761,14 +761,14 @@ class Enrollment(models.Model):
     """The number of students enrolled in a turma in an academic year (T1.1).
 
     The Serviços Académicos enter it per turma, so the DSD knows the size of each one, including
-    the turmas of a track (D81). It is a forecast while the DSD is made, and the real number
+    the turmas of a track (D81). It is an estimate while the DSD is made, and the real number
     replaces it when it arrives (D76). Only numbers are stored, never names (D66).
     """
 
     class Kind(models.TextChoices):
-        """Whether the number is a forecast or the real enrollment."""
+        """Whether the number is an estimate or the real enrollment."""
 
-        FORECAST = "forecast", _("Prevista")
+        ESTIMATED = "estimated", _("Estimada")
         ACTUAL = "actual", _("Real")
 
     class Source(models.TextChoices):
@@ -796,7 +796,7 @@ class Enrollment(models.Model):
         max_length=10,
         choices=Kind.choices,
         default=Kind.ACTUAL,
-        help_text=_("Forecast (before the enrollment) or the real number (D76)."),
+        help_text=_("Estimated (before the enrollment) or the real number (D76)."),
     )
     students = models.PositiveIntegerField(
         _("matriculados"),
@@ -815,7 +815,7 @@ class Enrollment(models.Model):
         verbose_name_plural = _("matrículas")
         ordering = ["academic_year__start_year", "class_group", "kind"]
         constraints = [
-            # One forecast and one real number per turma and year.
+            # One estimate and one real number per turma and year.
             models.UniqueConstraint(
                 fields=["class_group", "academic_year", "kind"], name="unique_enrollment_kind"
             ),
