@@ -110,6 +110,8 @@ class ScopedModelForm(ReasonModelForm):
 
     def __init__(self, *args, allowed_scope_ids=None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        # Kept so that a form can limit other fields (such as a track) to the same scopes.
+        self.allowed_scope_ids = allowed_scope_ids
         if allowed_scope_ids is not None and self.scope_field in self.fields:
             field = self.fields[self.scope_field]
             field.queryset = field.queryset.filter(**{self.scope_filter: allowed_scope_ids})

@@ -167,7 +167,15 @@ class ClassGroupCreateForm(ScopedModelForm):
 
     class Meta:
         model = ClassGroup
-        fields = ["course", "intake_year", "label", "last_academic_year"]
+        fields = ["course", "intake_year", "label", "last_academic_year", "track"]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if self.allowed_scope_ids is not None:
+            tracks = self.fields["track"]
+            tracks.queryset = tracks.queryset.filter(
+                study_plan__course__faculty_id__in=self.allowed_scope_ids
+            )
 
 
 class ClassGroupUpdateForm(ScopedModelForm):

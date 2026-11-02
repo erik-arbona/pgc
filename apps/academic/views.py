@@ -422,6 +422,7 @@ class ClassGroupCreateView(ClassGroupMixin, ScopedCreateView):
             data["intake_year"],
             data["label"],
             data["last_academic_year"],
+            track=data.get("track"),
             actor=self.request.user,
             reason=data.get("reason", ""),
         )
