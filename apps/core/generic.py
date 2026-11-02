@@ -290,12 +290,33 @@ class CoordinationScopeMixin:
     ``scope_lookup`` (queryset filter, e.g. ``"subject__coordination__in"``). The defaults are
     for a model with a ``coordination`` field. ``permission_registry`` exists so tests can use
     an isolated registry.
+
+    A form used with this mixin must set ``scope_field = "coordination"`` (or the field that
+    holds the coordination), because ``ScopedModelForm`` filters a ``faculty`` field by default.
     """
 
     permission_registry = registry
     scope_kind = ScopeKind.COORDINATION
     scope_field = "coordination_id"
     scope_lookup = "coordination__in"
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        """Refuse a class that lists this mixin after a ``Scoped*`` base.
+
+        Python would then pick the Faculty attributes of ``ScopedViewMixin`` and silently
+        apply the wrong rule, so the mistake is made loud when the class is defined.
+
+        Raises:
+            TypeError: if ``ScopedViewMixin`` comes before this mixin in the MRO.
+        """
+        super().__init_subclass__(**kwargs)
+        for base in cls.__mro__:
+            if base is CoordinationScopeMixin:
+                return
+            if base is ScopedViewMixin:  # reached the Faculty rule first: wrong order
+                raise TypeError(
+                    f"{cls.__name__}: list CoordinationScopeMixin before the Scoped* base."
+                )
 
     def allowed_scope_ids(self) -> set[int]:
         """Return the ids of the coordinations the current user may act on."""

@@ -125,6 +125,14 @@ def login(client, profile, kind, scope_id):
     return user
 
 
+def test_listing_the_mixin_after_a_scoped_base_is_an_error():
+    """Put after the base, the mixin would silently lose to the Faculty rule: refuse it."""
+    with pytest.raises(TypeError):
+
+        class Wrong(ScopedListView, CoordinationScopeMixin):
+            model = Teacher
+
+
 def test_the_list_shows_only_the_teachers_of_the_users_coordinations(client, world):
     """A coordinator of C1 sees C1's teacher only; a manager of F1 sees C1 and C2."""
     login(client, Profile.COORDINATOR, ScopeKind.COORDINATION, world["coords"]["c1"].pk)
