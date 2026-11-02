@@ -34,7 +34,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Atribuição | Liga um docente a um tipo de aula de uma turma ou grupo; normalmente um docente, partilha opcional com percentagem | `Assignment` |
 | Quota (percentagem de partilha) | Parte de um tipo de aula partilhado que cabe a cada docente; as quotas somam 100% | `Assignment.share` |
 | Regente | Docente responsável pela disciplina | `Offering.lead_teacher` |
-| Horas letivas | Horas de aula atribuídas; as únicas validadas contra o intervalo | — |
+| Horas letivas | Horas de aula atribuídas, semanais (por docente e semestre); as únicas validadas contra o intervalo. Junção conta uma vez, cada grupo conta uma vez (D70) | `TeacherTeachingHours` |
 | Horas de preparação | Calculadas: T + (TP + P + L) × 1,5 (parâmetro) | — |
 | Componente não letiva / outras atividades | Complementos de ensino, investigação, gestão e serviços, com descrição e horas, por semestre | `OtherActivity` |
 | Horas extra | Total de horas letivas menos o máximo do intervalo; só se o docente aceitar; registadas pelo coordenador | `ExtraHours` |

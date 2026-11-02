@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "apps.academic",
     "apps.staff",
     "apps.rooms",
+    "apps.dsd",
     "apps.demo",
     "apps.sii",
 ]
