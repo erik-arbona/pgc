@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.audit import audited_delete, audited_save
@@ -35,6 +36,7 @@ from .models import (
     StudyPlan,
     Subject,
     SubjectClassLoad,
+    Track,
 )
 from .plans import PlanFacts, plan_in_force
 from .preparation import preparation_hours
@@ -93,6 +95,7 @@ def create_class_group(
     label: str = "",
     last_year: AcademicYear | None = None,
     *,
+    track: Track | None = None,
     actor,
     reason: str = "",
 ) -> ClassGroup:
@@ -105,6 +108,8 @@ def create_class_group(
         intake_year: academic year in which the turma enters.
         label: letter to tell turmas of the same year apart; empty for the default turma.
         last_year: last academic year, if the turma already ended.
+        track: track of the turma, for the years in which the course splits (D79); it must be
+            a track of the plan in force for this intake.
         actor: the user creating the turma.
         reason: optional reason (D40).
 
@@ -113,7 +118,8 @@ def create_class_group(
 
     Raises:
         ValidationError: if no plan of the course has reached the first year at the intake,
-            or if the turma itself is invalid (for example its last year precedes the intake).
+            if the track is not a track of that plan, or if the turma itself is invalid (for
+            example its last year precedes the intake).
     """
     plans = [
         PlanFacts(id=p.pk, start_year=p.academic_year.start_year)
@@ -122,15 +128,36 @@ def create_class_group(
     plan_id = plan_in_force(plans, 1, intake_year.start_year)
     if plan_id is None:
         raise ValidationError(_("Nenhum plano de estudos está em vigor para esta entrada."))
+    if track is not None and track.study_plan_id != plan_id:
+        raise ValidationError(_("Este percurso não existe no plano em vigor para esta entrada."))
     group = ClassGroup(
         course=course,
         intake_year=intake_year,
         label=label,
         study_plan=StudyPlan.objects.get(pk=plan_id),
         last_academic_year=last_year,
+        track=track,
     )
     audited_save(group, actor, reason)
     return group
+
+
+def subjects_for(group: ClassGroup):
+    """Return the subjects of the turma's plan that are taught to it (D79).
+
+    A turma sees the common subjects (no track) and those of its own track; a turma without
+    track sees the common ones only. The rule is ``class_groups.subject_applies``.
+
+    Args:
+        group: the turma.
+
+    Returns:
+        A queryset of the plan's subjects.
+    """
+    visible = Q(track__isnull=True)
+    if group.track_id:
+        visible |= Q(track_id=group.track_id)
+    return Subject.objects.filter(visible, study_plan_id=group.study_plan_id)
 
 
 def _plain(value: Decimal) -> str:
