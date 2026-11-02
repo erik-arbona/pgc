@@ -194,7 +194,7 @@ def test_a_second_plan_for_the_same_course_and_year_is_a_form_error(client, a):
 
 
 def test_creating_a_subject_is_audited_and_may_use_a_coordination_of_another_faculty(client, a, b):
-    """The spec sets no same-Faculty rule between the plan and the coordination."""
+    """Transversal subjects may be run by a coordination of another Faculty (D44)."""
     manager_of(client, a.faculty)
     data = {**a.post_data("subject"), "coordination": b.coordination.pk}
     client.post(reverse("academic:subject_create"), data)

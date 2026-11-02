@@ -72,10 +72,12 @@ def test_a_faculty_with_coordinations_or_courses_cannot_be_deleted(fct):
         fct.delete()
 
 
-def test_academic_year_label_is_derived_from_the_start_year():
-    """Academic year 2026 is shown as 2026/2027."""
-    assert AcademicYear(start_year=2026).label == "2026/2027"
-    assert str(AcademicYear(start_year=2026)) == "2026/2027"
+def test_academic_year_has_a_start_and_an_end_year_shown_as_2026_2027():
+    """Academic year 2026 ends in 2027 and is shown as 2026-2027 (D42)."""
+    year = AcademicYear(start_year=2026)
+    assert (year.start_year, year.end_year) == (2026, 2027)
+    assert year.label == "2026-2027"
+    assert str(year) == "2026-2027"
 
 
 def test_academic_year_start_year_is_unique():
