@@ -10,3 +10,5 @@
 **Not covered yet (needs later phases):** assignments and the four load states, the 50/50 shared lesson type, the exam season and the enrolment lists.
 
 **Dependencies:** `core`, `academic`, `staff`, `rooms`.
+
+**Real study plans (D78, D80):** `manage.py load_real_plans` loads the plans of EIC and TM from `docs/Planos_EIC_TM.md` (courses, plans, tracks and 86 subjects). `real_plans.py` is the pure parser, `real_plan_loader.py` writes the records through the audited services; the command takes `--faculty` and `--coordination` or `--placeholders`, `--eic-year`, `--tm-year`, `--turmas` and `--force`. It is idempotent and lists what it does not load (the UCT tables and the optional subjects).

@@ -83,3 +83,5 @@ ruff check . && ruff format --check .                 # linter e formatação (o
 ```
 
 Carregar dados fictícios (só em desenvolvimento): `docker compose exec web python manage.py load_demo_data`; cria contas `demo_gestor`, `demo_coordenador`, `demo_ce`, `demo_patrimonio`, `demo_consulta` e `demo_docente` com a palavra-passe `demo1234`.
+
+Carregar os planos de estudos reais de EIC e TM (`docs/Planos_EIC_TM.md`, só em desenvolvimento): `docker compose exec web python manage.py load_real_plans --placeholders` (ou `--faculty CÓDIGO --coordination NOME` com registos que já existam); acrescentar `--turmas` para criar turmas de exemplo. Os planos são dados institucionais e podem estar no repositório (D78); as pessoas continuam fictícias.
