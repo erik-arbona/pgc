@@ -10,7 +10,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Coordenador | Responsável por uma coordenação; é também o diretor de curso | perfil `coordinator` |
 | Diretor de curso | Papel exercido pelo coordenador; dá acesso à vista por curso (leitura do que é de outras coordenações) | — (não é perfil próprio) |
 | Gestor da PGC | Perfil que introduz docentes, cargos, planos, disciplinas, disciplinas transversais, intervalos, épocas e faixas de exames, e gere contas; um por Faculdade ou para várias | perfil `pgc_manager` |
-| Conselho Executivo (CE) | Aprova ou recusa propostas de concurso e justificações; fecha o DSD de cada coordenação | perfil `executive_board` |
+| Conselho Executivo (CE) | Aprova ou recusa propostas de concurso e justificações de carga; não abre, não fecha nem altera o DSD (D43) | perfil `executive_board` |
 | Serviços Académicos | Introduzem matrículas e inscritos (de preferência do SII) | perfil `academic_services` |
 | Património | Introduz as salas (localização, nome, tipo, capacidade) | perfil `facilities` |
 | Consulta | Só leitura (inclui quem faz os horários) | perfil `viewer` |
@@ -39,7 +39,9 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Estado da carga | Abaixo da mínima, no intervalo, na máxima, acima da máxima | `LoadStatus` |
 | Proposta de concurso | Disciplina que o coordenador não pode atribuir; justificação obrigatória; decisão do CE | `CompetitionRequest` |
 | Colaborador (habitual) | Docente externo que já leciona na Universidade e pode ser convidado pelo CE; os outros tipos são o docente a tempo inteiro e o docente de concurso; cada tipo tem intervalo de horas próprio e configurável | — |
-| Fecho do DSD | O CE fecha o DSD de uma coordenação; cria versão imutável | `DsdVersion` |
+| DSD | Distribuição de Serviço Docente de um ano letivo, criada pelo gestor da PGC (um por ano letivo), com os dois semestres; cada semestre abre-se e fecha-se por coordenação (D43) | `Dsd` |
+| Fecho do DSD | O gestor da PGC fecha um semestre de uma coordenação (ou de todas); cria versão imutável; depois só ele altera, numa nova versão (D43) | `DsdVersion` |
+| Unidade letiva | Aula de um tipo (T, TP, P, L) de uma oferta, para um público: uma turma, várias turmas juntas ou um grupo; é a que recebe o docente. Provisório até T3.1 | `TeachingUnit` |
 | Sala | Localização (edifício, número), nome quando tiver, tipo e capacidade | `Room` |
 | Época de exames | 1.ª chamada, 2.ª chamada, recurso, com datas | `ExamPeriod` |
 | Faixa horária | Bloco de exame definido pelo gestor (p. ex. 09:00-11:00) | `ExamSlot` |
