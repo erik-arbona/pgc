@@ -18,7 +18,7 @@ from decimal import Decimal
 
 from apps.academic.preparation import preparation_hours
 
-from .teaching_hours import SemesterTeachingHours, TeacherTeachingHours
+from .teaching_hours import SemesterTeachingHours, TeacherTeachingHours, round_hours
 
 
 def teacher_preparation_hours(
@@ -31,13 +31,13 @@ def teacher_preparation_hours(
         weights: preparation weight of each class type code (``ClassType.preparation_weight``).
 
     Returns:
-        The sum, over the class types, of the teacher's weekly hours times the weight; zero for
-        a teacher with no hours.
+        The sum, over the class types, of the teacher's exact weekly hours times the weight,
+        rounded to two decimals (D73); zero for a teacher with no hours.
 
     Raises:
         ValueError: if a class type with hours has no weight (never a silent zero, D61).
     """
-    return preparation_hours(dict(teacher.weekly_by_class_type), weights)
+    return round_hours(preparation_hours(dict(teacher.weekly_by_class_type), weights))
 
 
 def preparation_by_teacher(

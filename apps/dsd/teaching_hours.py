@@ -14,20 +14,38 @@ The main figure is **weekly** hours, because the load range is measured in weekl
 over the two semesters (D12). The semester hours (weekly x weeks of the semester, D60) are only
 for display and for checking against ``Subject.semester_hours``.
 
-All values are ``Decimal`` and nothing is rounded here. With two-decimal hours and two-decimal
-percentages ``h x s / 100`` has at most six decimals, which the default decimal context holds
-exactly, so sums stay exact and the shares of a unit that add up to 100 distribute exactly the
-unit's hours. Rounding, if any, belongs to the display layer (D70).
+All values are ``Decimal``. The lines (one per assignment) stay exact: with two-decimal hours
+and two-decimal percentages ``h x s / 100`` has at most six decimals, which the default decimal
+context holds exactly, so the shares of a unit that add up to 100 distribute exactly the unit's
+hours. Only the *totals* of a teacher are rounded to two decimals, half up (D73): the weekly
+total, the semester total and, elsewhere, the preparation and annual totals. The exact weekly
+total is kept next to them for audit and for sums that must not drift.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
+HOURS_QUANTUM = Decimal("0.01")  # hours are shown and compared with two decimals (D73)
+
+
+def round_hours(value: Decimal) -> Decimal:
+    """Round a total of hours to two decimals, half up (D73).
+
+    Args:
+        value: an exact total of hours.
+
+    Returns:
+        The value with exactly two decimals; 0.005 gives 0.01.
+
+    Raises:
+        TypeError: if the value is not a ``Decimal``.
+    """
+    return _decimal(value, "hours").quantize(HOURS_QUANTUM, rounding=ROUND_HALF_UP)
 
 
 def _decimal(value: object, name: str) -> Decimal:
@@ -138,17 +156,19 @@ class TeacherTeachingHours:
 
     Attributes:
         teacher_id: the teacher.
-        weekly_hours: the sum of the weekly hours of every line (the figure compared with the
-            load range, D12).
-        semester_hours: ``weekly_hours x semester weeks``.
-        weekly_by_class_type: weekly hours per class type code, sorted by code; the input of
-            the preparation hours.
-        lines: one line per unit, sorted by offering, class type and unit.
+        weekly_hours: the sum of the weekly hours of every line, rounded to two decimals (the
+            figure compared with the load range, D12, D73).
+        semester_hours: the exact weekly total x semester weeks, rounded to two decimals.
+        exact_weekly_hours: the weekly total before rounding.
+        weekly_by_class_type: exact weekly hours per class type code, sorted by code; the input
+            of the preparation hours.
+        lines: one line per unit, exact, sorted by offering, class type and unit.
     """
 
     teacher_id: int
     weekly_hours: Decimal
     semester_hours: Decimal
+    exact_weekly_hours: Decimal
     weekly_by_class_type: tuple[tuple[str, Decimal], ...]
     lines: tuple[TeachingLine, ...]
 
@@ -198,7 +218,7 @@ class SemesterTeachingHours:
         for teacher in self.teachers:
             if teacher.teacher_id == teacher_id:
                 return teacher
-        return TeacherTeachingHours(teacher_id, ZERO, ZERO, (), ())
+        return TeacherTeachingHours(teacher_id, round_hours(ZERO), round_hours(ZERO), ZERO, (), ())
 
 
 def share_hours(weekly_hours: Decimal, share: Decimal) -> Decimal:
@@ -284,8 +304,9 @@ def semester_teaching_hours(
         teachers.append(
             TeacherTeachingHours(
                 teacher_id=teacher_id,
-                weekly_hours=weekly_total,
-                semester_hours=weekly_total * semester_weeks,
+                weekly_hours=round_hours(weekly_total),
+                semester_hours=round_hours(weekly_total * semester_weeks),
+                exact_weekly_hours=weekly_total,
                 weekly_by_class_type=tuple(sorted(by_type.items())),
                 lines=tuple(lines),
             )
