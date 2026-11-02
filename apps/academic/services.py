@@ -378,48 +378,49 @@ def preparation_for(subject: Subject) -> Decimal:
 
 
 def _numbers(rows) -> dict[int, dict[str, int]]:
-    """Group enrollment rows as ``{turma id: {kind: students}}``."""
+    """Group enrollment rows as ``{subject id: {kind: students}}``."""
     grouped: dict[int, dict[str, int]] = {}
-    for turma_id, kind, students in rows:
-        grouped.setdefault(turma_id, {})[kind] = students
+    for subject_id, kind, students in rows:
+        grouped.setdefault(subject_id, {})[kind] = students
     return grouped
 
 
-def class_group_size(group: ClassGroup, academic_year: AcademicYear) -> EffectiveStudents | None:
-    """Return the number of students that counts for a turma in an academic year (D76).
+def subject_enrollment(subject: Subject, academic_year: AcademicYear) -> EffectiveStudents | None:
+    """Return the number of students that counts for a subject in an academic year (D76).
 
     Args:
-        group: the turma.
+        subject: the subject.
         academic_year: the academic year.
 
     Returns:
-        The real number if it has arrived, otherwise the forecast marked as provisional;
+        The real number if it has arrived, otherwise the estimate marked as provisional;
         ``None`` if no number was entered.
     """
-    rows = Enrollment.objects.filter(class_group=group, academic_year=academic_year).values_list(
-        "class_group_id", "kind", "students"
+    rows = Enrollment.objects.filter(subject=subject, academic_year=academic_year).values_list(
+        "subject_id", "kind", "students"
     )
-    numbers = _numbers(rows).get(group.pk, {})
+    numbers = _numbers(rows).get(subject.pk, {})
     return effective_students(
-        numbers.get(Enrollment.Kind.FORECAST), numbers.get(Enrollment.Kind.ACTUAL)
+        numbers.get(Enrollment.Kind.ESTIMATED), numbers.get(Enrollment.Kind.ACTUAL)
     )
 
 
-def class_group_sizes(academic_year: AcademicYear) -> dict[int, EffectiveStudents]:
-    """Return the number of students of every turma that has a number in an academic year.
+def subject_enrollments(academic_year: AcademicYear) -> dict[int, EffectiveStudents]:
+    """Return the number of students of every subject that has a number in an academic year.
 
     Args:
         academic_year: the academic year.
 
     Returns:
-        A dictionary from turma id to the number that counts; turmas with no number are absent.
+        A dictionary from subject id to the number that counts; subjects with no number are
+        absent.
     """
     rows = Enrollment.objects.filter(academic_year=academic_year).values_list(
-        "class_group_id", "kind", "students"
+        "subject_id", "kind", "students"
     )
     return {
-        turma_id: effective_students(
-            numbers.get(Enrollment.Kind.FORECAST), numbers.get(Enrollment.Kind.ACTUAL)
+        subject_id: effective_students(
+            numbers.get(Enrollment.Kind.ESTIMATED), numbers.get(Enrollment.Kind.ACTUAL)
         )
-        for turma_id, numbers in _numbers(rows).items()
+        for subject_id, numbers in _numbers(rows).items()
     }

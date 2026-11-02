@@ -16,7 +16,7 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.models import RoleAssignment, VersionedModel
 from apps.core.roles import ScopeKind
 
-from .class_groups import curricular_year_in
+from .class_groups import curricular_year_in, subject_applies
 
 
 class Faculty(models.Model):
@@ -758,45 +758,47 @@ class ClassGroup(VersionedModel):
 
 
 class Enrollment(models.Model):
-    """The number of students enrolled in a turma in an academic year (T1.1).
+    """The number of students of a subject in an academic year (T1.1).
 
-    The Serviços Académicos enter it per turma, so the DSD knows the size of each one, including
-    the turmas of a track (D81). It is a forecast while the DSD is made, and the real number
-    replaces it when it arrives (D76). Only numbers are stored, never names (D66).
+    Each subject has an estimated number while the DSD is made and the real number when it
+    arrives from the SII (D76, D81). The estimate will be computed from historical data of the
+    SII (D82). Only numbers are stored, never names (D66). The size of each turma is not stored:
+    how the students of a subject are split between turmas and groups is decided when they are
+    created.
     """
 
     class Kind(models.TextChoices):
-        """Whether the number is a forecast or the real enrollment."""
+        """Whether the number is an estimate or the real enrollment."""
 
-        FORECAST = "forecast", _("Prevista")
+        ESTIMATED = "estimated", _("Estimada")
         ACTUAL = "actual", _("Real")
 
     class Source(models.TextChoices):
         """Where the number came from."""
 
         MANUAL = "manual", _("Introduzida")
-        SII = "sii", _("Importada do SII")
+        SII = "sii", _("Obtida do SII")
 
-    class_group = models.ForeignKey(
-        ClassGroup,
-        on_delete=models.PROTECT,  # never remove a turma that has enrollment numbers
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,  # never remove a subject that has enrollment numbers
         related_name="enrollments",
-        verbose_name=_("turma"),
-        help_text=_("Turma the number refers to."),
+        verbose_name=_("disciplina"),
+        help_text=_("Subject the number refers to; each plan version has its own subjects."),
     )
     academic_year = models.ForeignKey(
         AcademicYear,
         on_delete=models.PROTECT,  # never remove a year that has enrollment numbers
         related_name="enrollments",
         verbose_name=_("ano letivo"),
-        help_text=_("Academic year the number refers to; the turma must exist in it."),
+        help_text=_("Academic year the number refers to; some turma must attend the subject."),
     )
     kind = models.CharField(
         _("tipo"),
         max_length=10,
         choices=Kind.choices,
         default=Kind.ACTUAL,
-        help_text=_("Forecast (before the enrollment) or the real number (D76)."),
+        help_text=_("Estimated (before the enrollment) or the real number (D76)."),
     )
     students = models.PositiveIntegerField(
         _("matriculados"),
@@ -807,40 +809,48 @@ class Enrollment(models.Model):
         max_length=10,
         choices=Source.choices,
         default=Source.MANUAL,
-        help_text=_("Typed by the Serviços Académicos or imported from the SII."),
+        help_text=_("Typed by hand or obtained from the SII."),
     )
 
     class Meta:
         verbose_name = _("matrícula")
         verbose_name_plural = _("matrículas")
-        ordering = ["academic_year__start_year", "class_group", "kind"]
+        ordering = ["academic_year__start_year", "subject", "kind"]
         constraints = [
-            # One forecast and one real number per turma and year.
+            # One estimate and one real number per subject and year.
             models.UniqueConstraint(
-                fields=["class_group", "academic_year", "kind"], name="unique_enrollment_kind"
+                fields=["subject", "academic_year", "kind"], name="unique_enrollment_kind"
             ),
         ]
 
     def __str__(self) -> str:
-        return (
-            f"{self.class_group} {self.academic_year}: {self.students} ({self.get_kind_display()})"
-        )
+        return f"{self.subject} {self.academic_year}: {self.students} ({self.get_kind_display()})"
 
     def check_year(self) -> None:
-        """Check that the turma exists in the academic year.
+        """Check that some turma attends the subject in the academic year.
 
-        A turma only exists between its intake year and its last year, and a turma of a track
-        only from the year its track starts (D49, D79). It compares two tables, so it cannot be
-        a database constraint: it runs from ``clean`` for the forms and from ``save`` for the
-        import and the services.
+        A turma of the subject's plan attends it when its curricular year in that academic year
+        is the subject's, and it sees the subject (common, or of its own track): D48, D49, D79.
+        It compares several tables, so it cannot be a database constraint: it runs from
+        ``clean`` for the forms and from ``save`` for the import and the services.
 
         Raises:
-            ValidationError: if the turma has no curricular year in that academic year.
+            ValidationError: if no turma attends the subject in that academic year.
         """
-        if self.class_group_id is None or self.academic_year_id is None:
+        if self.subject_id is None or self.academic_year_id is None:
             return  # nothing to compare yet (a form with an invalid field reports that itself)
-        if self.class_group.curricular_year_in(self.academic_year.start_year) is None:
-            raise ValidationError({"academic_year": _("A turma não existe neste ano letivo.")})
+        subject, year = self.subject, self.academic_year.start_year
+        groups = ClassGroup.objects.filter(study_plan_id=subject.study_plan_id).select_related(
+            "track", "intake_year", "last_academic_year", "study_plan"
+        )
+        for group in groups:
+            if group.curricular_year_in(year) == subject.curricular_year and subject_applies(
+                subject.track_id, group.track_id
+            ):
+                return
+        raise ValidationError(
+            {"academic_year": _("Nenhuma turma frequenta esta disciplina neste ano letivo.")}
+        )
 
     def clean(self) -> None:
         """Validate the year for the forms (see ``check_year``)."""
@@ -848,6 +858,6 @@ class Enrollment(models.Model):
         self.check_year()
 
     def save(self, *args, **kwargs) -> None:
-        """Save after checking the year, so that no path stores a number for a missing turma."""
+        """Save after checking the year, so that no path stores a number for a missing subject."""
         self.check_year()
         super().save(*args, **kwargs)
