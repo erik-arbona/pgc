@@ -131,6 +131,16 @@ class Course(models.Model):
         ),
     )
 
+    sii_ref = models.CharField(
+        _("referência no SII"),
+        max_length=64,
+        blank=True,
+        help_text=_(
+            "Opaque reference of the course in the SII, typed by the manager (D66); "
+            "empty until it is known. It identifies one course (D68)."
+        ),
+    )
+
     class Meta:
         verbose_name = _("curso")
         verbose_name_plural = _("cursos")
@@ -139,6 +149,12 @@ class Course(models.Model):
             # A bachelor and a master may share a name; faculty + name + level identify a course.
             models.UniqueConstraint(
                 fields=["faculty", "name", "level"], name="unique_course_in_faculty"
+            ),
+            # A non-empty SII reference points at a single course (D68); empty ones may repeat.
+            models.UniqueConstraint(
+                fields=["sii_ref"],
+                condition=~models.Q(sii_ref=""),
+                name="unique_course_sii_ref",
             ),
         ]
 
@@ -327,6 +343,16 @@ class Subject(models.Model):
         help_text=_("Programme of the subject; cross-course subjects share the same one."),
     )
 
+    sii_ref = models.CharField(
+        _("referência no SII"),
+        max_length=64,
+        blank=True,
+        help_text=_(
+            "Opaque reference of the subject in the SII, typed by the manager (D66); "
+            "empty until it is known. Each plan version has its own subject rows (D68)."
+        ),
+    )
+
     class Meta:
         verbose_name = _("disciplina")
         verbose_name_plural = _("disciplinas")
@@ -334,6 +360,12 @@ class Subject(models.Model):
         constraints = [
             # The code identifies the subject inside one plan version (D44).
             models.UniqueConstraint(fields=["study_plan", "code"], name="unique_subject_code"),
+            # Inside one plan version a non-empty SII reference points at one subject (D68).
+            models.UniqueConstraint(
+                fields=["study_plan", "sii_ref"],
+                condition=~models.Q(sii_ref=""),
+                name="unique_subject_sii_ref_in_plan",
+            ),
             models.CheckConstraint(condition=models.Q(ects__gt=0), name="subject_ects_positive"),
             models.CheckConstraint(
                 condition=models.Q(curricular_year__gte=1), name="subject_year_at_least_one"

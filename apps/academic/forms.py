@@ -83,7 +83,7 @@ class CourseForm(ScopedModelForm):
 
     class Meta:
         model = Course
-        fields = ["faculty", "name", "level", "responsible_coordination"]
+        fields = ["faculty", "name", "level", "responsible_coordination", "sii_ref"]
 
     def __init__(self, *args, allowed_scope_ids=None, **kwargs) -> None:
         super().__init__(*args, allowed_scope_ids=allowed_scope_ids, **kwargs)
@@ -127,6 +127,7 @@ class SubjectForm(ScopedModelForm):
             "coordination",
             "semester_hours",
             "programme",
+            "sii_ref",
         ]
 
     def __init__(self, *args, **kwargs) -> None:
