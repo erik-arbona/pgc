@@ -103,6 +103,13 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - **Q18** (T7.6): um exame sem inscritos é retirado automaticamente? *Defeito:* só assinalado.
 - **Q19** (T7.9): quem publica o calendário e quando deixa de ser rascunho. Bloqueia T7.9.
 - **Q20** (T7.10): o que é «dia equivalente» ao copiar. *Defeito:* mesmo desvio desde o início da época, passado ao dia útil seguinte.
+- **Q24** (percursos, D75): o percurso é uma turma própria no 4.º ano, ou uma turma dividida em grupos por percurso? Como se marcam as disciplinas comuns e as próprias? *Por detalhar pelo utilizador; sem defeito.*
+- **Q25** (matrícula prevista, D76): quem introduz a matrícula prevista, como se distingue da real, o que acontece às turmas e aos grupos quando a real chega e como se avisa o coordenador? *Defeito proposto:* a previsão introduz-se por curso e ano curricular como a real, com uma marca de «prevista»; quando entra a real, a previsão deixa de contar e o sistema assinala as turmas e os grupos cuja dimensão mudou.
+
+## Informação nova a incorporar (02/11/2026)
+- **Percursos (D75):** alguns cursos têm vários percursos no 4.º ano (EIC: TIC e PSI), com disciplinas comuns e próprias. Toca T1.5, T2.3, T3.1 a T3.4, T4.5 e a vista por curso. ⚑ Q24
+- **Matrícula prevista e real (D76):** o DSD faz-se com matrícula prevista e atualiza-se quando chega a real. Toca T1.1, T1.2, T1.5, T3.2 e T4.5 (alerta de dimensão alterada). ⚑ Q25
+- **Planos vindos do SII (D77):** futuro; sem trabalho agora, mas sem decisões que o impeçam.
 
 ## Critério de fim da fase 2
 Com dados fictícios, o gestor cria o DSD e abre os semestres; cada coordenador junta e divide turmas, atribui docentes e regista a componente não letiva; o sistema calcula a carga e mostra o estado certo nos quatro níveis (**Porta 1**: coincide com o Excel em todos os docentes, ou as diferenças ficam explicadas); os exames das três épocas ficam marcados sem conflitos de turma, sala ou júri, com a concorrência garantida pela BD; cada perfil vê e altera só o seu âmbito; tudo na auditoria; testes a passar.
