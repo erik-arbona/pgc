@@ -826,6 +826,11 @@ class Enrollment(models.Model):
             f"{self.class_group} {self.academic_year}: {self.students} ({self.get_kind_display()})"
         )
 
+    @property
+    def curricular_year(self) -> int | None:
+        """Return the curricular year of the turma in the academic year of the number."""
+        return self.class_group.curricular_year_in(self.academic_year.start_year)
+
     def check_year(self) -> None:
         """Check that the turma exists in the academic year.
 

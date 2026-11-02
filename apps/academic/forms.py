@@ -20,6 +20,7 @@ from .models import (
     Coordination,
     Course,
     CrossCourseSubject,
+    Enrollment,
     Faculty,
     StudyPlan,
     Subject,
@@ -210,6 +211,27 @@ class ClassGroupUpdateForm(ScopedModelForm):
         model = ClassGroup
         fields = ["label", "last_academic_year", "version"]
         widgets = {"version": forms.HiddenInput()}
+
+
+class EnrollmentForm(ReasonModelForm):
+    """Enter the number of students of a turma in an academic year (T1.3).
+
+    The Serviços Académicos choose the turma, the year and whether the number is the estimate
+    or the real one (D81). The origin is "introduced" (the model default). A year in which
+    the turma does not exist is refused by the model and shown on the year field.
+    """
+
+    class Meta:
+        model = Enrollment
+        fields = ["class_group", "academic_year", "kind", "students"]
+
+
+class EnrollmentUpdateForm(ReasonModelForm):
+    """Correct the number of an existing enrollment; the turma, year and kind are fixed."""
+
+    class Meta:
+        model = Enrollment
+        fields = ["students"]
 
 
 class SubjectChoiceField(forms.ModelMultipleChoiceField):

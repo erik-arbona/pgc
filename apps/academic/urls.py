@@ -62,6 +62,19 @@ urlpatterns = [
     path(
         "study-plans/<int:pk>/delete/", views.StudyPlanDeleteView.as_view(), name="studyplan_delete"
     ),
+    path("enrollments/", views.EnrollmentListView.as_view(), name="enrollment_list"),
+    path("enrollments/new/", views.EnrollmentCreateView.as_view(), name="enrollment_create"),
+    path("enrollments/pending/", views.EnrollmentPendingView.as_view(), name="enrollment_pending"),
+    path(
+        "enrollments/<int:pk>/edit/",
+        views.EnrollmentUpdateView.as_view(),
+        name="enrollment_update",
+    ),
+    path(
+        "enrollments/<int:pk>/delete/",
+        views.EnrollmentDeleteView.as_view(),
+        name="enrollment_delete",
+    ),
     path("tracks/", views.TrackListView.as_view(), name="track_list"),
     path("tracks/new/", views.TrackCreateView.as_view(), name="track_create"),
     path("tracks/<int:pk>/edit/", views.TrackUpdateView.as_view(), name="track_update"),
