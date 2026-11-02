@@ -14,4 +14,6 @@
 
 - `Track` (percurso or variante of a plan version, from a curricular year on) with optional `Subject.track` (empty = common) and `ClassGroup.track` (fixed at creation); `class_groups.subject_applies` and `services.subjects_for` say which subjects a turma sees; a turma of a track exists from the track's first year and the turma without track stops the year before. See D75, D79. Screens: tracks at `/academic/tracks/` (permission `study_plan.edit`, scoped to the manager's Faculties; the list counts the subjects and turmas of each track), a `track` field in the subject form and the turma creation form (not editable afterwards), and a 'Percurso' column in the subject and turma lists.
 
+- `Enrollment` (students of a turma in an academic year, forecast or real, numbers only, one of each kind per turma and year, the turma must exist that year); `enrollment.effective_students` / `size_change` are the pure rule (the real number replaces the forecast) and `services.class_group_size(s)` read the number that counts. See D76, D81.
+
 **Dependencies:** `core`.

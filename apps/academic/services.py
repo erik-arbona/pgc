@@ -24,6 +24,7 @@ from .cross_course import (
     compare_members,
     effective_members,
 )
+from .enrollment import EffectiveStudents, effective_students
 from .messages import GROUP_ERROR_TEXT
 from .models import (
     AcademicYear,
@@ -33,6 +34,7 @@ from .models import (
     CrossCourseSubject,
     CrossCourseSubjectCourse,
     CrossCourseSubjectMember,
+    Enrollment,
     StudyPlan,
     Subject,
     SubjectClassLoad,
@@ -373,3 +375,51 @@ def preparation_from_loads(loads: Iterable[SubjectClassLoad]) -> Decimal:
 def preparation_for(subject: Subject) -> Decimal:
     """Return the weekly preparation hours of a subject with the current weights (D61)."""
     return preparation_from_loads(subject.class_loads.select_related("class_type"))
+
+
+def _numbers(rows) -> dict[int, dict[str, int]]:
+    """Group enrollment rows as ``{turma id: {kind: students}}``."""
+    grouped: dict[int, dict[str, int]] = {}
+    for turma_id, kind, students in rows:
+        grouped.setdefault(turma_id, {})[kind] = students
+    return grouped
+
+
+def class_group_size(group: ClassGroup, academic_year: AcademicYear) -> EffectiveStudents | None:
+    """Return the number of students that counts for a turma in an academic year (D76).
+
+    Args:
+        group: the turma.
+        academic_year: the academic year.
+
+    Returns:
+        The real number if it has arrived, otherwise the forecast marked as provisional;
+        ``None`` if no number was entered.
+    """
+    rows = Enrollment.objects.filter(class_group=group, academic_year=academic_year).values_list(
+        "class_group_id", "kind", "students"
+    )
+    numbers = _numbers(rows).get(group.pk, {})
+    return effective_students(
+        numbers.get(Enrollment.Kind.FORECAST), numbers.get(Enrollment.Kind.ACTUAL)
+    )
+
+
+def class_group_sizes(academic_year: AcademicYear) -> dict[int, EffectiveStudents]:
+    """Return the number of students of every turma that has a number in an academic year.
+
+    Args:
+        academic_year: the academic year.
+
+    Returns:
+        A dictionary from turma id to the number that counts; turmas with no number are absent.
+    """
+    rows = Enrollment.objects.filter(academic_year=academic_year).values_list(
+        "class_group_id", "kind", "students"
+    )
+    return {
+        turma_id: effective_students(
+            numbers.get(Enrollment.Kind.FORECAST), numbers.get(Enrollment.Kind.ACTUAL)
+        )
+        for turma_id, numbers in _numbers(rows).items()
+    }
