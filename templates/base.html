@@ -16,6 +16,8 @@
       {% if can_faculties %}<a href="{% url 'academic:faculty_list' %}">{% translate "Faculdades" %}</a>{% endif %}
       {% can "academic_year.edit" as can_years %}
       {% if can_years %}<a href="{% url 'academic:academicyear_list' %}">{% translate "Anos letivos" %}</a>{% endif %}
+      {% can "dsd.view" as can_dsd %}
+      {% if can_dsd %}<a href="{% url 'dsd:dsd_list' %}">{% translate "DSD" %}</a>{% endif %}
       {% has_scope "coordination.edit" "faculty" as can_scoped %}
       {% if can_scoped %}<a href="{% url 'academic:coordination_list' %}">{% translate "Coordenações" %}</a>
       <a href="{% url 'academic:course_list' %}">{% translate "Cursos" %}</a>{% endif %}

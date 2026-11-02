@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load i18n pgc_permissions %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  {% can "dsd.create" as can_create %}
+  {% if can_create %}<p><a href="{% url 'dsd:dsd_create' %}">{% translate "Novo DSD" %}</a></p>{% endif %}
+  <table>
+    <thead><tr><th>{% translate "Ano letivo" %}</th><th>{% translate "Semestres" %}</th></tr></thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.academic_year.label }}</td>
+        <td>{% for semester in item.semesters.all %}{{ semester.number }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="2">{% translate "Ainda não há DSD." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+{% endblock %}

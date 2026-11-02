@@ -9,3 +9,5 @@
 - `load_status.assess_load` – the state of the annual load (below the minimum, in the range, at the maximum, above the maximum, or no range) and the extra hours (total minus the maximum above it), from the annual load. See D74.
 
 **Dependencies:** `academic.preparation` and `staff.load_ranges` (pure functions); nothing else yet (the Django adapter will use `academic`, `staff` and `core.parameters`).
+
+**Models (T2.1):** `Dsd` (one per academic year for the whole University, `OneToOne` with `AcademicYear`) and `DsdSemester` (semesters 1 and 2, created together with the DSD). `services.create_dsd` creates both in one transaction and turns the database constraint into the message «Já existe um DSD para o ano letivo X.», also when two managers create it at the same time. Screens: `/dsd/` (list, manager and coordinator) and `/dsd/new/` (manager only). See D85.
