@@ -21,7 +21,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [ ] T1.5 Dimensão de cada turma, consultável pelo coordenador (`02`).
 
 ## 2. DSD e ofertas (D43, `04`)
-- [ ] T2.1 DSD por ano letivo com os dois semestres, criado só pelo gestor; o coordenador não cria nem elimina (D43). ⚑ Q5
+- [ ] T2.1 DSD por ano letivo com os dois semestres, criado só pelo gestor; o coordenador não cria nem elimina (D43). Um só DSD por ano letivo, garantido na BD: se outro gestor tentar criar um segundo, é recusado com mensagem clara, mesmo em simultâneo.
 - [ ] T2.2 Abertura, fecho e reabertura por semestre e coordenação, para uma ou todas; estado imposto em todas as escritas (D43).
 - [ ] T2.3 Geração das ofertas do semestre a partir das turmas ativas e do plano de cada turma (D48, D49), com regente (`Offering.lead_teacher`).
 
