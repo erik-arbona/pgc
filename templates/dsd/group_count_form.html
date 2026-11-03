@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>
+    {{ offering.subject.code }} – {{ offering.subject.name }} ·
+    {% translate "Turma" %} {{ link.class_group }} · {% translate "Tipo de aula" %} {{ class_type.code }}
+  </p>
+  <p>
+    {% translate "Tamanho da turma" %}:
+    {% if size %}{{ size.students }}{% if size.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}.
+    {% translate "Divida o tamanho pelo número de grupos para obter a média por grupo; é só uma orientação." %}
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Guardar" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}

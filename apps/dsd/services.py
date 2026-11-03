@@ -454,7 +454,7 @@ def set_lead_teacher(
     return offering
 
 
-def _units_of(link: OfferingClassGroup, class_type) -> dict[int, int]:
+def unit_versions(link: OfferingClassGroup, class_type) -> dict[int, int]:
     """Return ``{unit id: version}`` of the units that serve a turma for a class type."""
     whole = TeachingUnit.objects.filter(members__class_group_link=link, class_type=class_type)
     grouped = TeachingUnit.objects.filter(
@@ -532,7 +532,7 @@ def set_group_count(
         actor, TEACHING_UNIT_EDIT, offering.dsd_semester, offering.subject.coordination_id
     ):
         OfferingClassGroup.objects.select_for_update().get(pk=link.pk)
-        if seen_versions is not None and seen_versions != _units_of(link, class_type):
+        if seen_versions is not None and seen_versions != unit_versions(link, class_type):
             raise ValidationError(
                 _("Este registo foi alterado por outra pessoa. Recarregue a página.")
             )

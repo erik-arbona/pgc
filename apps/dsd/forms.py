@@ -117,3 +117,41 @@ class LeadTeacherForm(ReasonFieldsMixin, forms.Form):
         """Require the reason when the offering already has a regente."""
         self.reason_required = self.offering.lead_teacher_id is not None
         return super().clean()
+
+
+class GroupCountForm(ReasonFieldsMixin, forms.Form):
+    """Choose into how many groups a turma is divided for a class type (T3.2b, D90).
+
+    ``seen`` carries the ``unit id:version`` pairs the user saw, for the optimistic lock (D54).
+    The reason is required only when the turma is already divided (D40).
+    """
+
+    groups = forms.IntegerField(
+        label=_("Número de grupos"),
+        min_value=1,
+        max_value=20,
+        help_text=_("1 deixa a turma inteira; de 2 a 20 divide-a em grupos."),
+    )
+    seen = forms.CharField(required=False, widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, changing: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._changing = changing
+        self._setup_reason(required=False)
+
+    def clean_seen(self) -> dict[int, int]:
+        """Parse ``seen`` into ``{unit id: version}``."""
+        text = self.cleaned_data.get("seen", "")
+        try:
+            return {
+                int(unit): int(version)
+                for unit, version in (pair.split(":") for pair in text.split(",") if pair)
+            }
+        except ValueError:
+            raise forms.ValidationError(_("Dados do formulário inválidos.")) from None
+
+    def clean(self):
+        """Require the reason when the turma is already divided."""
+        self.reason_required = self._changing
+        return super().clean()

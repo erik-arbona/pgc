@@ -28,7 +28,7 @@ from .guard import _ACTIVE, GuardedDsdWrites
 from .lifecycle_rules import CLOSED
 from .models import CoordinationSemester, DsdSemester
 
-__all__ = ["CellNotWritable", "GuardedDsdWrites", "STATE_EDIT", "dsd_write"]
+__all__ = ["CellNotWritable", "GuardedDsdWrites", "STATE_EDIT", "cell_writable", "dsd_write"]
 
 STATE_EDIT = "dsd.semester_state.edit"
 
@@ -39,6 +39,43 @@ class CellNotWritable(ValidationError):
     A ``ValidationError`` subclass, so screens show it as usual, but a bulk operation can
     catch exactly this one to skip the cell without hiding other validation errors.
     """
+
+
+def cell_writable(
+    user,
+    code: str,
+    dsd_semester: DsdSemester,
+    coordination_id: int,
+    *,
+    permission_registry: PermissionRegistry = registry,
+) -> bool:
+    """Tell whether ``dsd_write`` would let the user write the cell, without writing (D86).
+
+    Used to show or hide buttons; the write itself is always checked again by ``dsd_write``.
+
+    Args:
+        user: the user.
+        code: the scoped action that covers the write.
+        dsd_semester: the semester of the data.
+        coordination_id: the coordination that owns the data.
+        permission_registry: where ``code`` is registered.
+
+    Returns:
+        True if the user covers the coordination and the cell is open, or not opened and the
+        user may change states; False if it is closed or the user does not cover it.
+    """
+    if not permission_registry.can_on_coordination(user, code, coordination_id):
+        return False
+    status = (
+        CoordinationSemester.objects.filter(
+            dsd_semester=dsd_semester, coordination_id=coordination_id
+        )
+        .values_list("status", flat=True)
+        .first()
+    )
+    if status == CLOSED:
+        return False
+    return status is not None or registry.can(user, STATE_EDIT)
 
 
 @contextmanager
