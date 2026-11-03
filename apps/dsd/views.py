@@ -7,6 +7,7 @@ the state; the coordinator reads), D86.
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
@@ -23,12 +24,15 @@ from apps.core.generic import (
     add_validation_errors,
 )
 from apps.core.permissions import registry
+from apps.rooms.services import room_summary
 
 from .forms import (
     DsdForm,
     GenerateOfferingsForm,
     GroupCountForm,
     LeadTeacherForm,
+    MergeForm,
+    SeparateForm,
     StateChangeForm,
 )
 from .lifecycle import cell_writable
@@ -39,6 +43,7 @@ from .models import (
     OfferingClassGroup,
     SubGroup,
     TeachingUnit,
+    TeachingUnitMember,
 )
 from .services import (
     GENERATE,
@@ -47,6 +52,9 @@ from .services import (
     change_state,
     create_dsd,
     generate_offerings,
+    merge_units,
+    merged_students,
+    separate_member,
     set_group_count,
     set_lead_teacher,
     stale_unit_ids,
@@ -345,7 +353,7 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         sizes = class_group_sizes(offering.dsd_semester.dsd.academic_year)
         units = (
             TeachingUnit.objects.filter(offering=offering)
-            .select_related("class_type")
+            .select_related("class_type", "room_type")
             .prefetch_related(
                 "members__class_group_link__class_group",
                 "members__subgroup__class_group_link__class_group",
@@ -378,7 +386,8 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                     "provisional": any(size.provisional for size in counted),
                     "stale": unit.pk in stale,
                     "has_groups": has_groups,
-                    "action": self._action(offering, members, can_edit),
+                    "actions": self._actions(offering, members, can_edit),
+                    "selectable": can_edit and unit.pk not in stale,
                 }
             )
         context.update(
@@ -386,28 +395,44 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                 "offering": offering,
                 "title": f"{offering.subject.code} – {offering.subject.name}",
                 "rows": rows,
+                "can_edit": can_edit,
             }
         )
         return context
 
     @staticmethod
-    def _action(offering, members, can_edit):
-        """Return the button of a unit row, or ``None``.
+    def _actions(offering, members, can_edit):
+        """Return the buttons of a unit row: ``[{"url", "label"}]``, empty if none (D86, D90, D91).
 
-        A whole turma that is alone in its unit can be divided; the first group of a divided turma
-        carries the button to change the number of groups. Merged units have none (T3.3).
+        A whole turma alone in its unit can be divided; the first group of a divided turma can
+        change the number of groups, even when that group is in a merge; every member of a merge
+        can be separated.
         """
-        if not can_edit or len(members) != 1:
-            return None
-        member = members[0]
-        if member.subgroup_id:
-            if member.subgroup.number != 1:
-                return None
-            link, label = member.subgroup.class_group_link, _("Alterar n.º de grupos")
-        else:
-            link, label = member.class_group_link, _("Dividir em grupos")
-        url = reverse("dsd:offering_groups", args=[offering.pk, link.pk, member.class_type_id])
-        return {"url": url, "label": label}
+        if not can_edit:
+            return []
+        actions = []
+        for member in members:
+            if member.subgroup_id:
+                if member.subgroup.number == 1:
+                    link = member.subgroup.class_group_link
+                    url = reverse(
+                        "dsd:offering_groups", args=[offering.pk, link.pk, member.class_type_id]
+                    )
+                    actions.append({"url": url, "label": _("Alterar n.º de grupos")})
+            elif len(members) == 1:
+                url = reverse(
+                    "dsd:offering_groups",
+                    args=[offering.pk, member.class_group_link_id, member.class_type_id],
+                )
+                actions.append({"url": url, "label": _("Dividir em grupos")})
+            if len(members) > 1:
+                url = reverse(
+                    "dsd:offering_separate", args=[offering.pk, member.unit_id, member.pk]
+                )
+                actions.append(
+                    {"url": url, "label": _("Separar") + f" {member.turma_link.class_group}"}
+                )
+        return actions
 
 
 class GroupCountView(PageMixin, LoginRequiredMixin, FormView):
@@ -506,4 +531,188 @@ class GroupCountView(PageMixin, LoginRequiredMixin, FormView):
             add_validation_errors(form, error)
             return self.form_invalid(form)
         messages.success(self.request, _("Grupos guardados."))
+        return redirect("dsd:offering_detail", pk=self.offering.pk)
+
+
+class _UnitEditMixin(PageMixin, LoginRequiredMixin):
+    """Common part of the merge and separate screens: the offering and the permission checks.
+
+    Users who cover no coordination get 403 before anything is looked up, and then the ones who
+    do not cover the coordination of the offering (D69); the offering of the URL is 404 after.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who cover no coordination, then those who do not cover this one."""
+        if request.user.is_authenticated:
+            if not registry.coordination_ids(request.user, TEACHING_UNIT_EDIT):
+                raise PermissionDenied
+            registry.require_on_coordination(
+                request.user, TEACHING_UNIT_EDIT, self.offering.subject.coordination_id
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    @cached_property
+    def offering(self) -> Offering:
+        """The offering of the URL, read after the first permission check."""
+        return get_object_or_404(
+            Offering.objects.select_related(
+                "subject", "dsd_semester__dsd__academic_year", "subject__study_plan"
+            ),
+            pk=self.kwargs["pk"],
+        )
+
+
+class OfferingMergeView(_UnitEditMixin, FormView):
+    """Merge the selected units of an offering; ask for the room capacity (T3.3b, D91).
+
+    The page lists the members and the sum of the students (a guide, provisional while
+    estimated) and, to who may read them, the room quantities (D64). The units come from the
+    query string on GET and from hidden fields on POST.
+    """
+
+    form_class = MergeForm
+    template_name = "dsd/merge_form.html"
+    title = _("Juntar unidades")
+
+    @cached_property
+    def units(self) -> list[TeachingUnit]:
+        """The units asked for, all of this offering; unknown ones are a 404."""
+        source = self.request.POST if self.request.method == "POST" else self.request.GET
+        ids = [int(pk) for pk in source.getlist("units") if pk.isdigit()]
+        units = list(
+            TeachingUnit.objects.filter(offering=self.offering, pk__in=ids)
+            .select_related("class_type")
+            .order_by("pk")
+        )
+        if len(units) != len(set(ids)):
+            raise Http404
+        return units
+
+    def get(self, request, *args, **kwargs):
+        """Show the confirmation; with fewer than two units go back with a message."""
+        if len(self.units) < 2:
+            messages.error(request, _("Escolha duas ou mais unidades para juntar."))
+            return redirect("dsd:offering_detail", pk=self.offering.pk)
+        return super().get(request, *args, **kwargs)
+
+    @cached_property
+    def students(self):
+        """The sum of the students and whether it is provisional, or the error text."""
+        members = list(
+            TeachingUnitMember.objects.filter(unit__in=self.units).select_related(
+                "unit__offering__dsd_semester__dsd__academic_year",
+                "class_group_link__class_group",
+                "subgroup__class_group_link__class_group",
+            )
+        )
+        try:
+            return merged_students(members), None
+        except ValidationError as error:
+            return None, " ".join(error.messages)
+
+    def get_form_kwargs(self):
+        """Start from the sum of the students as the capacity and the versions seen."""
+        kwargs = super().get_form_kwargs()
+        if "data" not in kwargs:
+            total, _error = self.students
+            seen = ",".join(f"{unit.pk}:{unit.version}" for unit in self.units)
+            kwargs["initial"] = {"room_capacity": total, "seen": seen}
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Add the units, the sum, the room quantities (to who may read them) and the way back."""
+        context = super().get_context_data(**kwargs)
+        total, error = self.students
+        context.update(
+            {
+                "offering": self.offering,
+                "units": self.units,
+                "students": total,
+                "students_error": error,
+                "rooms": (
+                    room_summary(min_capacity=total)
+                    if total and registry.can(self.request.user, "room.view")
+                    else None
+                ),
+                "can_see_rooms": registry.can(self.request.user, "room.view"),
+                "cancel_url": reverse("dsd:offering_detail", args=[self.offering.pk]),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        """Merge the units, or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            merge_units(
+                self.request.user,
+                self.units,
+                data["room_capacity"],
+                data["room_type"],
+                data["reason"],
+                data["seen"] or None,
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Unidades juntadas."))
+        return redirect("dsd:offering_detail", pk=self.offering.pk)
+
+
+class OfferingSeparateView(_UnitEditMixin, FormView):
+    """Take one member out of a merge, with a reason (T3.3b, D91, D40)."""
+
+    form_class = SeparateForm
+    template_name = "dsd/separate_form.html"
+    title = _("Separar da junção")
+
+    @cached_property
+    def unit(self) -> TeachingUnit:
+        """The merged unit of the URL; it must belong to the offering."""
+        return get_object_or_404(
+            TeachingUnit.objects.select_related("class_type"),
+            pk=self.kwargs["unit_pk"],
+            offering=self.offering,
+        )
+
+    @cached_property
+    def member(self) -> TeachingUnitMember:
+        """The member of the URL; it must belong to the unit."""
+        return get_object_or_404(
+            TeachingUnitMember.objects.select_related(
+                "class_group_link__class_group", "subgroup__class_group_link__class_group"
+            ),
+            pk=self.kwargs["member_pk"],
+            unit=self.unit,
+        )
+
+    def get_form_kwargs(self):
+        """Carry the version of the unit the user saw."""
+        kwargs = super().get_form_kwargs()
+        if "data" not in kwargs:
+            kwargs["initial"] = {"seen": self.unit.version}
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Say who is being separated, and from which unit."""
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "offering": self.offering,
+                "unit": self.unit,
+                "member": self.member,
+                "cancel_url": reverse("dsd:offering_detail", args=[self.offering.pk]),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        """Separate the member, or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            separate_member(self.request.user, self.unit, self.member, data["reason"], data["seen"])
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Membro separado."))
         return redirect("dsd:offering_detail", pk=self.offering.pk)

@@ -21,6 +21,12 @@ urlpatterns = [
         views.GroupCountView.as_view(),
         name="offering_groups",
     ),
+    path("offerings/<int:pk>/merge/", views.OfferingMergeView.as_view(), name="offering_merge"),
+    path(
+        "offerings/<int:pk>/units/<int:unit_pk>/separate/<int:member_pk>/",
+        views.OfferingSeparateView.as_view(),
+        name="offering_separate",
+    ),
     path(
         "offerings/<int:pk>/lead-teacher/",
         views.OfferingLeadTeacherView.as_view(),

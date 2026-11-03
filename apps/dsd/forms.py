@@ -8,10 +8,32 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.academic.models import Coordination
 from apps.core.generic import ReasonFieldsMixin, ReasonModelForm
+from apps.rooms.models import RoomType
 from apps.staff.models import Teacher
 
 from .lifecycle_rules import ACTION_CLOSE, ACTION_OPEN, ACTION_REOPEN, ACTIONS, needs_reason
 from .models import Dsd, Offering
+
+
+def parse_seen(text: str) -> dict[int, int]:
+    """Parse the ``unit id:version`` pairs a form carries for the optimistic lock (D54).
+
+    Args:
+        text: pairs separated by commas, for example ``"12:3,14:1"``.
+
+    Returns:
+        ``{unit id: version}``.
+
+    Raises:
+        forms.ValidationError: if the text is not made of such pairs.
+    """
+    try:
+        return {
+            int(unit): int(version)
+            for unit, version in (pair.split(":") for pair in text.split(",") if pair)
+        }
+    except ValueError:
+        raise forms.ValidationError(_("Dados do formulário inválidos.")) from None
 
 
 class DsdForm(ReasonModelForm):
@@ -142,16 +164,50 @@ class GroupCountForm(ReasonFieldsMixin, forms.Form):
 
     def clean_seen(self) -> dict[int, int]:
         """Parse ``seen`` into ``{unit id: version}``."""
-        text = self.cleaned_data.get("seen", "")
-        try:
-            return {
-                int(unit): int(version)
-                for unit, version in (pair.split(":") for pair in text.split(",") if pair)
-            }
-        except ValueError:
-            raise forms.ValidationError(_("Dados do formulário inválidos.")) from None
+        return parse_seen(self.cleaned_data.get("seen", ""))
 
     def clean(self):
         """Require the reason when the turma is already divided."""
         self.reason_required = self._changing
         return super().clean()
+
+
+class MergeForm(ReasonFieldsMixin, forms.Form):
+    """Ask for the room the merged unit needs and the reason (T3.3b, D91).
+
+    The coordinator never chooses a room, only states the capacity (and optionally the type) of
+    room needed (D64). ``seen`` carries the versions of the units, for the lock (D54).
+    """
+
+    room_capacity = forms.IntegerField(
+        label=_("Lotação da sala pedida"),
+        min_value=1,
+        help_text=_("Lugares da sala de que a aula precisa; tem de comportar todos os alunos."),
+    )
+    room_type = forms.ModelChoiceField(
+        label=_("Tipo de sala"),
+        queryset=RoomType.objects.all(),
+        required=False,
+        empty_label=_("Qualquer tipo"),
+    )
+    seen = forms.CharField(required=False, widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._setup_reason(required=False)
+
+    def clean_seen(self) -> dict[int, int]:
+        """Parse ``seen`` into ``{unit id: version}``."""
+        return parse_seen(self.cleaned_data.get("seen", ""))
+
+
+class SeparateForm(ReasonFieldsMixin, forms.Form):
+    """Ask for the reason to take a member out of a merge (T3.3b, D40)."""
+
+    seen = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._setup_reason(required=True)
