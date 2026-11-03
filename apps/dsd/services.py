@@ -1,6 +1,6 @@
 """Use cases of the DSD: create it, change its states and generate the offerings (T2.1-T2.3).
 
-Implements: docs/backlog_fase2.md T2.1 to T2.3; D43 (one DSD per academic year, created
+Implements: docs/backlog_fase2.md T2.1 to T3.1; D43 (one DSD per academic year, created
 by the manager, who also opens, closes and reopens the semesters by coordination), D87.
 """
 
@@ -27,6 +27,8 @@ from .models import (
     DsdSemester,
     Offering,
     OfferingClassGroup,
+    TeachingUnit,
+    TeachingUnitMember,
 )
 
 SEMESTER_NUMBERS = (1, 2)
@@ -168,7 +170,10 @@ class GenerationResult:
         out_of_scope: cells ``(semester, coordination_id)`` skipped because the user does not
             cover that coordination (another Faculty).
         stale_offerings: existing offerings that no turma and plan call for any more.
-        stale_links: existing links of turmas that no longer take the offering. Both are kept.
+        stale_links: existing links of turmas that no longer take the offering.
+        stale_units: existing units whose class type left the subject's loads or whose
+            turmas no longer take the offering. All the stale rows are kept.
+        created_units: new teaching units, one per turma and class type by default.
     """
 
     created_offerings: int = 0
@@ -177,6 +182,8 @@ class GenerationResult:
     out_of_scope: list[tuple[DsdSemester, int]] = field(default_factory=list)
     stale_offerings: int = 0
     stale_links: int = 0
+    stale_units: int = 0
+    created_units: int = 0
 
 
 def wanted_offerings(dsd_semester: DsdSemester) -> dict[Subject, list[ClassGroup]]:
@@ -306,6 +313,76 @@ def _generate_cell(
                 OfferingClassGroup, {"offering": offering, "class_group": group}, actor, reason
             )
             result.created_links += linked
+        _ensure_default_units(actor, offering, subject, reason, result)
+    result.stale_units += _count_stale_units(semester, coordination_id, wanted)
+
+
+def _ensure_default_units(
+    actor, offering: Offering, subject: Subject, reason: str, result: GenerationResult
+) -> None:
+    """Create the missing default units of an offering: one per turma and class type (T3.1).
+
+    A unit and its member are created together in a savepoint, so a member that already exists
+    (another request, or an earlier run) leaves no orphan unit behind. The turmas of a merge
+    or a group (T3.2, T3.3) are already members of other units and are not touched.
+    """
+    class_types = list(subject.class_loads.select_related("class_type"))
+    have = set(
+        TeachingUnitMember.objects.filter(class_group_link__offering=offering).values_list(
+            "class_group_link_id", "class_type_id"
+        )
+    )
+    for link in offering.class_group_links.all():
+        for load in class_types:
+            if (link.pk, load.class_type_id) in have:
+                continue
+            try:
+                with transaction.atomic():
+                    unit = TeachingUnit(offering=offering, class_type=load.class_type)
+                    audited_save(unit, actor, reason)
+                    member = TeachingUnitMember(
+                        unit=unit, class_group_link=link, class_type=load.class_type
+                    )
+                    audited_save(member, actor, reason)
+            except IntegrityError:
+                continue  # another request created it first
+            result.created_units += 1
+
+
+def _count_stale_units(
+    semester: DsdSemester, coordination_id: int, wanted: dict[Subject, list[ClassGroup]]
+) -> int:
+    """Count the units of a cell that the plan and the turmas no longer call for (D87).
+
+    A unit is stale if its offering is not wanted, its class type left the subject's loads, or
+    one of its turmas no longer takes the offering. Nothing is deleted.
+    """
+    wanted_by_subject = {
+        subject.pk: (
+            {load.class_type_id for load in subject.class_loads.all()},
+            {group.pk for group in groups},
+        )
+        for subject, groups in wanted.items()
+    }
+    units = (
+        TeachingUnit.objects.filter(
+            offering__dsd_semester=semester, offering__subject__coordination_id=coordination_id
+        )
+        .select_related("offering")
+        .prefetch_related("members__class_group_link")
+    )
+    stale = 0
+    for unit in units:
+        entry = wanted_by_subject.get(unit.offering.subject_id)
+        if entry is None:
+            stale += 1
+            continue
+        types, groups = entry
+        if unit.class_type_id not in types or any(
+            member.class_group_link.class_group_id not in groups for member in unit.members.all()
+        ):
+            stale += 1
+    return stale
 
 
 def set_lead_teacher(

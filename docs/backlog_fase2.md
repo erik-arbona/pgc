@@ -33,6 +33,8 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 
 ## 3. Unidades letivas: junções e grupos (bloco 3)
 - [ ] T3.1 Unidade letiva = oferta × tipo de aula × público (turmas juntas ou um grupo); por defeito uma por turma; bloqueio otimista.
+  - [x] T3.1a Modelos `TeachingUnit` e `TeachingUnitMember`; criação das unidades por defeito ao gerar as ofertas; obsoletas contadas (D89).
+  - [ ] T3.1b Página só de leitura de cada oferta com as suas unidades.
 - [ ] T3.2 Divisão em N grupos por tipo de aula (`SubGroup`). ⚑ Q6, Q7
 - [ ] T3.3 Junção de turmas do mesmo curso por tipo de aula (D23).
 - [ ] T3.4 Junção entre cursos: só transversais, só cursos indicados, mesmo semestre (bloqueia); aviso de carga diferente (D22, D47, D48). ⚑ Q8

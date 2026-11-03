@@ -46,7 +46,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Colaborador (habitual) | Docente externo que já leciona na Universidade e pode ser convidado pelo CE; os outros tipos são o docente a tempo inteiro e o docente de concurso; cada tipo tem intervalo de horas próprio e configurável | — |
 | DSD | Distribuição de Serviço Docente de um ano letivo, criada pelo gestor da PGC (um por ano letivo), com os dois semestres; cada semestre abre-se e fecha-se por coordenação (D43) | `Dsd` |
 | Fecho do DSD | O gestor da PGC fecha um semestre de uma coordenação (ou de todas); cria versão imutável; depois só ele altera, numa nova versão (D43) | `DsdVersion` |
-| Unidade letiva | Aula de um tipo (T, TP, P, L) de uma oferta, para um público: uma turma, várias turmas juntas ou um grupo; é a que recebe o docente. Provisório até T3.1 | `TeachingUnit` |
+| Unidade letiva | Aula de um tipo (T, TP, P, L) de uma oferta, para um público: uma turma, várias turmas juntas ou um grupo; é a que recebe o docente. Por defeito, uma por turma e tipo de aula (D89) | `TeachingUnit` |
 | Sala | Localização (edifício, número), nome quando tiver, tipo e capacidade | `Room` |
 | Época de exames | 1.ª chamada, 2.ª chamada, recurso, com datas | `ExamPeriod` |
 | Faixa horária | Bloco de exame definido pelo gestor (p. ex. 09:00-11:00) | `ExamSlot` |
