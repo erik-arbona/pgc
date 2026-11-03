@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{{ offering.subject.code }} – {{ offering.subject.name }} · {{ unit.class_type.code }}</p>
+  <p>
+    {% translate "Alunos da unidade" %}:
+    {% if students is not None %}{{ students }}{% else %}{% translate "sem matrícula" %}{% endif %}.
+    {% translate "O pedido é uma lotação e, se quiser, um tipo de sala; a sala concreta escolhe-se mais tarde." %}
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Guardar" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}

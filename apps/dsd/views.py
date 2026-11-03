@@ -32,6 +32,7 @@ from .forms import (
     GroupCountForm,
     LeadTeacherForm,
     MergeForm,
+    RoomRequestForm,
     SeparateForm,
     StateChangeForm,
 )
@@ -57,10 +58,13 @@ from .services import (
     merge_units,
     merged_students,
     partner_offerings,
+    room_request_warnings,
     separate_member,
     set_group_count,
     set_lead_teacher,
+    set_room_request,
     stale_unit_ids,
+    unit_students,
     unit_versions,
 )
 
@@ -429,12 +433,15 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             "provisional": any(size.provisional for size in counted),
             "stale": unit.pk in stale,
             "has_groups": has_groups,
-            "actions": self._actions(offering, members, can_edit) if with_actions else [],
+            "actions": self._actions(offering, unit, members, can_edit) if with_actions else [],
+            "room_warnings": (
+                room_request_warnings(unit, unit_students(unit)) if unit.room_capacity else []
+            ),
             "selectable": can_edit and unit.pk not in stale,
         }
 
     @staticmethod
-    def _actions(offering, members, can_edit):
+    def _actions(offering, unit, members, can_edit):
         """Return the buttons of a unit row: ``[{"url", "label"}]``, empty if none (D86, D90, D91).
 
         A whole turma alone in its unit can be divided; the first group of a divided turma can
@@ -444,7 +451,12 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         """
         if not can_edit:
             return []
-        actions = []
+        actions = [
+            {
+                "url": reverse("dsd:unit_room", args=[offering.pk, unit.pk]),
+                "label": _("Alterar pedido de sala") if unit.room_capacity else _("Pedir sala"),
+            }
+        ]
         for member in members:
             if member.subgroup_id:
                 if member.subgroup.number == 1:
@@ -770,4 +782,68 @@ class OfferingSeparateView(_UnitEditMixin, FormView):
             add_validation_errors(form, error)
             return self.form_invalid(form)
         messages.success(self.request, _("Membro separado."))
+        return redirect("dsd:offering_detail", pk=self.offering.pk)
+
+
+class UnitRoomView(_UnitEditMixin, FormView):
+    """Ask for the room a teaching unit needs: a capacity and, optionally, a type (T3.5, Q9).
+
+    Same permission and cell rules as the other unit edits (D86). The page never shows a
+    concrete room (D64); warnings are shown on the offering page.
+    """
+
+    form_class = RoomRequestForm
+    template_name = "dsd/room_form.html"
+    title = _("Pedir sala")
+
+    @cached_property
+    def unit(self) -> TeachingUnit:
+        """The unit of the URL; it must belong to the offering."""
+        return get_object_or_404(
+            TeachingUnit.objects.select_related("class_type", "room_type"),
+            pk=self.kwargs["unit_pk"],
+            offering=self.offering,
+        )
+
+    def get_form_kwargs(self):
+        """Start from the current request, or the students of the unit as a suggestion."""
+        kwargs = super().get_form_kwargs()
+        kwargs["changing"] = self.unit.room_capacity is not None
+        if "data" not in kwargs:
+            kwargs["initial"] = {
+                "room_capacity": self.unit.room_capacity or unit_students(self.unit),
+                "room_type": self.unit.room_type_id,
+                "seen": self.unit.version,
+            }
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Say which unit is asking, and the students it has (a guide)."""
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "offering": self.offering,
+                "unit": self.unit,
+                "students": unit_students(self.unit),
+                "cancel_url": reverse("dsd:offering_detail", args=[self.offering.pk]),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        """Save the request, or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            set_room_request(
+                self.request.user,
+                self.unit,
+                data["room_capacity"],
+                data["room_type"],
+                data["reason"],
+                data["seen"],
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Pedido de sala guardado."))
         return redirect("dsd:offering_detail", pk=self.offering.pk)

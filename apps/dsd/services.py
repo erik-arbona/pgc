@@ -974,3 +974,113 @@ def separate_member(
         audited_save(moved, actor, why)
         audited_save(locked, actor, why)  # bumps the version of the unit the member left
     return new
+
+
+def unit_students(unit: TeachingUnit) -> int | None:
+    """Return the students a unit teaches (a group counts its share of the turma, D90), if known.
+
+    Args:
+        unit: the teaching unit.
+
+    Returns:
+        The sum for its members, or ``None`` if it has none or a turma has no enrollment number.
+    """
+    members = list(
+        unit.members.select_related(
+            "unit__offering__dsd_semester__dsd__academic_year",
+            "class_group_link__class_group",
+            "subgroup__class_group_link__class_group",
+        )
+    )
+    if not members:
+        return None
+    try:
+        return merged_students(members)
+    except ValidationError:
+        return None
+
+
+def room_request_warnings(unit: TeachingUnit, students: int | None) -> list[str]:
+    """Return the warnings of the room a unit asks for (T3.5, Q9, D64).
+
+    Computed when shown, from the quantities of rooms, never from one room: no room of the
+    campus has the capacity (and type) asked, or the capacity asked is below the students.
+
+    Args:
+        unit: the unit and its request.
+        students: the students of the unit, or ``None`` if unknown.
+
+    Returns:
+        The warnings in Portuguese; empty if there is no request or it is fine.
+    """
+    if unit.room_capacity is None:
+        return []
+    warnings: list[str] = []
+    if not room_summary(unit.room_type_id, unit.room_capacity):
+        kind = f", {unit.room_type.name}" if unit.room_type_id else ""
+        warnings.append(
+            _("Nenhuma sala do campus serve este pedido (%(capacity)s lugares%(kind)s).")
+            % {"capacity": unit.room_capacity, "kind": kind}
+        )
+    if students is not None and unit.room_capacity < students:
+        warnings.append(
+            _("A sala pedida (%(capacity)s lugares) não comporta os %(students)s alunos.")
+            % {"capacity": unit.room_capacity, "students": students}
+        )
+    return warnings
+
+
+def set_room_request(
+    actor,
+    unit: TeachingUnit,
+    room_capacity: int | None,
+    room_type: RoomType | None,
+    reason: str = "",
+    seen_version: int | None = None,
+) -> TeachingUnit:
+    """Set, change or clear the room a teaching unit asks for (T3.5, Q9, D91).
+
+    The request is a capacity and, optionally, a room type; it is a request, not a booking, and
+    it only warns (``room_request_warnings``) when no room fits. Written inside ``dsd_write``
+    (D86) with the unit versions the user saw (D54). The first request needs no reason; changing
+    or clearing it does (D40).
+
+    Args:
+        actor: the user acting.
+        unit: the unit.
+        room_capacity: places asked, or ``None`` to clear the request.
+        room_type: type of room asked, or ``None`` for any; needs a capacity.
+        reason: why; required when there already is a request.
+        seen_version: the version of the unit the user saw.
+
+    Returns:
+        The unit as saved (unchanged and not written if the request is the same).
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination.
+        ValidationError: if the cell is not writable, the capacity is not positive, a type is
+            given without capacity, the version is stale or the reason is missing.
+    """
+    if room_capacity is None and room_type is not None:
+        raise ValidationError({"room_capacity": _("Indique a lotação da sala pedida.")})
+    if room_capacity is not None and room_capacity < 1:
+        raise ValidationError({"room_capacity": _("A lotação tem de ser positiva.")})
+    offering = unit.offering
+    with dsd_write(
+        actor, TEACHING_UNIT_EDIT, offering.dsd_semester, offering.subject.coordination_id
+    ):
+        try:
+            locked = TeachingUnit.objects.select_for_update().get(pk=unit.pk)
+        except TeachingUnit.DoesNotExist:
+            raise _stale_message() from None
+        if seen_version is not None and locked.version != seen_version:
+            raise _stale_message()
+        new_type = room_type.pk if room_type else None
+        if (locked.room_capacity, locked.room_type_id) == (room_capacity, new_type):
+            return locked
+        if locked.room_capacity is not None and not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        locked.room_capacity = room_capacity
+        locked.room_type = room_type
+        audited_save(locked, actor, reason.strip() or _("Pedido de sala"))
+    return locked
