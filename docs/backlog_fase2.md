@@ -41,9 +41,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T3.3 Junção de turmas do mesmo curso por tipo de aula (D23).
   - [x] T3.3a Juntar e separar (serviço): regra da sala por quantidades, pedido de sala na unidade, tamanho dos grupos (D91).
   - [x] T3.3b Casillas e «Juntar selecionadas», página de confirmação, «Separar»; botão «Alterar n.º de grupos» num grupo juntado.
-- [ ] T3.4 Junção entre cursos: só transversais, só cursos indicados, mesmo semestre (bloqueia); aviso de carga diferente (D22, D47, D48). ⚑ Q8
+- [x] T3.4 Junção entre cursos: só transversais, só cursos indicados, mesmo semestre (bloqueia); aviso de carga diferente (D22, D47, D48). ⚑ Q8
   - [x] T3.4a Serviço: juntar membros de ofertas diferentes entre disciplinas transversais, aviso e confirmação da carga diferente, obsoletas por membro, separar para a oferta própria (D92).
-  - [ ] T3.4b Ecrãs: secção «Outros cursos», escolha da anfitriã e confirmação da carga, «Juntada em», curso de cada turma.
+  - [x] T3.4b Ecrãs: secção «Outros cursos», escolha da anfitriã e confirmação da carga, «Juntada em», botão de grupos de uma turma de outro curso.
 - [ ] T3.5 Tipo e capacidade de sala pedidos por turma ou grupo; aviso se nenhuma sala serve (`room_summary`, bloco 8, D64). ⚑ Q9
 
 ## 4. Regras de cálculo (módulo de domínio puro, bloco 6)

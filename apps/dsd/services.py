@@ -12,6 +12,7 @@ from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils.translation import gettext as _
 
 from apps.academic.models import (
@@ -631,6 +632,65 @@ def _transversal_error(subjects: list[Subject], academic_year: int) -> str | Non
     if not {subject.study_plan.course_id for subject in subjects} <= allowed:
         return _("Um dos cursos não está indicado para juntar turmas nesta disciplina.")
     return None
+
+
+def partner_offerings(offering: Offering) -> list[Offering]:
+    """Return the offerings whose turmas could be merged with this offering's (D92).
+
+    They are the offerings of the same DSD semester and coordination whose subject is
+    transversal to this one: same group, plan in force, indicated courses. Used to offer the
+    units of the other courses on the page.
+
+    Args:
+        offering: the offering the page is about.
+
+    Returns:
+        The partner offerings, ordered by subject code.
+    """
+    year = offering.dsd_semester.dsd.academic_year.start_year
+    group_ids = CrossCourseSubjectMember.objects.filter(subject=offering.subject).values_list(
+        "cross_course_subject_id", flat=True
+    )
+    candidates = (
+        Offering.objects.filter(
+            dsd_semester=offering.dsd_semester,
+            subject__coordination_id=offering.subject.coordination_id,
+            subject__cross_course_memberships__cross_course_subject_id__in=list(group_ids),
+        )
+        .exclude(pk=offering.pk)
+        .select_related("subject__study_plan__course")
+        .order_by("subject__code")
+        .distinct()
+    )
+    return [
+        candidate
+        for candidate in candidates
+        if _transversal_error([offering.subject, candidate.subject], year) is None
+    ]
+
+
+def guest_members(offering: Offering) -> list[TeachingUnitMember]:
+    """Return the members from this offering that were merged into a unit of another offering.
+
+    Args:
+        offering: the offering of the turmas that were merged elsewhere.
+
+    Returns:
+        The audience rows, with the unit and its host offering loaded.
+    """
+    return list(
+        TeachingUnitMember.objects.filter(
+            Q(class_group_link__offering=offering)
+            | Q(subgroup__class_group_link__offering=offering)
+        )
+        .exclude(unit__offering=offering)
+        .select_related(
+            "unit__offering__subject__study_plan__course",
+            "unit__class_type",
+            "class_group_link__class_group",
+            "subgroup__class_group_link__class_group",
+        )
+    )
 
 
 def _subjects_of(units: Iterable[TeachingUnit]) -> list[Subject]:

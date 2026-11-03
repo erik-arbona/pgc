@@ -37,7 +37,43 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if partner_rows %}
+  <h2>{% translate "Outros cursos (disciplina transversal)" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th></th><th>{% translate "Disciplina" %}</th><th>{% translate "Tipo de aula" %}</th>
+        <th>{% translate "Turmas" %}</th><th>{% translate "Alunos" %}</th><th>{% translate "Pedido de sala" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in partner_rows %}
+      <tr>
+        <td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}">{% endif %}</td>
+        <td>{{ row.unit.offering.subject.code }} – {{ row.unit.offering.subject.name }} ({{ row.unit.offering.subject.study_plan.course.name }})</td>
+        <td>{{ row.unit.class_type.code }}</td>
+        <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
+        <td>{% if row.has_groups %}—{% elif row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}</td>
+        <td>{% if row.unit.room_capacity %}{{ row.unit.room_capacity }}{% else %}—{% endif %}</td>
+        <td>{% if row.stale %}{% translate "Obsoleta" %}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
   {% if can_edit %}<p><button type="submit">{% translate "Juntar selecionadas" %}</button></p>{% endif %}
   </form>
+  {% if guest_rows %}
+  <h2>{% translate "Juntada em" %}</h2>
+  <ul>
+    {% for row in guest_rows %}
+    <li>
+      {{ row.label }} ({{ row.member.unit.class_type.code }}) –
+      <a href="{% url 'dsd:offering_detail' row.host.pk %}">{{ row.host.subject.code }} ({{ row.host.subject.study_plan.course.name }})</a>
+      {% if row.separate_url %} · <a href="{{ row.separate_url }}">{% translate "Separar" %}</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   <p><a href="{% url 'dsd:offering_list' offering.dsd_semester.dsd_id %}">{% translate "Voltar" %}</a></p>
 {% endblock %}

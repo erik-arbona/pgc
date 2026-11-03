@@ -52,8 +52,11 @@ from .services import (
     change_state,
     create_dsd,
     generate_offerings,
+    guest_members,
+    merge_load_differences,
     merge_units,
     merged_students,
+    partner_offerings,
     separate_member,
     set_group_count,
     set_lead_teacher,
@@ -324,18 +327,20 @@ class OfferingLeadTeacherView(PageMixin, LoginRequiredMixin, FormView):
 
 
 class OfferingDetailView(ManagedViewMixin, TemplateView):
-    """An offering with its teaching units, read-only (T3.1b, D89).
+    """An offering with its teaching units, read-only (T3.1b, D89), and the actions on them.
 
     The manager and the coordinator read it (``dsd.view``, D69). Each unit shows its class type,
     the weekly hours read from the subject's load, the turmas that attend it with their size
-    (provisional while it is an estimate, D81) and a mark when it is stale.
+    (provisional while it is an estimate, D81), its room request and a mark when it is stale.
+    Where the subject is transversal (D92) the page also offers the units of the partner
+    offerings to merge with, and lists the turmas of this offering that were merged into another.
     """
 
     permission_action = "dsd.view"
     template_name = "dsd/offering_detail.html"
 
     def get_context_data(self, **kwargs):
-        """Build one row per unit with its hours, turmas, size and stale mark."""
+        """Build the rows of the units, of the partner units and of the merges this was put in."""
         context = super().get_context_data(**kwargs)
         offering = get_object_or_404(
             Offering.objects.select_related(
@@ -346,48 +351,35 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             ),
             pk=self.kwargs["pk"],
         )
-        loads = {
-            load.class_type_id: load.weekly_hours for load in offering.subject.class_loads.all()
-        }
-        stale = stale_unit_ids(offering.dsd_semester, offering.subject.coordination_id)
+        coordination_id = offering.subject.coordination_id
+        stale = stale_unit_ids(offering.dsd_semester, coordination_id)
         sizes = class_group_sizes(offering.dsd_semester.dsd.academic_year)
-        units = (
-            TeachingUnit.objects.filter(offering=offering)
-            .select_related("class_type", "room_type")
-            .prefetch_related(
-                "members__class_group_link__class_group",
-                "members__subgroup__class_group_link__class_group",
-            )
-        )
         can_edit = cell_writable(
-            self.request.user,
-            TEACHING_UNIT_EDIT,
-            offering.dsd_semester,
-            offering.subject.coordination_id,
+            self.request.user, TEACHING_UNIT_EDIT, offering.dsd_semester, coordination_id
         )
-        rows = []
-        for unit in units:
-            members = list(unit.members.all())
-            has_groups = any(member.subgroup_id for member in members)
-            groups = [
-                member.subgroup if member.subgroup_id else member.class_group_link.class_group
-                for member in members
-            ]
-            # The size of a group is not stored (D90): only whole turmas have a number.
-            counted = (
-                [] if has_groups else [sizes[group.pk] for group in groups if group.pk in sizes]
-            )
-            rows.append(
+        rows = [self._row(unit, offering, stale, sizes, can_edit) for unit in self._units(offering)]
+        partner_rows = []
+        guest_rows = []
+        if can_edit:
+            for partner in partner_offerings(offering):
+                partner_rows += [
+                    self._row(unit, partner, stale, sizes, can_edit, with_actions=False)
+                    for unit in self._units(partner)
+                ]
+        for member in guest_members(offering):
+            host = member.unit.offering
+            guest_rows.append(
                 {
-                    "unit": unit,
-                    "weekly_hours": loads.get(unit.class_type_id),
-                    "groups": groups,
-                    "students": sum(size.students for size in counted) if counted else None,
-                    "provisional": any(size.provisional for size in counted),
-                    "stale": unit.pk in stale,
-                    "has_groups": has_groups,
-                    "actions": self._actions(offering, members, can_edit),
-                    "selectable": can_edit and unit.pk not in stale,
+                    "member": member,
+                    "host": host,
+                    "label": member.subgroup
+                    if member.subgroup_id
+                    else member.turma_link.class_group,
+                    "separate_url": reverse(
+                        "dsd:offering_separate", args=[host.pk, member.unit_id, member.pk]
+                    )
+                    if can_edit
+                    else None,
                 }
             )
         context.update(
@@ -395,18 +387,60 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                 "offering": offering,
                 "title": f"{offering.subject.code} – {offering.subject.name}",
                 "rows": rows,
+                "partner_rows": partner_rows,
+                "guest_rows": guest_rows,
                 "can_edit": can_edit,
             }
         )
         return context
 
     @staticmethod
+    def _units(offering):
+        """Return the units of an offering with what a row needs."""
+        return (
+            TeachingUnit.objects.filter(offering=offering)
+            .select_related("class_type", "room_type", "offering__subject__study_plan__course")
+            .prefetch_related(
+                "members__class_group_link__class_group",
+                "members__subgroup__class_group_link__class_group",
+                "members__subgroup__class_group_link__offering",
+            )
+        )
+
+    def _row(self, unit, offering, stale, sizes, can_edit, with_actions=True):
+        """Build the row of one unit: hours, turmas, size, room request, stale mark, buttons."""
+        loads = {
+            load.class_type_id: load.weekly_hours
+            for load in unit.offering.subject.class_loads.all()
+        }
+        members = list(unit.members.all())
+        has_groups = any(member.subgroup_id for member in members)
+        groups = [
+            member.subgroup if member.subgroup_id else member.class_group_link.class_group
+            for member in members
+        ]
+        # The size of a group is not stored (D90): only whole turmas have a number.
+        counted = [] if has_groups else [sizes[group.pk] for group in groups if group.pk in sizes]
+        return {
+            "unit": unit,
+            "weekly_hours": loads.get(unit.class_type_id),
+            "groups": groups,
+            "students": sum(size.students for size in counted) if counted else None,
+            "provisional": any(size.provisional for size in counted),
+            "stale": unit.pk in stale,
+            "has_groups": has_groups,
+            "actions": self._actions(offering, members, can_edit) if with_actions else [],
+            "selectable": can_edit and unit.pk not in stale,
+        }
+
+    @staticmethod
     def _actions(offering, members, can_edit):
         """Return the buttons of a unit row: ``[{"url", "label"}]``, empty if none (D86, D90, D91).
 
         A whole turma alone in its unit can be divided; the first group of a divided turma can
-        change the number of groups, even when that group is in a merge; every member of a merge
-        can be separated.
+        change the number of groups, even when that group is in a merge (the URL names the
+        offering of the group's own turma, which may be another course's, D92); every member of
+        a merge can be separated.
         """
         if not can_edit:
             return []
@@ -416,13 +450,18 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                 if member.subgroup.number == 1:
                     link = member.subgroup.class_group_link
                     url = reverse(
-                        "dsd:offering_groups", args=[offering.pk, link.pk, member.class_type_id]
+                        "dsd:offering_groups",
+                        args=[link.offering_id, link.pk, member.class_type_id],
                     )
                     actions.append({"url": url, "label": _("Alterar n.º de grupos")})
             elif len(members) == 1:
                 url = reverse(
                     "dsd:offering_groups",
-                    args=[offering.pk, member.class_group_link_id, member.class_type_id],
+                    args=[
+                        member.class_group_link.offering_id,
+                        member.class_group_link_id,
+                        member.class_type_id,
+                    ],
                 )
                 actions.append({"url": url, "label": _("Dividir em grupos")})
             if len(members) > 1:
@@ -580,8 +619,10 @@ class OfferingMergeView(_UnitEditMixin, FormView):
         source = self.request.POST if self.request.method == "POST" else self.request.GET
         ids = [int(pk) for pk in source.getlist("units") if pk.isdigit()]
         units = list(
-            TeachingUnit.objects.filter(offering=self.offering, pk__in=ids)
-            .select_related("class_type")
+            TeachingUnit.objects.filter(
+                offering__dsd_semester=self.offering.dsd_semester, pk__in=ids
+            )
+            .select_related("class_type", "offering__subject__study_plan__course")
             .order_by("pk")
         )
         if len(units) != len(set(ids)):
@@ -616,8 +657,19 @@ class OfferingMergeView(_UnitEditMixin, FormView):
         if "data" not in kwargs:
             total, _error = self.students
             seen = ",".join(f"{unit.pk}:{unit.version}" for unit in self.units)
-            kwargs["initial"] = {"room_capacity": total, "seen": seen}
+            kwargs["initial"] = {
+                "room_capacity": total,
+                "seen": seen,
+                "host": self.units[0].pk,
+            }
+        kwargs["units"] = self.units
+        kwargs["has_load_difference"] = bool(self.load_differences)
         return kwargs
+
+    @cached_property
+    def load_differences(self):
+        """The weekly hours of each subject when they differ, else empty (Q8, D92)."""
+        return merge_load_differences(self.units)
 
     def get_context_data(self, **kwargs):
         """Add the units, the sum, the room quantities (to who may read them) and the way back."""
@@ -629,6 +681,7 @@ class OfferingMergeView(_UnitEditMixin, FormView):
                 "units": self.units,
                 "students": total,
                 "students_error": error,
+                "load_differences": self.load_differences,
                 "rooms": (
                     room_summary(min_capacity=total)
                     if total and registry.can(self.request.user, "room.view")
@@ -651,6 +704,8 @@ class OfferingMergeView(_UnitEditMixin, FormView):
                 data["room_type"],
                 data["reason"],
                 data["seen"] or None,
+                host=next((unit for unit in self.units if str(unit.pk) == data["host"]), None),
+                accept_load_difference=data.get("accept_load_difference", False),
             )
         except ValidationError as error:
             add_validation_errors(form, error)

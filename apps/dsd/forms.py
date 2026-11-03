@@ -190,11 +190,28 @@ class MergeForm(ReasonFieldsMixin, forms.Form):
         required=False,
         empty_label=_("Qualquer tipo"),
     )
+    host = forms.ChoiceField(
+        label=_("Unidade que fica"),
+        required=False,
+        help_text=_("As horas contam pela disciplina desta unidade; por defeito, a primeira."),
+    )
     seen = forms.CharField(required=False, widget=forms.HiddenInput)
     reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, units=(), has_load_difference: bool = False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.fields["host"].choices = [
+            (
+                unit.pk,
+                f"{unit.offering.subject.code} – {unit.offering.subject.study_plan.course.name}",
+            )
+            for unit in units
+        ]
+        if has_load_difference:
+            # Shown only when the subjects give a different weekly load (Q8, D92).
+            self.fields["accept_load_difference"] = forms.BooleanField(
+                label=_("Confirmo a junção apesar da carga semanal diferente"), required=False
+            )
         self._setup_reason(required=False)
 
     def clean_seen(self) -> dict[int, int]:
