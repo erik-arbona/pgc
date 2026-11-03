@@ -21,5 +21,6 @@
       {% endfor %}
     </tbody>
   </table>
+  <p><a href="{% url 'dsd:offering_list' object.pk %}">{% translate "Ofertas" %}</a></p>
   <p><a href="{% url 'dsd:dsd_list' %}">{% translate "Voltar" %}</a></p>
 {% endblock %}

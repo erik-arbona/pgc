@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  {% if can_generate %}<p><a href="{% url 'dsd:offering_generate' dsd.pk %}">{% translate "Gerar ofertas" %}</a></p>{% endif %}
+  <form method="get">
+    <select name="semester">
+      <option value="">{% translate "Ambos os semestres" %}</option>
+      <option value="1" {% if selected_semester == "1" %}selected{% endif %}>{% translate "1.º semestre" %}</option>
+      <option value="2" {% if selected_semester == "2" %}selected{% endif %}>{% translate "2.º semestre" %}</option>
+    </select>
+    <select name="coordination">
+      <option value="">{% translate "Todas as coordenações" %}</option>
+      {% for item in coordinations %}
+      <option value="{{ item.pk }}" {% if selected_coordination == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">{% translate "Filtrar" %}</button>
+  </form>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Semestre" %}</th><th>{% translate "Ano" %}</th><th>{% translate "Disciplina" %}</th>
+        <th>{% translate "Curso" %}</th><th>{% translate "Coordenação" %}</th>
+        <th>{% translate "Turmas" %}</th><th>{% translate "Regente" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for offering, groups in rows %}
+      <tr>
+        <td>{{ offering.dsd_semester.number }}</td>
+        <td>{{ offering.subject.curricular_year }}</td>
+        <td>{{ offering.subject.code }} – {{ offering.subject.name }}</td>
+        <td>{{ offering.subject.study_plan.course.name }}</td>
+        <td>{{ offering.subject.coordination.name }}</td>
+        <td>
+          {% for group, size in groups %}
+            {{ group }}:
+            {% if size %}{{ size.students }}{% if size.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}{% if not forloop.last %}; {% endif %}
+          {% endfor %}
+        </td>
+        <td>{{ offering.lead_teacher|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7">{% translate "Ainda não há ofertas." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{% url 'dsd:dsd_detail' dsd.pk %}">{% translate "Voltar" %}</a></p>
+{% endblock %}

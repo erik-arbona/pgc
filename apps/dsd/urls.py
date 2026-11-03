@@ -1,6 +1,6 @@
 """URLs of ``dsd`` (mounted under ``/dsd/``).
 
-Implements: docs/backlog_fase2.md T2.1 and T2.2.
+Implements: docs/backlog_fase2.md T2.1-T2.3.
 """
 
 from django.urls import path
@@ -14,4 +14,10 @@ urlpatterns = [
     path("new/", views.DsdCreateView.as_view(), name="dsd_create"),
     path("<int:pk>/", views.DsdDetailView.as_view(), name="dsd_detail"),
     path("<int:pk>/state/", views.DsdStateView.as_view(), name="dsd_state"),
+    path("<int:pk>/offerings/", views.OfferingListView.as_view(), name="offering_list"),
+    path(
+        "<int:pk>/offerings/generate/",
+        views.OfferingGenerateView.as_view(),
+        name="offering_generate",
+    ),
 ]
