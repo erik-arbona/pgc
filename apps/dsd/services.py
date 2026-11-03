@@ -1,6 +1,6 @@
 """Use cases of the DSD: create it, change its states and generate the offerings (T2.1-T2.3).
 
-Implements: docs/backlog_fase2.md T2.1 to T3.3; D43 (one DSD per academic year, created
+Implements: docs/backlog_fase2.md T2.1 to T3.4; D43 (one DSD per academic year, created
 by the manager, who also opens, closes and reopens the semesters by coordination), D87.
 """
 
@@ -8,13 +8,20 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils.translation import gettext as _
 
-from apps.academic.models import AcademicYear, ClassGroup, Coordination, Subject
-from apps.academic.services import class_group_sizes, subjects_for
+from apps.academic.models import (
+    AcademicYear,
+    ClassGroup,
+    Coordination,
+    CrossCourseSubjectMember,
+    Subject,
+)
+from apps.academic.services import class_group_sizes, effective_group_members, subjects_for
 from apps.core.audit import audited_delete, audited_save
 from apps.core.permissions import registry
 from apps.rooms.models import RoomType
@@ -365,8 +372,12 @@ def _stale_unit_ids(
 ) -> set[int]:
     """Return the ids of the units of a cell that the plan and the turmas no longer call for.
 
-    A unit is stale if its offering is not wanted, its class type left the subject's loads, or
-    one of its turmas no longer takes the offering. Nothing is deleted (D87, D89).
+    A unit is stale if one of its members is: the member's offering is not wanted, its class type
+    left the member's subject, or its turma no longer takes that subject. Each member is checked
+    against its own subject, so a turma of another course merged in (T3.4) is not flagged because
+    it is not a turma of the host. A merge between subjects is also stale when it is no longer
+    valid: the subjects left the transversal group, the course is no longer indicated, or a plan
+    is no longer in force (D47, D48). Nothing is deleted (D87, D89).
     """
     wanted_by_subject = {
         subject.pk: (
@@ -375,23 +386,37 @@ def _stale_unit_ids(
         )
         for subject, groups in wanted.items()
     }
+    year = semester.dsd.academic_year.start_year
     units = (
         TeachingUnit.objects.filter(
             offering__dsd_semester=semester, offering__subject__coordination_id=coordination_id
         )
-        .select_related("offering")
-        .prefetch_related("members__class_group_link", "members__subgroup__class_group_link")
+        .select_related("offering__subject__study_plan")
+        .prefetch_related(
+            "members__class_group_link__offering__subject__study_plan",
+            "members__subgroup__class_group_link__offering__subject__study_plan",
+        )
     )
     stale: set[int] = set()
     for unit in units:
-        entry = wanted_by_subject.get(unit.offering.subject_id)
-        if entry is None:
-            stale.add(unit.pk)
-            continue
-        types, groups = entry
-        if unit.class_type_id not in types or any(
-            member.turma_link.class_group_id not in groups for member in unit.members.all()
-        ):
+        subjects = {unit.offering.subject_id: unit.offering.subject}
+        is_stale = False
+        for member in unit.members.all():
+            link = member.turma_link
+            subject = link.offering.subject
+            subjects[subject.pk] = subject
+            entry = wanted_by_subject.get(subject.pk)
+            if (
+                entry is None
+                or unit.class_type_id not in entry[0]
+                or link.class_group_id not in entry[1]
+            ):
+                is_stale = True
+        if not is_stale and unit.offering.subject_id not in wanted_by_subject:
+            is_stale = True
+        if not is_stale and len(subjects) > 1:
+            is_stale = _transversal_error(list(subjects.values()), year) is not None
+        if is_stale:
             stale.add(unit.pk)
     return stale
 
@@ -572,6 +597,87 @@ def set_group_count(
             _new_unit(actor, offering, class_type, why, subgroup=group)
 
 
+def _transversal_error(subjects: list[Subject], academic_year: int) -> str | None:
+    """Tell why subjects of different courses cannot share a class, or ``None`` if they can.
+
+    They can when every subject belongs to the same cross-course group (D47), still counts in the
+    academic year because its plan is in force (D48), and its course is one of the courses the
+    manager indicated for the group.
+
+    Args:
+        subjects: the subjects whose turmas would share a class; more than one.
+        academic_year: start year of the academic year of the DSD.
+
+    Returns:
+        The reason in Portuguese, or ``None`` if the merge between them is allowed.
+    """
+    ids = {subject.pk for subject in subjects}
+    groups = {
+        membership.subject_id: membership.cross_course_subject
+        for membership in CrossCourseSubjectMember.objects.filter(
+            subject_id__in=ids
+        ).select_related("cross_course_subject")
+    }
+    if set(groups) != ids:
+        return _(
+            "As disciplinas não são transversais entre si: só se juntam turmas da mesma disciplina."
+        )
+    if len({group.pk for group in groups.values()}) != 1:
+        return _("As disciplinas não pertencem ao mesmo grupo de disciplinas transversais.")
+    group = next(iter(groups.values()))
+    if not ids <= {facts.id for facts in effective_group_members(group, academic_year)}:
+        return _("Uma das disciplinas já não está em vigor neste ano: o plano mudou.")
+    allowed = set(group.allowed_courses.values_list("course_id", flat=True))
+    if not {subject.study_plan.course_id for subject in subjects} <= allowed:
+        return _("Um dos cursos não está indicado para juntar turmas nesta disciplina.")
+    return None
+
+
+def _subjects_of(units: Iterable[TeachingUnit]) -> list[Subject]:
+    """Return the subjects behind some units: the host offering's and those of their members."""
+    units = list(units)
+    subjects = {unit.offering.subject_id: unit.offering.subject for unit in units}
+    members = TeachingUnitMember.objects.filter(unit__in=units).select_related(
+        "class_group_link__offering__subject__study_plan",
+        "subgroup__class_group_link__offering__subject__study_plan",
+    )
+    for member in members:
+        subject = member.turma_link.offering.subject
+        subjects[subject.pk] = subject
+    return list(subjects.values())
+
+
+def merge_load_differences(units: Iterable[TeachingUnit]) -> dict[str, Decimal]:
+    """Return the weekly hours of each subject for the class type, if they differ (Q8, D92).
+
+    Used to warn before merging turmas of subjects that give a different weekly load to the same
+    class type; nothing is returned when the subjects agree or there is a single subject.
+
+    Args:
+        units: the units that would be merged; they share a class type.
+
+    Returns:
+        ``{subject code: weekly hours}``, empty if there is no difference to warn about.
+    """
+    units = list(units)
+    subjects = _subjects_of(units)
+    if len(subjects) < 2:
+        return {}
+    class_type_id = units[0].class_type_id
+    hours = {
+        subject.code: next(
+            (
+                load.weekly_hours
+                for load in subject.class_loads.all()
+                if load.class_type_id == class_type_id
+            ),
+            Decimal("0"),
+        )
+        for subject in subjects
+    }
+    return hours if len(set(hours.values())) > 1 else {}
+
+
 def _stale_message() -> ValidationError:
     """The error for a change made on top of an older copy of the units (D54)."""
     return ValidationError(_("Este registo foi alterado por outra pessoa. Recarregue a página."))
@@ -621,8 +727,15 @@ def merge_units(
     reason: str = "",
     seen_versions: dict[int, int] | None = None,
     host: TeachingUnit | None = None,
+    accept_load_difference: bool = False,
 ) -> TeachingUnit:
-    """Merge teaching units of the same offering and class type into one (T3.3, D23, D91).
+    """Merge teaching units of one class type into one, also between courses (D23, D91, D92).
+
+    Units of the same offering merge when the rules below hold. Units of different offerings
+    merge only between transversal subjects (D47): the subjects must be in the same group, count
+    in the academic year (D48), be of indicated courses and of the same coordination (Q8). The
+    hours then count under the host's subject, and if the weekly load of the class type differs
+    between the subjects the merge needs ``accept_load_difference``.
 
     The host keeps every member of the merge and the other units are deleted. The merge is only
     allowed if some room of the campus holds the students: the coordinator states the capacity
@@ -632,33 +745,35 @@ def merge_units(
 
     Args:
         actor: the user acting.
-        units: two or more different units of one offering and one class type.
+        units: two or more different units of one class type and one DSD semester.
         room_capacity: places of the room asked.
         room_type: type of room asked, or ``None`` for any.
         reason: optional; a default one is recorded (D40).
         seen_versions: ``{unit id: version}`` the user saw, to refuse a stale merge (D54).
         host: the unit that keeps the merge; the first one by default.
+        accept_load_difference: the user confirmed a different weekly load between subjects.
 
     Returns:
         The host unit.
 
     Raises:
         PermissionDenied: if the actor does not cover the coordination.
-        ValidationError: if the units cannot be merged (different offering or class type, an
-            obsolete unit, two groups of one turma, a missing enrollment), the cell is not
-            writable, the version is stale, or no room of the campus fits.
+        ValidationError: if the units cannot be merged (different semester or class type,
+            subjects that are not transversal, an obsolete unit, two groups of one turma, a
+            missing enrollment), the cell is not writable, the version is stale, the load
+            differs and was not confirmed, or no room of the campus fits.
     """
     unique = list({unit.pk: unit for unit in units}.values())
     if len(unique) < 2:
         raise ValidationError(_("Escolha duas ou mais unidades diferentes para juntar."))
-    if len({unit.offering_id for unit in unique}) != 1:
-        raise ValidationError(_("Só se juntam unidades da mesma disciplina."))
+    if len({unit.offering.dsd_semester_id for unit in unique}) != 1:
+        raise ValidationError(_("Só se juntam unidades do mesmo semestre."))
     if len({unit.class_type_id for unit in unique}) != 1:
         raise ValidationError(_("Só se juntam unidades do mesmo tipo de aula."))
     host_pk = (host or unique[0]).pk
     if host_pk not in {unit.pk for unit in unique}:
         raise ValidationError(_("A unidade que fica tem de ser uma das que se juntam."))
-    offering = unique[0].offering
+    offering = next(unit for unit in unique if unit.pk == host_pk).offering
     coordination_id = offering.subject.coordination_id
     with dsd_write(actor, TEACHING_UNIT_EDIT, offering.dsd_semester, coordination_id):
         pks = sorted(unit.pk for unit in unique)
@@ -688,6 +803,22 @@ def merge_units(
             raise ValidationError(
                 _("Uma das unidades está obsoleta: já não é pedida pelo plano nem pelas turmas.")
             )
+        subjects = _subjects_of(unique)
+        if len({subject.coordination_id for subject in subjects}) != 1:
+            raise ValidationError(_("Só se juntam unidades da mesma coordenação."))
+        if len(subjects) > 1:
+            reason_why = _transversal_error(
+                subjects, offering.dsd_semester.dsd.academic_year.start_year
+            )
+            if reason_why is not None:
+                raise ValidationError(reason_why)
+            differences = merge_load_differences(unique)
+            if differences and not accept_load_difference:
+                shown = ", ".join(f"{code}: {hours} h" for code, hours in differences.items())
+                raise ValidationError(
+                    _("Carga semanal diferente entre as disciplinas (%(hours)s): confirme.")
+                    % {"hours": shown}
+                )
         links = [member.turma_link.pk for member in members if member.subgroup_id]
         if len(links) != len(set(links)):
             raise ValidationError(
@@ -764,8 +895,19 @@ def separate_member(
             raise ValidationError(_("Este membro já não pertence a esta unidade."))
         if current.count() < 2:
             raise ValidationError(_("A unidade só tem um membro: não há nada a separar."))
+        own_offering = member.turma_link.offering
+        own_members = [
+            other for other in current if other.turma_link.offering_id == locked.offering_id
+        ]
+        if own_offering.pk == locked.offering_id and len(own_members) == 1:
+            raise ValidationError(
+                _(
+                    "A unidade fica com uma turma da sua disciplina: "
+                    "separe primeiro as dos outros cursos."
+                )
+            )
         why = reason.strip()
-        new = TeachingUnit(offering=locked.offering, class_type=locked.class_type)
+        new = TeachingUnit(offering=own_offering, class_type=locked.class_type)
         audited_save(new, actor, why)
         moved = current.get(pk=member.pk)
         moved.unit = new

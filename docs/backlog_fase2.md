@@ -42,6 +42,8 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
   - [x] T3.3a Juntar e separar (serviço): regra da sala por quantidades, pedido de sala na unidade, tamanho dos grupos (D91).
   - [x] T3.3b Casillas e «Juntar selecionadas», página de confirmação, «Separar»; botão «Alterar n.º de grupos» num grupo juntado.
 - [ ] T3.4 Junção entre cursos: só transversais, só cursos indicados, mesmo semestre (bloqueia); aviso de carga diferente (D22, D47, D48). ⚑ Q8
+  - [x] T3.4a Serviço: juntar membros de ofertas diferentes entre disciplinas transversais, aviso e confirmação da carga diferente, obsoletas por membro, separar para a oferta própria (D92).
+  - [ ] T3.4b Ecrãs: secção «Outros cursos», escolha da anfitriã e confirmação da carga, «Juntada em», curso de cada turma.
 - [ ] T3.5 Tipo e capacidade de sala pedidos por turma ou grupo; aviso se nenhuma sala serve (`room_summary`, bloco 8, D64). ⚑ Q9
 
 ## 4. Regras de cálculo (módulo de domínio puro, bloco 6)
@@ -102,7 +104,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - ~~**Q5** (T2.1): um DSD por ano letivo para toda a Universidade ou um por Faculdade?~~ Resolvida: um por ano letivo, criado pelo gestor, aberto e fechado por coordenação (D43).
 - ~~**Q6** (T3.2): mínimo e máximo de alunos por tipo de aula~~ Resolvida por defeito: sem regra e sem guardar a dimensão do grupo (D90).
 - ~~**Q7** (T3.2): um grupo pode misturar alunos de turmas juntas?~~ Resolvida: sim, os grupos podem juntar-se entre turmas e cursos (transversais), em T3.3 e T3.4 (D90).
-- **Q8** (T3.4): numa junção entre cursos com horas diferentes ou coordenações diferentes, que horas contam e quem atribui? *Defeito:* bloquear junção entre coordenações.
+- ~~**Q8** (T3.4): junção com horas ou coordenações diferentes~~ Resolvida por defeito: contam as horas da disciplina anfitriã (escolhida pelo coordenador) com aviso e confirmação; coordenações diferentes não se juntam (D92).
 - **Q9** (T3.5): a sala pede-se por turma/grupo ou por unidade letiva? *Defeito:* por unidade letiva.
 - ~~**Q10** (T4.2): a preparação conta por repetição (N grupos) e pesa-se pela quota?~~ Resolvida: acompanha cada hora letiva, repetida por grupo e pela quota (D71); confirmar na Porta 1.
 - **Q11** (T4.3, fecho): a função recebe a data de referência (D72); aberto usa hoje, fechado conserva a data de fecho. *Por decidir:* a data quando só um semestre está fechado.
