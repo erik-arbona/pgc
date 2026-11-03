@@ -27,9 +27,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 ## 2. DSD e ofertas (D43, `04`)
 - [x] T2.1 DSD por ano letivo com os dois semestres, criado só pelo gestor; o coordenador não cria nem elimina (D43). Um só DSD por ano letivo, garantido na BD: se outro gestor tentar criar um segundo, é recusado com mensagem clara, mesmo em simultâneo.
 - [x] T2.2 Abertura, fecho e reabertura por semestre e coordenação, para uma ou todas; estado imposto em todas as escritas (D43).
-- [ ] T2.3 (parte A feita, falta B) Geração das ofertas do semestre a partir das turmas ativas e do plano de cada turma (D48, D49), com regente (`Offering.lead_teacher`).
+- [x] T2.3 Geração das ofertas do semestre a partir das turmas ativas e do plano de cada turma (D48, D49), com regente (`Offering.lead_teacher`).
   - [x] T2.3a Gerar as ofertas e as turmas de cada uma; lista por semestre e coordenação (D87).
-  - [ ] T2.3b Regente (`lead_teacher`): quem o define, só docentes da coordenação da disciplina.
+  - [x] T2.3b Regente (`lead_teacher`): quem o define, só docentes da coordenação da disciplina.
 
 ## 3. Unidades letivas: junções e grupos (bloco 3)
 - [ ] T3.1 Unidade letiva = oferta × tipo de aula × público (turmas juntas ou um grupo); por defeito uma por turma; bloqueio otimista.

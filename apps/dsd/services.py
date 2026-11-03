@@ -1,6 +1,6 @@
 """Use cases of the DSD: create it, change its states and generate the offerings (T2.1-T2.3).
 
-Implements: docs/backlog_fase2.md T2.1, T2.2 and T2.3; D43 (one DSD per academic year, created
+Implements: docs/backlog_fase2.md T2.1 to T2.3; D43 (one DSD per academic year, created
 by the manager, who also opens, closes and reopens the semesters by coordination), D87.
 """
 
@@ -17,6 +17,7 @@ from apps.academic.models import AcademicYear, ClassGroup, Coordination, Subject
 from apps.academic.services import subjects_for
 from apps.core.audit import audited_save
 from apps.core.permissions import registry
+from apps.staff.models import Teacher
 
 from .lifecycle import CellNotWritable, dsd_write
 from .lifecycle_rules import needs_reason, next_state
@@ -30,6 +31,7 @@ from .models import (
 
 SEMESTER_NUMBERS = (1, 2)
 GENERATE = "dsd.offering.generate"
+LEAD_TEACHER = "dsd.offering.lead_teacher.edit"
 
 
 def _existing_dsd(academic_year: AcademicYear) -> Dsd | None:
@@ -304,3 +306,46 @@ def _generate_cell(
                 OfferingClassGroup, {"offering": offering, "class_group": group}, actor, reason
             )
             result.created_links += linked
+
+
+def set_lead_teacher(
+    actor, offering: Offering, teacher: Teacher | None, reason: str = ""
+) -> Offering:
+    """Set, change or clear the regente of an offering (T2.3b, D87).
+
+    The regente must be an active teacher of the coordination that owns the subject (D69). The
+    write goes through ``dsd_write``: open cells accept the coordinator and the manager, cells
+    not yet opened only the manager, closed cells nobody (D86). ``offering`` must be the copy
+    the user saw, so a stale one is refused by the optimistic lock (D54). The first time needs
+    no reason; changing or clearing does (D40).
+
+    Args:
+        actor: the user acting.
+        offering: the offering as loaded, with the version the user saw.
+        teacher: the new regente, or ``None`` to clear it.
+        reason: why; required when there already is a regente.
+
+    Returns:
+        The offering (unchanged and not written if the teacher is the same).
+
+    Raises:
+        PermissionDenied: if the actor does not cover the subject's coordination.
+        ValidationError: if the cell is not writable, the teacher is not eligible, the
+            version is stale or the reason is missing.
+    """
+    coordination_id = offering.subject.coordination_id
+    with dsd_write(actor, LEAD_TEACHER, offering.dsd_semester, coordination_id):
+        if offering.lead_teacher_id == (teacher.pk if teacher else None):
+            return offering
+        if teacher is not None and (
+            not teacher.is_active or teacher.coordination_id != coordination_id
+        ):
+            raise ValidationError(
+                _("O regente tem de ser um docente ativo da coordenação da disciplina.")
+            )
+        had_one = offering.lead_teacher_id is not None
+        if had_one and not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        offering.lead_teacher = teacher
+        audited_save(offering, actor, reason.strip() or _("Definição do regente"))
+    return offering

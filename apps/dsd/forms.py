@@ -1,6 +1,6 @@
 """Forms of the DSD screens (T2.1).
 
-Implements: docs/backlog_fase2.md T2.1 and T2.2.
+Implements: docs/backlog_fase2.md T2.1 to T2.3.
 """
 
 from django import forms
@@ -8,9 +8,10 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.academic.models import Coordination
 from apps.core.generic import ReasonFieldsMixin, ReasonModelForm
+from apps.staff.models import Teacher
 
 from .lifecycle_rules import ACTION_CLOSE, ACTION_OPEN, ACTION_REOPEN, ACTIONS, needs_reason
-from .models import Dsd
+from .models import Dsd, Offering
 
 
 class DsdForm(ReasonModelForm):
@@ -84,3 +85,35 @@ class GenerateOfferingsForm(ReasonFieldsMixin, forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["coordination"].queryset = Coordination.objects.filter(pk__in=coordination_ids)
         self._setup_reason(required=False)
+
+
+class LeadTeacherForm(ReasonFieldsMixin, forms.Form):
+    """Choose the regente of an offering among the active teachers of its coordination (T2.3b).
+
+    The form carries the version of the offering the user saw, for the optimistic lock (D54).
+    The reason is required only when the offering already has a regente (D40).
+    """
+
+    teacher = forms.ModelChoiceField(
+        label=_("Regente"),
+        queryset=Teacher.objects.none(),
+        required=False,
+        empty_label=_("Sem regente"),
+    )
+    version = forms.IntegerField(widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, offering: Offering, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.offering = offering
+        self.fields["teacher"].queryset = Teacher.objects.filter(
+            coordination_id=offering.subject.coordination_id, is_active=True
+        )
+        self.fields["teacher"].initial = offering.lead_teacher_id
+        self.fields["version"].initial = offering.version
+        self._setup_reason(required=False)
+
+    def clean(self):
+        """Require the reason when the offering already has a regente."""
+        self.reason_required = self.offering.lead_teacher_id is not None
+        return super().clean()
