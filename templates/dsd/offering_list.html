@@ -23,7 +23,7 @@
       <tr>
         <th>{% translate "Semestre" %}</th><th>{% translate "Ano" %}</th><th>{% translate "Disciplina" %}</th>
         <th>{% translate "Curso" %}</th><th>{% translate "Coordenação" %}</th>
-        <th>{% translate "Turmas" %}</th><th>{% translate "Regente" %}</th>
+        <th>{% translate "Turmas" %}</th><th>{% translate "Unidades" %}</th><th>{% translate "Regente" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -31,7 +31,7 @@
       <tr>
         <td>{{ offering.dsd_semester.number }}</td>
         <td>{{ offering.subject.curricular_year }}</td>
-        <td>{{ offering.subject.code }} – {{ offering.subject.name }}</td>
+        <td><a href="{% url 'dsd:offering_detail' offering.pk %}">{{ offering.subject.code }} – {{ offering.subject.name }}</a></td>
         <td>{{ offering.subject.study_plan.course.name }}</td>
         <td>{{ offering.subject.coordination.name }}</td>
         <td>
@@ -40,11 +40,12 @@
             {% if size %}{{ size.students }}{% if size.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}{% if not forloop.last %}; {% endif %}
           {% endfor %}
         </td>
+        <td>{{ offering.teaching_units.all|length }}</td>
         <td>{{ offering.lead_teacher|default:"—" }}
           {% if offering.subject.coordination_id in editable_coordinations %}<a href="{% url 'dsd:offering_lead_teacher' offering.pk %}">{% translate "Definir" %}</a>{% endif %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="7">{% translate "Ainda não há ofertas." %}</td></tr>
+      <tr><td colspan="8">{% translate "Ainda não há ofertas." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

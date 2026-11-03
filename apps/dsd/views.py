@@ -25,7 +25,7 @@ from apps.core.generic import (
 from apps.core.permissions import registry
 
 from .forms import DsdForm, GenerateOfferingsForm, LeadTeacherForm, StateChangeForm
-from .models import CoordinationSemester, Dsd, Offering
+from .models import CoordinationSemester, Dsd, Offering, TeachingUnit
 from .services import (
     GENERATE,
     LEAD_TEACHER,
@@ -33,6 +33,7 @@ from .services import (
     create_dsd,
     generate_offerings,
     set_lead_teacher,
+    stale_unit_ids,
 )
 
 
@@ -152,7 +153,7 @@ class OfferingListView(ManagedViewMixin, TemplateView):
         offerings = (
             Offering.objects.filter(dsd_semester__dsd=dsd)
             .select_related("dsd_semester", "subject__coordination", "subject__study_plan__course")
-            .prefetch_related("class_group_links__class_group")
+            .prefetch_related("class_group_links__class_group", "teaching_units")
         )
         params = self.request.GET
         if params.get("semester") in ("1", "2"):
@@ -295,3 +296,60 @@ class OfferingLeadTeacherView(PageMixin, LoginRequiredMixin, FormView):
             return self.form_invalid(form)
         messages.success(self.request, _("Regente guardado."))
         return redirect("dsd:offering_list", pk=offering.dsd_semester.dsd_id)
+
+
+class OfferingDetailView(ManagedViewMixin, TemplateView):
+    """An offering with its teaching units, read-only (T3.1b, D89).
+
+    The manager and the coordinator read it (``dsd.view``, D69). Each unit shows its class type,
+    the weekly hours read from the subject's load, the turmas that attend it with their size
+    (provisional while it is an estimate, D81) and a mark when it is stale.
+    """
+
+    permission_action = "dsd.view"
+    template_name = "dsd/offering_detail.html"
+
+    def get_context_data(self, **kwargs):
+        """Build one row per unit with its hours, turmas, size and stale mark."""
+        context = super().get_context_data(**kwargs)
+        offering = get_object_or_404(
+            Offering.objects.select_related(
+                "subject__coordination",
+                "subject__study_plan__course",
+                "dsd_semester__dsd__academic_year",
+                "lead_teacher",
+            ),
+            pk=self.kwargs["pk"],
+        )
+        loads = {
+            load.class_type_id: load.weekly_hours for load in offering.subject.class_loads.all()
+        }
+        stale = stale_unit_ids(offering.dsd_semester, offering.subject.coordination_id)
+        sizes = class_group_sizes(offering.dsd_semester.dsd.academic_year)
+        units = (
+            TeachingUnit.objects.filter(offering=offering)
+            .select_related("class_type")
+            .prefetch_related("members__class_group_link__class_group")
+        )
+        rows = []
+        for unit in units:
+            groups = [member.class_group_link.class_group for member in unit.members.all()]
+            counted = [sizes[group.pk] for group in groups if group.pk in sizes]
+            rows.append(
+                {
+                    "unit": unit,
+                    "weekly_hours": loads.get(unit.class_type_id),
+                    "groups": groups,
+                    "students": sum(size.students for size in counted) if counted else None,
+                    "provisional": any(size.provisional for size in counted),
+                    "stale": unit.pk in stale,
+                }
+            )
+        context.update(
+            {
+                "offering": offering,
+                "title": f"{offering.subject.code} – {offering.subject.name}",
+                "rows": rows,
+            }
+        )
+        return context
