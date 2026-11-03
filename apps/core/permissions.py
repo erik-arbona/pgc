@@ -378,6 +378,14 @@ registry.register(
     write=True,
     scoped=True,
 )
+# The coordinator of a coordination, or the manager of its Faculty, divides turmas into groups
+# and (T3.3, T3.4) merges them, for the units of that coordination (D69, D90).
+registry.register(
+    "dsd.teaching_unit.edit",
+    {Profile.COORDINATOR, Profile.PGC_MANAGER},
+    write=True,
+    scoped=True,
+)
 # Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
 registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)

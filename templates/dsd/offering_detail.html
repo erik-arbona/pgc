@@ -22,7 +22,7 @@
         <td>{{ row.weekly_hours|default:"—" }}</td>
         <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
         <td>
-          {% if row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}
+          {% if row.has_groups %}—{% elif row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}
         </td>
         <td>{% if row.stale %}{% translate "Obsoleta" %}{% endif %}</td>
       </tr>
