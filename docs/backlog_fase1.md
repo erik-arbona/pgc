@@ -3,10 +3,10 @@
 Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (blocos 1, 2 e 8; ver `docs/especificacao/03_requisitos_funcionais.md`). Cada tarefa é pequena o bastante para uma sessão de trabalho. Ordem sugerida; marcar `[x]` quando estiver feita, com testes a passar e o código documentado conforme o `CLAUDE.md`.
 
 ## 0. Esqueleto
-- [ ] T0.1 Projeto Django com Docker Compose (app web + PostgreSQL + Redis), configuração por variáveis de ambiente, pytest-django a correr.
+- [x] T0.1 Projeto Django com Docker Compose (app web + PostgreSQL + Redis), configuração por variáveis de ambiente, pytest-django a correr.
 - [x] T0.2 Estrutura de apps: `core` (utilizadores, perfis, âmbitos, auditoria), `academic` (estrutura académica), `staff` (docentes), `rooms` (salas). Sem lógica ainda.
 - [x] T0.3 Integração contínua: correr testes e linter a cada push.
-- [ ] T0.4 Completar a secção «Comandos» do `CLAUDE.md`.
+- [x] T0.4 Completar a secção «Comandos» do `CLAUDE.md`.
 
 ## 1. Núcleo: utilizadores, perfis e auditoria
 - [ ] T1.1 Utilizador com perfil(is) e âmbito (Faculdade, coordenação ou docente), conforme `07_arquitetura.md` › Permissões.

@@ -71,4 +71,15 @@ O código tem de estar bem documentado. Uma tarefa não está terminada sem isto
 
 ## Comandos
 
-> A completar quando o esqueleto do projeto existir (arrancar, migrar, carregar dados fictícios, correr testes).
+Tudo corre em Docker Compose a partir da raiz do repositório.
+
+```bash
+cp .env.example .env                                  # primeira vez; ajustar segredos
+docker compose up --build                             # arrancar (web em http://localhost:8000)
+docker compose exec web python manage.py migrate      # aplicar migrações
+docker compose exec web pytest                        # correr os testes
+pip install -r requirements-dev.txt                   # só para o linter local
+ruff check . && ruff format --check .                 # linter e formatação (o CI corre o mesmo)
+```
+
+Carregar dados fictícios: comando ainda por criar (T6.1).
