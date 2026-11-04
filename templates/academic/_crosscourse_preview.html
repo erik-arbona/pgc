@@ -1,0 +1,8 @@
+{% load i18n %}
+{% if errors %}
+<ul class="errorlist" role="alert">{% for text in errors %}<li>{{ text }}</li>{% endfor %}</ul>
+{% endif %}
+{% if warnings %}
+<ul class="messages">{% for text in warnings %}<li>{{ text }}</li>{% endfor %}</ul>
+{% endif %}
+{% if not errors and not warnings %}<p>{% translate "Sem avisos." %}</p>{% endif %}

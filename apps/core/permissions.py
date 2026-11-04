@@ -164,8 +164,9 @@ registry.register("room.edit", {Profile.FACILITIES}, write=True)  # Património 
 registry.register("enrollment.edit", {Profile.ACADEMIC_SERVICES}, write=True)  # enrollments
 # The PGC manager configures the class types (D45).
 registry.register("class_type.edit", {Profile.PGC_MANAGER}, write=True)
-# The PGC manager declares cross-course subjects (D06, D22).
-registry.register("cross_course_subject.edit", {Profile.PGC_MANAGER}, write=True)
+# The PGC manager declares cross-course subjects; a group needs scope over every member's
+# Faculty (D06, D22, D55).
+registry.register("cross_course_subject.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 # The PGC manager creates the turmas, only in the Faculties assigned to them (D49, D54).
 registry.register("class_group.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 # Faculties and academic years are not limited to a Faculty: any PGC manager (D50, to confirm).

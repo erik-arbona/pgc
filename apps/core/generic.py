@@ -140,10 +140,17 @@ class AuditedDeleteMixin:
     template_name = "core/confirm_delete.html"
     form_class = DeleteReasonForm
 
+    def delete_object(self, form) -> None:
+        """Delete ``self.object`` through ``audited_delete``.
+
+        Override to delete related rows in the same transaction with their own audit entries.
+        """
+        audited_delete(self.object, self.request.user, form.cleaned_data["reason"])
+
     def form_valid(self, form) -> HttpResponse:
         """Delete the record, or explain why it cannot be deleted."""
         try:
-            audited_delete(self.object, self.request.user, form.cleaned_data["reason"])
+            self.delete_object(form)
         except ProtectedError:
             messages.error(self.request, _("Não é possível eliminar: o registo está em uso."))
             return redirect(self.get_success_url())

@@ -5,8 +5,11 @@ D50 (UI pattern). Permissions are checked on the server with the registered acti
 """
 
 from django.db.models import Sum
+from django.http import HttpResponse
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
+from django.views import View
 
 from apps.core.generic import (
     ManagedCreateView,
@@ -17,7 +20,9 @@ from apps.core.generic import (
     ScopedDeleteView,
     ScopedListView,
     ScopedUpdateView,
+    ScopedViewMixin,
 )
+from apps.core.permissions import registry
 
 from .forms import (
     AcademicYearForm,
@@ -26,21 +31,30 @@ from .forms import (
     ClassTypeForm,
     CoordinationForm,
     CourseForm,
+    CrossCourseGroupForm,
     FacultyForm,
     StudyPlanForm,
     SubjectForm,
 )
+from .messages import GROUP_ERROR_TEXT, WARNING_TEXT
 from .models import (
     AcademicYear,
     ClassGroup,
     ClassType,
     Coordination,
     Course,
+    CrossCourseSubject,
     Faculty,
     StudyPlan,
     Subject,
 )
-from .services import create_class_group, save_subject_with_loads
+from .services import (
+    create_class_group,
+    delete_cross_course_group,
+    evaluate_selection,
+    save_cross_course_group,
+    save_subject_with_loads,
+)
 
 
 class ClassTypeMixin:
@@ -417,3 +431,119 @@ class ClassGroupDeleteView(ClassGroupMixin, ScopedDeleteView):
     """Delete a turma."""
 
     title = _("Eliminar turma")
+
+
+class CrossCourseMixin:
+    """Settings shared by the cross-course group screens (D55).
+
+    A group is manageable only by someone who manages the Faculty of every member, so the
+    scope of a group is checked against all of its members' Faculties.
+    """
+
+    model = CrossCourseSubject
+    permission_action = "cross_course_subject.edit"
+    success_url = reverse_lazy("academic:crosscourse_list")
+
+    def require_scope_of(self, obj) -> None:
+        """Require scope over the Faculty of every member of an existing group."""
+        if obj.pk:
+            faculties = set(
+                obj.members.values_list("subject__study_plan__course__faculty_id", flat=True)
+            )
+            for faculty_id in faculties:
+                registry.require(
+                    self.request.user, self.permission_action, self.scope_kind, faculty_id
+                )
+
+
+class CrossCourseListView(CrossCourseMixin, ScopedListView):
+    """List the groups whose members are all in the manager's Faculties (or empty)."""
+
+    template_name = "academic/crosscourse_list.html"
+    title = _("Disciplinas transversais")
+
+    def get_queryset(self):
+        """Hide groups that have a member in a Faculty the manager does not manage."""
+        outside = Faculty.objects.exclude(pk__in=self.allowed_scope_ids())
+        return (
+            CrossCourseSubject.objects.exclude(
+                members__subject__study_plan__course__faculty__in=outside
+            )
+            .prefetch_related("allowed_courses__course")
+            .order_by("name")
+        )
+
+
+class CrossCourseSaveMixin:
+    """Save the group together with its members and allowed courses (D55)."""
+
+    form_class = CrossCourseGroupForm
+    template_name = "academic/crosscourse_form.html"
+
+    def save_form(self, form):
+        """Save the group, its members and its courses in one audited transaction."""
+        group = form.save(commit=False)
+        group_changed = group._state.adding or bool(set(form.changed_data) & {"name", "notes"})
+        save_cross_course_group(
+            group,
+            list(form.cleaned_data["subjects"]),
+            list(form.cleaned_data["courses"]),
+            self.request.user,
+            form.cleaned_data.get("reason", ""),
+            save_group=group_changed,
+        )
+        return group
+
+
+class CrossCourseCreateView(CrossCourseMixin, CrossCourseSaveMixin, ScopedCreateView):
+    """Declare a new cross-course group."""
+
+    title = _("Nova disciplina transversal")
+
+
+class CrossCourseUpdateView(CrossCourseMixin, CrossCourseSaveMixin, ScopedUpdateView):
+    """Edit a group (needs a reason)."""
+
+    title = _("Editar disciplina transversal")
+
+
+class CrossCourseDeleteView(CrossCourseMixin, ScopedDeleteView):
+    """Delete a group; its member and course rows are deleted with their own audit entries."""
+
+    title = _("Eliminar disciplina transversal")
+
+    def delete_object(self, form) -> None:
+        """Delete the group and its rows through the audited service."""
+        delete_cross_course_group(self.object, self.request.user, form.cleaned_data["reason"])
+
+
+class CrossCoursePreviewView(CrossCourseMixin, ScopedViewMixin, View):
+    """HTMX fragment with the errors and warnings of the group being edited (D55).
+
+    Only subjects and courses in the manager's Faculties are considered.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs) -> HttpResponse:
+        """Return the preview fragment for the posted selection."""
+        allowed = self.allowed_scope_ids()
+        subject_ids = [i for i in request.POST.getlist("subjects") if i.isdigit()]
+        course_ids = [i for i in request.POST.getlist("courses") if i.isdigit()]
+        subjects = Subject.objects.filter(
+            pk__in=subject_ids, study_plan__course__faculty_id__in=allowed
+        ).select_related("study_plan__course")
+        courses = Course.objects.filter(pk__in=course_ids, faculty_id__in=allowed)
+        errors, warnings = evaluate_selection(subjects, list(courses))
+        html = render_to_string(
+            "academic/_crosscourse_preview.html",
+            {
+                "errors": [GROUP_ERROR_TEXT[e] for e in errors],
+                "warnings": [
+                    WARNING_TEXT[w.kind] % {"type": w.detail} if w.detail else WARNING_TEXT[w.kind]
+                    for w in warnings
+                ],
+            },
+            request=request,
+        )
+        return HttpResponse(html)

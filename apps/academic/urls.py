@@ -78,4 +78,21 @@ urlpatterns = [
         views.ClassGroupDeleteView.as_view(),
         name="classgroup_delete",
     ),
+    path("cross-course/", views.CrossCourseListView.as_view(), name="crosscourse_list"),
+    path("cross-course/new/", views.CrossCourseCreateView.as_view(), name="crosscourse_create"),
+    path(
+        "cross-course/preview/",
+        views.CrossCoursePreviewView.as_view(),
+        name="crosscourse_preview",
+    ),
+    path(
+        "cross-course/<int:pk>/edit/",
+        views.CrossCourseUpdateView.as_view(),
+        name="crosscourse_update",
+    ),
+    path(
+        "cross-course/<int:pk>/delete/",
+        views.CrossCourseDeleteView.as_view(),
+        name="crosscourse_delete",
+    ),
 ]

@@ -25,6 +25,8 @@
       {% if can_subjects %}<a href="{% url 'academic:subject_list' %}">{% translate "Disciplinas" %}</a>{% endif %}
       {% has_scope "class_group.edit" "faculty" as can_groups %}
       {% if can_groups %}<a href="{% url 'academic:classgroup_list' %}">{% translate "Turmas" %}</a>{% endif %}
+      {% has_scope "cross_course_subject.edit" "faculty" as can_cross %}
+      {% if can_cross %}<a href="{% url 'academic:crosscourse_list' %}">{% translate "Disciplinas transversais" %}</a>{% endif %}
       {% if can_class_types %}<a href="{% url 'academic:classtype_list' %}">{% translate "Tipos de aula" %}</a>{% endif %}
     </nav>
     <form method="post" action="{% url 'logout' %}" class="logout">

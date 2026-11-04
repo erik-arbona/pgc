@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  {# The preview needs HTMX; without JavaScript the form still saves and validates on the server. #}
+  <form method="post" hx-post="{% url 'academic:crosscourse_preview' %}" hx-trigger="change"
+        hx-target="#preview" hx-swap="innerHTML" hx-sync="this:replace">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" hx-disinherit="*" hx-post="" hx-trigger="none">{% translate "Guardar" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+  <section id="preview" aria-live="polite"></section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/htmx.min.js' %}"></script>{% endblock %}
