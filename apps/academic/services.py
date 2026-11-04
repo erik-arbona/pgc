@@ -7,9 +7,12 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext_lazy as _
+
 from .cross_course import SubjectFacts, effective_members
-from .models import CrossCourseSubject, StudyPlan, Subject
-from .plans import PlanFacts
+from .models import AcademicYear, ClassGroup, Course, CrossCourseSubject, StudyPlan, Subject
+from .plans import PlanFacts, plan_in_force
 
 
 def facts_for(subject: Subject) -> SubjectFacts:
@@ -57,3 +60,39 @@ def effective_group_members(group: CrossCourseSubject, academic_year: int) -> li
             PlanFacts(id=plan.pk, start_year=plan.academic_year.start_year)
         )
     return effective_members(members, plans_by_course, academic_year)
+
+
+def create_class_group(
+    course: Course,
+    intake_year: AcademicYear,
+    label: str = "",
+    last_year: AcademicYear | None = None,
+) -> ClassGroup:
+    """Create a turma with the plan in force for the first year of its intake (D48, D49).
+
+    Args:
+        course: course of the turma.
+        intake_year: academic year in which the turma enters.
+        label: letter to tell turmas of the same year apart; empty for the default turma.
+        last_year: last academic year, if the turma already ended.
+
+    Returns:
+        The saved turma.
+
+    Raises:
+        ValidationError: if no plan of the course has reached the first year at the intake.
+    """
+    plans = [
+        PlanFacts(id=p.pk, start_year=p.academic_year.start_year)
+        for p in StudyPlan.objects.filter(course=course).select_related("academic_year")
+    ]
+    plan_id = plan_in_force(plans, 1, intake_year.start_year)
+    if plan_id is None:
+        raise ValidationError(_("Nenhum plano de estudos está em vigor para esta entrada."))
+    return ClassGroup.objects.create(
+        course=course,
+        intake_year=intake_year,
+        label=label,
+        study_plan_id=plan_id,
+        last_academic_year=last_year,
+    )

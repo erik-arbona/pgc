@@ -13,6 +13,8 @@ from django.db import models
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 
+from .class_groups import curricular_year_in
+
 
 class Faculty(models.Model):
     """A Faculty: the organic unit that groups courses and coordinations.
@@ -410,3 +412,90 @@ class CrossCourseSubjectCourse(models.Model):
 
     def __str__(self) -> str:
         return f"{self.cross_course_subject} – {self.course}"
+
+
+class ClassGroup(models.Model):
+    """A turma: a cohort of students of a course that moves up one year every year (D49).
+
+    It is created once, with its intake year, and keeps the study plan in force for the
+    first year when it entered (D48). Its curricular year is computed, not stored. A course
+    that does not open in some year simply has no turma for that intake year.
+    """
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.PROTECT,  # never remove a course that still has turmas
+        related_name="class_groups",
+        verbose_name=_("curso"),
+        help_text=_("Course of the turma."),
+    )
+    intake_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.PROTECT,  # the intake year is part of the turma's identity
+        related_name="entering_class_groups",
+        verbose_name=_("ano letivo de entrada"),
+        help_text=_("Academic year in which the turma enters the first curricular year."),
+    )
+    label = models.CharField(
+        _("etiqueta"),
+        max_length=10,
+        blank=True,
+        help_text=_("Letter that tells turmas of the same year apart; empty if there is one."),
+    )
+    study_plan = models.ForeignKey(
+        StudyPlan,
+        on_delete=models.PROTECT,  # never remove a plan that a turma follows
+        related_name="class_groups",
+        verbose_name=_("plano de estudos"),
+        help_text=_("Plan followed by the turma; fixed when it is created (D48)."),
+    )
+    last_academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="ending_class_groups",
+        verbose_name=_("último ano letivo"),
+        help_text=_("Last academic year of the turma; empty while it is active."),
+    )
+
+    class Meta:
+        verbose_name = _("turma")
+        verbose_name_plural = _("turmas")
+        ordering = ["course", "intake_year__start_year", "label"]
+        constraints = [
+            # One turma per course, intake year and label; an empty label is the default turma.
+            models.UniqueConstraint(
+                fields=["course", "intake_year", "label"], name="unique_class_group_label"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.course} {self.intake_year} {self.label}".strip()
+
+    def curricular_year_in(self, academic_year: int) -> int | None:
+        """Return the curricular year in an academic year, or ``None`` if not active then."""
+        last = self.last_academic_year.start_year if self.last_academic_year else None
+        return curricular_year_in(self.intake_year.start_year, academic_year, last)
+
+    def save(self, *args, **kwargs) -> None:
+        """Save after checking the turma's invariants.
+
+        Raises:
+            ValidationError: if the plan is not a plan of the course, if the plan is changed
+                after creation, or if the last academic year precedes the intake year.
+        """
+        if self.study_plan.course_id != self.course_id:
+            raise ValidationError({"study_plan": _("O plano não pertence ao curso da turma.")})
+        if (
+            self.last_academic_year
+            and self.last_academic_year.start_year < self.intake_year.start_year
+        ):
+            raise ValidationError(
+                {"last_academic_year": _("O último ano letivo não pode ser anterior à entrada.")}
+            )
+        if not self._state.adding:
+            stored = type(self).objects.filter(pk=self.pk).values_list("study_plan_id", flat=True)
+            if stored and stored[0] != self.study_plan_id:
+                raise ValidationError({"study_plan": _("Uma turma não muda de plano.")})
+        super().save(*args, **kwargs)
