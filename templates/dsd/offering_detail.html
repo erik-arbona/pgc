@@ -28,7 +28,7 @@
         <td>
           {% if row.has_groups %}—{% elif row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}
         </td>
-        <td>{% if row.unit.teacher %}{{ row.unit.teacher.name }}{% if row.teacher_status %}<br><small>{{ row.teacher_status }}</small>{% endif %}{% else %}—{% endif %}</td>
+        <td>{% if row.unit.teacher %}<a href="{% url 'dsd:teacher_sheet' offering.dsd_semester.dsd_id row.unit.teacher_id %}">{{ row.unit.teacher.name }}</a>{% if row.teacher_status %}<br><small>{{ row.teacher_status }}</small>{% endif %}{% else %}—{% endif %}</td>
         <td>{% if row.unit.room_capacity %}{{ row.unit.room_capacity }}{% if row.unit.room_type %} ({{ row.unit.room_type.name }}){% endif %}{% for warning in row.room_warnings %}<br><small class="warning">{{ warning }}</small>{% endfor %}{% else %}—{% endif %}</td>
         <td>{% if row.stale %}{% translate "Obsoleta" %}{% endif %}</td>
         <td>{% for action in row.actions %}<a href="{{ action.url }}">{{ action.label }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</td>

@@ -30,6 +30,9 @@ from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
 from .forms import (
+    ActivityEditForm,
+    ActivityForm,
+    ActivityRemoveForm,
     DsdForm,
     GenerateOfferingsForm,
     GroupCountForm,
@@ -45,8 +48,10 @@ from .load_facts import assessment_with_unit, status_text, teacher_loads
 from .models import (
     CoordinationSemester,
     Dsd,
+    DsdSemester,
     Offering,
     OfferingClassGroup,
+    OtherActivity,
     SubGroup,
     TeachingUnit,
     TeachingUnitMember,
@@ -56,15 +61,18 @@ from .services import (
     GENERATE,
     LEAD_TEACHER,
     TEACHING_UNIT_EDIT,
+    add_activity,
     assign_teacher,
     change_state,
     create_dsd,
+    edit_activity,
     generate_offerings,
     guest_members,
     merge_load_differences,
     merge_units,
     merged_students,
     partner_offerings,
+    remove_activity,
     room_request_warnings,
     separate_member,
     set_group_count,
@@ -991,3 +999,245 @@ class UnitTeacherView(_UnitEditMixin, FormView):
             return self.form_invalid(form)
         messages.success(self.request, _("Docente guardado."))
         return redirect("dsd:offering_detail", pk=self.offering.pk)
+
+
+class TeacherSheetView(ManagedViewMixin, TemplateView):
+    """The sheet of a teacher in a DSD: load per semester and the other activities (T5.3).
+
+    It shows, for each semester, the teaching hours, the preparation and the other activities,
+    then the annual teaching hours with their state and the general total (D95). The buttons to
+    add, change and remove activities show only to who may write the cell (D86).
+    """
+
+    permission_action = "dsd.view"
+    template_name = "dsd/teacher_sheet.html"
+
+    @cached_property
+    def dsd(self) -> Dsd:
+        """The DSD of the URL, read after the permission check."""
+        return get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+
+    @cached_property
+    def teacher(self) -> Teacher:
+        """The teacher of the URL."""
+        return get_object_or_404(
+            Teacher.objects.select_related("coordination"), pk=self.kwargs["teacher_pk"]
+        )
+
+    def get_context_data(self, **kwargs):
+        """Build the load and one block per semester with its activities."""
+        context = super().get_context_data(**kwargs)
+        load = teacher_loads(self.dsd, [self.teacher])[self.teacher.pk]
+        activities = OtherActivity.objects.filter(
+            dsd_semester__dsd=self.dsd, teacher=self.teacher
+        ).select_related("dsd_semester")
+        blocks = []
+        for index, semester in enumerate(self.dsd.semesters.order_by("number")):
+            blocks.append(
+                {
+                    "semester": semester,
+                    "teaching": load.assessment.semester_weekly_hours[index],
+                    "preparation": load.preparation[index],
+                    "other": load.other_hours[index],
+                    "activities": [a for a in activities if a.dsd_semester_id == semester.pk],
+                    "can_edit": cell_writable(
+                        self.request.user, ASSIGNMENT_EDIT, semester, self.teacher.coordination_id
+                    ),
+                }
+            )
+        context.update(
+            {
+                "title": self.teacher.name,
+                "dsd": self.dsd,
+                "teacher": self.teacher,
+                "load": load,
+                "status": status_text(load.assessment),
+                "blocks": blocks,
+            }
+        )
+        return context
+
+
+class _ActivityMixin(PageMixin, LoginRequiredMixin):
+    """Common part of the activity screens: permission on the coordination, then the lookups.
+
+    Users who cover no coordination get 403 before anything is looked up, and then the ones
+    who do not cover the coordination of the teacher or of the activity (D69).
+    """
+
+    template_name = "dsd/activity_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who cover no coordination, then those who do not cover this one."""
+        if request.user.is_authenticated:
+            if not registry.coordination_ids(request.user, ASSIGNMENT_EDIT):
+                raise PermissionDenied
+            registry.require_on_coordination(request.user, ASSIGNMENT_EDIT, self.coordination_id)
+        return super().dispatch(request, *args, **kwargs)
+
+    @property
+    def coordination_id(self) -> int:
+        """The coordination that owns the data being written."""
+        raise NotImplementedError
+
+    @property
+    def teacher(self) -> Teacher:
+        """The teacher the activity belongs to."""
+        raise NotImplementedError
+
+    @property
+    def dsd(self) -> Dsd:
+        """The DSD."""
+        raise NotImplementedError
+
+    def sheet_url(self) -> str:
+        """The sheet of the teacher, where every activity screen goes back to."""
+        return reverse("dsd:teacher_sheet", args=[self.dsd.pk, self.teacher.pk])
+
+    def get_context_data(self, **kwargs):
+        """Name the teacher and go back to the sheet on cancel."""
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {"teacher": self.teacher, "cancel_url": self.sheet_url(), "title": self.title}
+        )
+        return context
+
+
+class ActivityAddView(_ActivityMixin, FormView):
+    """Enter an activity of the non-teaching component in a semester (T5.3, D15)."""
+
+    form_class = ActivityForm
+    title = _("Nova atividade")
+
+    @cached_property
+    def teacher(self) -> Teacher:
+        """The teacher of the URL."""
+        return get_object_or_404(
+            Teacher.objects.select_related("coordination"), pk=self.kwargs["teacher_pk"]
+        )
+
+    @cached_property
+    def dsd(self) -> Dsd:
+        """The DSD of the URL."""
+        return get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+
+    @cached_property
+    def semester(self) -> DsdSemester:
+        """The semester of the URL (1 or 2) of this DSD."""
+        return get_object_or_404(self.dsd.semesters, number=self.kwargs["number"])
+
+    @property
+    def coordination_id(self) -> int:
+        """The coordination of the teacher."""
+        return self.teacher.coordination_id
+
+    def form_valid(self, form):
+        """Add the activity or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            add_activity(
+                self.request.user,
+                self.teacher,
+                self.semester,
+                data["kind"],
+                data["description"],
+                data["weekly_hours"],
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Atividade guardada."))
+        return redirect(self.sheet_url())
+
+
+class _ExistingActivityMixin(_ActivityMixin):
+    """The activity of the URL, with its teacher and DSD, for the change and remove screens."""
+
+    @cached_property
+    def activity(self) -> OtherActivity:
+        """The activity of the URL."""
+        return get_object_or_404(
+            OtherActivity.objects.select_related(
+                "teacher__coordination", "dsd_semester__dsd__academic_year"
+            ),
+            pk=self.kwargs["pk"],
+        )
+
+    @property
+    def teacher(self) -> Teacher:
+        """The teacher of the activity."""
+        return self.activity.teacher
+
+    @property
+    def dsd(self) -> Dsd:
+        """The DSD of the activity."""
+        return self.activity.dsd_semester.dsd
+
+    @property
+    def coordination_id(self) -> int:
+        """The coordination stored with the activity (its cell)."""
+        return self.activity.coordination_id
+
+    def get_context_data(self, **kwargs):
+        """Say which activity this is."""
+        context = super().get_context_data(**kwargs)
+        context["activity"] = self.activity
+        return context
+
+
+class ActivityEditView(_ExistingActivityMixin, FormView):
+    """Change an activity: type, description or hours, with a reason (T5.3, D40, D54)."""
+
+    form_class = ActivityEditForm
+    title = _("Alterar atividade")
+
+    def get_initial(self):
+        """Start from the stored values and the version the user is seeing."""
+        activity = self.activity
+        return {
+            "kind": activity.kind,
+            "description": activity.description,
+            "weekly_hours": activity.weekly_hours,
+            "seen": activity.version,
+        }
+
+    def form_valid(self, form):
+        """Save the change or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            edit_activity(
+                self.request.user,
+                self.activity,
+                data["kind"],
+                data["description"],
+                data["weekly_hours"],
+                data["reason"],
+                data["seen"],
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Atividade guardada."))
+        return redirect(self.sheet_url())
+
+
+class ActivityRemoveView(_ExistingActivityMixin, FormView):
+    """Remove an activity, with a reason (T5.3, D40)."""
+
+    form_class = ActivityRemoveForm
+    title = _("Remover atividade")
+
+    def get_initial(self):
+        """Carry the version the user is seeing."""
+        return {"seen": self.activity.version}
+
+    def form_valid(self, form):
+        """Remove the activity or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            remove_activity(self.request.user, self.activity, data["reason"], data["seen"])
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Atividade removida."))
+        return redirect(self.sheet_url())
