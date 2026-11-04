@@ -9,7 +9,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 - [x] T0.4 Completar a secção «Comandos» do `CLAUDE.md`.
 
 ## 1. Núcleo: utilizadores, perfis e auditoria
-- [ ] T1.1 Utilizador com perfil(is) e âmbito (Faculdade, coordenação ou docente), conforme `07_arquitetura.md` › Permissões.
+- [x] T1.1 Utilizador com perfil(is) e âmbito (Faculdade, coordenação ou docente), conforme `07_arquitetura.md` › Permissões.
 - [ ] T1.2 Verificação de permissões no servidor (camada reutilizável), com testes por perfil.
 - [ ] T1.3 Registo de auditoria genérico (quem, quando, valor anterior, valor novo, motivo).
 - [ ] T1.4 Autenticação local para desenvolvimento; ponto de extensão para LDAP/SSO (*questão em aberto: confirmar com os serviços informáticos*).
