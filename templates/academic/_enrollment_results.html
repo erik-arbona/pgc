@@ -1,0 +1,26 @@
+{% load i18n %}
+<div id="enrollment-results">
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Ano letivo" %}</th><th>{% translate "Curso" %}</th><th>{% translate "Turma" %}</th>
+        <th>{% translate "Ano curricular" %}</th><th>{% translate "Tipo" %}</th><th>{% translate "Matriculados" %}</th>
+        <th>{% translate "Origem" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.academic_year }}</td><td>{{ item.class_group.course }}</td><td>{{ item.class_group }}</td>
+        <td>{{ item.curricular_year|default:"—" }}</td><td>{{ item.get_kind_display }}</td><td>{{ item.students }}</td>
+        <td>{{ item.get_source_display }}</td>
+        <td>
+          <a href="{% url 'academic:enrollment_update' item.pk %}">{% translate "Corrigir" %}</a>
+          <a href="{% url 'academic:enrollment_delete' item.pk %}">{% translate "Eliminar" %}</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+</div>

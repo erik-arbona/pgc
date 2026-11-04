@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>
+    <a href="{% url 'academic:enrollment_create' %}">{% translate "Nova matrícula" %}</a>
+    <a href="{% url 'academic:enrollment_pending' %}">{% translate "Turmas sem matrícula" %}</a>
+  </p>
+  {# Works without JavaScript (submit button); with HTMX the results refresh in place. #}
+  <form method="get" hx-get="{% url 'academic:enrollment_list' %}" hx-target="#enrollment-results"
+        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+    <label>{% translate "Ano letivo" %}
+      <select name="academic_year">
+        <option value="">{% translate "Todos" %}</option>
+        {% for item in years %}
+        <option value="{{ item.pk }}"{% if selected_year == item.pk|stringformat:"s" %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Curso" %}
+      <select name="course">
+        <option value="">{% translate "Todos" %}</option>
+        {% for item in courses %}
+        <option value="{{ item.pk }}"{% if selected_course == item.pk|stringformat:"s" %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Tipo" %}
+      <select name="kind">
+        <option value="">{% translate "Todos" %}</option>
+        {% for value, label in kinds %}
+        <option value="{{ value }}"{% if selected_kind == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">{% translate "Filtrar" %}</button>
+  </form>
+  {% include "academic/_enrollment_results.html" %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/htmx.min.js' %}"></script>{% endblock %}

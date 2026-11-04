@@ -10,12 +10,14 @@ from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views import View
+from django.views.generic import TemplateView
 
 from apps.core.generic import (
     ManagedCreateView,
     ManagedDeleteView,
     ManagedListView,
     ManagedUpdateView,
+    ManagedViewMixin,
     ScopedCreateView,
     ScopedDeleteView,
     ScopedListView,
@@ -32,6 +34,8 @@ from .forms import (
     CoordinationForm,
     CourseForm,
     CrossCourseGroupForm,
+    EnrollmentForm,
+    EnrollmentUpdateForm,
     FacultyForm,
     StudyPlanForm,
     SubjectForm,
@@ -45,6 +49,7 @@ from .models import (
     Coordination,
     Course,
     CrossCourseSubject,
+    Enrollment,
     Faculty,
     StudyPlan,
     Subject,
@@ -500,6 +505,131 @@ class ClassGroupDeleteView(ClassGroupMixin, ScopedDeleteView):
     """Delete a turma."""
 
     title = _("Eliminar turma")
+
+
+class EnrollmentMixin:
+    """Settings shared by the enrollment screens (Serviços Académicos, no scope)."""
+
+    model = Enrollment
+    permission_action = "enrollment.edit"
+    success_url = reverse_lazy("academic:enrollment_list")
+
+
+class EnrollmentListView(EnrollmentMixin, ManagedListView):
+    """List the enrollment numbers with filters by academic year, course and kind.
+
+    A request made by HTMX (``HX-Request`` header) gets only the results fragment (D50).
+    """
+
+    title = _("Matrículas")
+
+    def get_template_names(self) -> list[str]:
+        """Return the fragment for HTMX requests and the full page otherwise."""
+        if self.request.headers.get("HX-Request"):
+            return ["academic/_enrollment_results.html"]
+        return ["academic/enrollment_list.html"]
+
+    def get_queryset(self):
+        """Apply the ``academic_year``, ``course`` and ``kind`` filters."""
+        queryset = Enrollment.objects.select_related(
+            "academic_year",
+            "class_group__course",
+            "class_group__intake_year",
+            "class_group__track",
+            "class_group__last_academic_year",
+            "class_group__study_plan",
+        )
+        params = self.request.GET
+        if params.get("academic_year", "").isdigit():
+            queryset = queryset.filter(academic_year_id=int(params["academic_year"]))
+        if params.get("course", "").isdigit():
+            queryset = queryset.filter(class_group__course_id=int(params["course"]))
+        if params.get("kind") in Enrollment.Kind.values:
+            queryset = queryset.filter(kind=params["kind"])
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        """Add the filter choices and the active filter values."""
+        context = super().get_context_data(**kwargs)
+        params = self.request.GET
+        context["years"] = AcademicYear.objects.order_by("-start_year")
+        context["courses"] = Course.objects.all()
+        context["kinds"] = Enrollment.Kind.choices
+        context["selected_year"] = params.get("academic_year", "")
+        context["selected_course"] = params.get("course", "")
+        context["selected_kind"] = params.get("kind", "")
+        return context
+
+
+class EnrollmentCreateView(EnrollmentMixin, ManagedCreateView):
+    """Enter a number; the link of the pending list prefills the turma and the year."""
+
+    form_class = EnrollmentForm
+    title = _("Nova matrícula")
+
+    def get_initial(self):
+        """Prefill the turma and the academic year from the query string."""
+        initial = super().get_initial()
+        for field in ("class_group", "academic_year"):
+            value = self.request.GET.get(field, "")
+            if value.isdigit():
+                initial[field] = int(value)
+        return initial
+
+
+class EnrollmentUpdateView(EnrollmentMixin, ManagedUpdateView):
+    """Correct a number (needs a reason). A number corrected by hand is marked as such."""
+
+    form_class = EnrollmentUpdateForm
+    title = _("Corrigir matrícula")
+
+    def save_form(self, form):
+        """Mark the number as introduced by hand: it no longer matches the SII."""
+        form.instance.source = Enrollment.Source.MANUAL
+        return super().save_form(form)
+
+
+class EnrollmentDeleteView(EnrollmentMixin, ManagedDeleteView):
+    """Delete a number (needs a reason)."""
+
+    title = _("Eliminar matrícula")
+
+
+class EnrollmentPendingView(EnrollmentMixin, ManagedViewMixin, TemplateView):
+    """List the turmas that exist in an academic year and have no number yet.
+
+    A turma is pending when it has a curricular year in that year (D49, D79) and neither an
+    estimate nor a real number. Each row links to the creation form already filled in.
+    """
+
+    template_name = "academic/enrollment_pending.html"
+    title = _("Turmas sem matrícula")
+
+    def get_context_data(self, **kwargs):
+        """Compute the pending turmas of the selected academic year (the latest by default)."""
+        context = super().get_context_data(**kwargs)
+        years = AcademicYear.objects.order_by("-start_year")
+        selected = None
+        value = self.request.GET.get("academic_year", "")
+        if value.isdigit():
+            selected = years.filter(pk=int(value)).first()
+        selected = selected or years.first()
+        rows = []
+        if selected is not None:
+            done = set(
+                Enrollment.objects.filter(academic_year=selected).values_list(
+                    "class_group_id", flat=True
+                )
+            )
+            groups = ClassGroup.objects.select_related(
+                "course", "intake_year", "last_academic_year", "study_plan", "track"
+            )
+            for group in groups:
+                year = group.curricular_year_in(selected.start_year)
+                if year is not None and group.pk not in done:
+                    rows.append({"group": group, "curricular_year": year})
+        context.update({"years": years, "selected_year": selected, "rows": rows})
+        return context
 
 
 class CrossCourseMixin:
