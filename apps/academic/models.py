@@ -10,7 +10,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Min, Sum
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import RoleAssignment, VersionedModel
@@ -248,6 +248,67 @@ class StudyPlan(models.Model):
         return f"{self.course} – {self.academic_year}"
 
 
+class Track(models.Model):
+    """A track (percurso, or variante) of a course plan, from some curricular year on (D75, D79).
+
+    Some courses split in their last years: EIC has the tracks TIC and PSI in the 4th year, TM
+    has the variants Multimédia and Audiovisual. A track belongs to one plan version, like the
+    subjects, so a new plan version can drop or rename tracks without touching old turmas. Each
+    track has its own turma; subjects with no track are common to all of them.
+    """
+
+    study_plan = models.ForeignKey(
+        StudyPlan,
+        on_delete=models.PROTECT,  # never remove a plan that still has tracks
+        related_name="tracks",
+        verbose_name=_("plano de estudos"),
+        help_text=_("Plan version the track belongs to."),
+    )
+    code = models.CharField(
+        _("código"),
+        max_length=20,
+        help_text=_("Short label shown in the name of the turma, such as TIC or PSI."),
+    )
+    name = models.CharField(_("nome"), max_length=200, help_text=_("Name of the track."))
+    first_curricular_year = models.PositiveSmallIntegerField(
+        _("primeiro ano curricular"),
+        help_text=_("Curricular year in which the plan splits into tracks, such as 4."),
+    )
+    sii_ref = models.CharField(
+        _("referência no SII"),
+        max_length=64,
+        blank=True,
+        help_text=_(
+            "Opaque reference of the track in the SII, typed by the manager (D77); "
+            "empty until it is known."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("percurso")
+        verbose_name_plural = _("percursos")
+        ordering = ["study_plan", "first_curricular_year", "code"]
+        constraints = [
+            # The code and the name identify a track inside one plan version.
+            models.UniqueConstraint(fields=["study_plan", "code"], name="unique_track_code"),
+            models.UniqueConstraint(fields=["study_plan", "name"], name="unique_track_name"),
+            # A track starts in the 1st curricular year at the earliest.
+            models.CheckConstraint(
+                condition=models.Q(first_curricular_year__gte=1),
+                name="track_first_year_at_least_one",
+            ),
+            # A non-empty SII reference points at one track of the plan (D68, D77).
+            models.UniqueConstraint(
+                fields=["study_plan", "sii_ref"],
+                condition=~models.Q(sii_ref=""),
+                name="unique_track_sii_ref_in_plan",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.code
+
+
 class ClassType(models.Model):
     """A type of class (T, TP, P, L, other), configured by the PGC manager (D45).
 
@@ -352,6 +413,18 @@ class Subject(models.Model):
             "empty until it is known. Each plan version has its own subject rows (D68)."
         ),
     )
+    track = models.ForeignKey(
+        Track,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # never remove a track that still has subjects
+        related_name="subjects",
+        verbose_name=_("percurso"),
+        help_text=_(
+            "Track the subject belongs to; empty when it is common to all the tracks of the "
+            "plan (D79)."
+        ),
+    )
 
     class Meta:
         verbose_name = _("disciplina")
@@ -381,6 +454,39 @@ class Subject(models.Model):
 
     def __str__(self) -> str:
         return f"{self.code} – {self.name}"
+
+    def check_track(self) -> None:
+        """Check that the track, if any, is a track of the subject's plan and already started.
+
+        It cannot be a database constraint (it compares two tables), so it runs from ``clean``
+        for the forms and from ``save`` for the services and loaders (D79).
+
+        Raises:
+            ValidationError: if the track belongs to another plan, or starts in a curricular
+                year after the one of the subject.
+        """
+        if self.track_id is None or self.study_plan_id is None:
+            return  # nothing to compare yet (a form with an invalid plan reports that itself)
+        if self.track.study_plan_id != self.study_plan_id:
+            raise ValidationError(
+                {"track": _("O percurso não pertence ao plano de estudos da disciplina.")}
+            )
+        if (
+            self.curricular_year is not None
+            and self.curricular_year < self.track.first_curricular_year
+        ):
+            message = _("O percurso só existe a partir do ano curricular %(year)s.")
+            raise ValidationError({"track": message % {"year": self.track.first_curricular_year}})
+
+    def clean(self) -> None:
+        """Validate the track for the forms (see ``check_track``)."""
+        super().clean()
+        self.check_track()
+
+    def save(self, *args, **kwargs) -> None:
+        """Save after checking the track, so that no path can store an inconsistent one."""
+        self.check_track()
+        super().save(*args, **kwargs)
 
     @property
     def weekly_hours_total(self) -> Decimal:
@@ -568,25 +674,59 @@ class ClassGroup(VersionedModel):
         verbose_name=_("último ano letivo"),
         help_text=_("Last academic year of the turma; empty while it is active."),
     )
+    track = models.ForeignKey(
+        Track,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # never remove a track that still has turmas
+        related_name="class_groups",
+        verbose_name=_("percurso"),
+        help_text=_(
+            "Track of the turma, for the years in which the course splits into tracks; fixed "
+            "when it is created (D79). Empty for a turma without track."
+        ),
+    )
 
     class Meta:
         verbose_name = _("turma")
         verbose_name_plural = _("turmas")
-        ordering = ["course", "intake_year__start_year", "label"]
+        ordering = ["course", "intake_year__start_year", "track__code", "label"]
         constraints = [
-            # One turma per course, intake year and label; an empty label is the default turma.
+            # One turma per course, intake year, track and label; an empty label is the default
+            # turma. NULLs count as equal, so two turmas without a track and with the same
+            # label still collide, while TIC and PSI turmas of one intake may coexist.
             models.UniqueConstraint(
-                fields=["course", "intake_year", "label"], name="unique_class_group_label"
+                fields=["course", "intake_year", "track", "label"],
+                nulls_distinct=False,
+                name="unique_class_group_label",
             ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.course} {self.intake_year} {self.label}".strip()
+        track = self.track.code if self.track_id else ""
+        return f"{self.course} {self.intake_year} {track} {self.label}".replace("  ", " ").strip()
 
     def curricular_year_in(self, academic_year: int) -> int | None:
-        """Return the curricular year in an academic year, or ``None`` if not active then."""
+        """Return the curricular year in an academic year, or ``None`` if not active then.
+
+        A turma of a track exists only from the year its track starts. A turma without track,
+        in a plan that has tracks, stops the year before the first one starts (D79).
+        """
         last = self.last_academic_year.start_year if self.last_academic_year else None
-        return curricular_year_in(self.intake_year.start_year, academic_year, last)
+        first_year, final_year = 1, None
+        if self.track_id:
+            first_year = self.track.first_curricular_year
+        else:
+            starts = self.study_plan.tracks.aggregate(first=Min("first_curricular_year"))["first"]
+            if starts is not None:
+                final_year = starts - 1
+        return curricular_year_in(
+            self.intake_year.start_year,
+            academic_year,
+            last,
+            first_year=first_year,
+            final_year=final_year,
+        )
 
     def save(self, *args, **kwargs) -> None:
         """Save after checking the turma's invariants.
@@ -605,9 +745,13 @@ class ClassGroup(VersionedModel):
             raise ValidationError(
                 {"last_academic_year": _("O último ano letivo não pode ser anterior à entrada.")}
             )
+        if self.track_id and self.track.study_plan_id != self.study_plan_id:
+            raise ValidationError({"track": _("O percurso não pertence ao plano da turma.")})
         if not self._state.adding:
-            stored = type(self).objects.filter(pk=self.pk).values_list("study_plan_id", flat=True)
-            if stored and stored[0] != self.study_plan_id:
+            stored = type(self).objects.filter(pk=self.pk).values_list("study_plan_id", "track_id")
+            if stored and stored[0][0] != self.study_plan_id:
                 raise ValidationError({"study_plan": _("Uma turma não muda de plano.")})
+            if stored and stored[0][1] != self.track_id:
+                raise ValidationError({"track": _("Uma turma não muda de percurso.")})
         # The optimistic lock (version) is checked by ``VersionedModel.save``.
         super().save(*args, **kwargs)
