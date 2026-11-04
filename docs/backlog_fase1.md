@@ -15,7 +15,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 - [x] T1.4 Autenticação local para desenvolvimento; ponto de extensão para LDAP/SSO (*questão em aberto: confirmar com os serviços informáticos*).
 
 ## 2. Estrutura académica (bloco 1)
-- [ ] T2.1 Faculdade, coordenação, curso (licenciatura, mestrado, doutoramento), ano letivo.
+- [x] T2.1 Faculdade, coordenação, curso (licenciatura, mestrado, doutoramento), ano letivo.
 - [ ] T2.2 Plano de estudos e disciplina (código, ECTS, ano, semestre, coordenação responsável, carga semestral e semanal por tipo de aula).
 - [ ] T2.3 Tipos de aula configuráveis (T, TP, P, L, outra) — *questão em aberto: que outros tipos existem*.
 - [ ] T2.4 Disciplinas transversais: declarar o mesmo programa em vários cursos e **indicar os cursos** em que é transversal; aviso quando carga ou semestre diferem; sugestões do sistema.
