@@ -145,7 +145,7 @@ def test_semester_hours_cannot_be_negative(plan, coordination):
 
 
 def test_a_subject_may_belong_to_a_coordination_of_another_faculty(plan, other_coordination):
-    """The specification sets no same-faculty rule between course and coordination."""
+    """A transversal subject may be run by a coordination of another Faculty (D44)."""
     assert make_subject(plan, other_coordination).pk
 
 

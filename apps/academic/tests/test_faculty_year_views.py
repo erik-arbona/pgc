@@ -114,10 +114,10 @@ def test_the_faculty_list_shows_code_and_name(manager_client):
 
 
 def test_creating_an_academic_year_shows_its_label(manager_client):
-    """Year 2030 is listed as 2030/2031 and its creation is audited."""
+    """Year 2030 is listed as 2030-2031 and its creation is audited."""
     manager_client.post(reverse("academic:academicyear_create"), {"start_year": 2030})
     assert AuditEntry.objects.get().action == "create"
-    assert "2030/2031" in manager_client.get(reverse("academic:academicyear_list")).content.decode()
+    assert "2030-2031" in manager_client.get(reverse("academic:academicyear_list")).content.decode()
 
 
 def test_a_duplicate_academic_year_is_a_form_error(manager_client):

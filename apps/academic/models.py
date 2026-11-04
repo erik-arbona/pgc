@@ -151,9 +151,14 @@ class AcademicYear(models.Model):
         ordering = ["-start_year"]
 
     @property
+    def end_year(self) -> int:
+        """Return the year in which the academic year ends: the year after it starts (D42)."""
+        return self.start_year + 1
+
+    @property
     def label(self) -> str:
-        """Return the display label, e.g. ``2026/2027``."""
-        return f"{self.start_year}/{self.start_year + 1}"
+        """Return the display label with the start and end year, e.g. ``2026-2027``."""
+        return f"{self.start_year}-{self.end_year}"
 
     def __str__(self) -> str:
         return self.label

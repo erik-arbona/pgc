@@ -35,7 +35,7 @@ def plan_in_force(
     Args:
         plans: all study plans of one course.
         curricular_year: year of the course, starting at 1.
-        academic_year: start year of the academic year, e.g. 2027 for 2027/2028.
+        academic_year: start year of the academic year, e.g. 2027 for 2027-2028.
 
     Returns:
         The plan id, or ``None`` if no plan has reached that curricular year yet.
