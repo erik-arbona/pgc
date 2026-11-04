@@ -1,0 +1,27 @@
+{% load i18n %}
+      <tr id="unit-{{ row.unit.pk }}"{% if row.unassigned %} class="unassigned"{% endif %}>
+        {% if can_edit %}<td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}">{% endif %}</td>{% endif %}
+        <td>{{ row.unit.class_type.code }}</td>
+        <td>{{ row.weekly_hours|default:"—" }}</td>
+        <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
+        <td>
+          {% if row.has_groups %}—{% elif row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}
+        </td>
+        <td>
+          {% if row.unit.teacher %}<a href="{% url 'dsd:teacher_sheet' offering.dsd_semester.dsd_id row.unit.teacher_id %}">{{ row.unit.teacher.name }}</a>{% if row.teacher_status %}<br><small>{{ row.teacher_status }}</small>{% endif %}
+          {% elif row.choices %}
+            <form method="post" action="{% url 'dsd:unit_teacher_inline' offering.pk row.unit.pk %}" hx-post="{% url 'dsd:unit_teacher_inline' offering.pk row.unit.pk %}" hx-trigger="change" hx-target="closest tr" hx-swap="outerHTML">
+              {% csrf_token %}<input type="hidden" name="seen" value="{{ row.unit.version }}">
+              <select name="teacher" aria-label="{% translate 'Docente' %}">
+                <option value="">{% translate "Escolher docente…" %}</option>
+                {% for teacher, description in row.choices %}<option value="{{ teacher.pk }}">{{ teacher.name }} – {{ description }}</option>{% endfor %}
+              </select>
+              <noscript><button type="submit">{% translate "Atribuir" %}</button></noscript>
+            </form>
+          {% else %}—{% endif %}
+          {% if row.error %}<br><small class="error">{{ row.error }}</small>{% endif %}
+        </td>
+        <td>{% if row.unit.room_capacity %}{{ row.unit.room_capacity }}{% if row.unit.room_type %} ({{ row.unit.room_type.name }}){% endif %}{% for warning in row.room_warnings %}<br><small class="warning">{{ warning }}</small>{% endfor %}{% else %}—{% endif %}</td>
+        <td>{% if row.stale %}{% translate "Obsoleta" %}{% endif %}</td>
+        <td>{% for action in row.actions %}<a href="{{ action.url }}">{{ action.label }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+      </tr>

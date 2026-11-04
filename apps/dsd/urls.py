@@ -76,6 +76,11 @@ urlpatterns = [
     path("activities/<int:pk>/edit/", views.ActivityEditView.as_view(), name="activity_edit"),
     path("activities/<int:pk>/remove/", views.ActivityRemoveView.as_view(), name="activity_remove"),
     path(
+        "offerings/<int:pk>/units/<int:unit_pk>/teacher/inline/",
+        views.UnitTeacherInlineView.as_view(),
+        name="unit_teacher_inline",
+    ),
+    path(
         "offerings/<int:pk>/lead-teacher/",
         views.OfferingLeadTeacherView.as_view(),
         name="offering_lead_teacher",
