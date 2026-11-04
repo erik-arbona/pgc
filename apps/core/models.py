@@ -227,6 +227,43 @@ class RoleAssignment(models.Model):
             raise ValidationError({"scope_kind": _("Este perfil não admite este tipo de âmbito.")})
 
 
+class VersionedModel(models.Model):
+    """Abstract base with an optimistic lock for records several people edit (CLAUDE.md).
+
+    ``version`` starts at 1 and grows by one on every save. A form carries the version the user
+    saw; saving with an older one means someone else saved first, so the save is refused with a
+    ``ValidationError`` and nothing is written (turmas D54, rooms D63).
+    """
+
+    version = models.PositiveIntegerField(
+        _("versão"),
+        default=1,
+        help_text=_("Optimistic lock: grows by one on every save (D54)."),
+    )
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs) -> None:
+        """Save the record if its version is still the stored one.
+
+        Raises:
+            ValidationError: if someone else saved the record after this copy was loaded.
+        """
+        if not self._state.adding:
+            updated = (
+                type(self)
+                ._default_manager.filter(pk=self.pk, version=self.version)
+                .update(version=models.F("version") + 1)
+            )
+            if not updated:
+                raise ValidationError(
+                    _("Este registo foi alterado por outra pessoa. Recarregue a página.")
+                )
+            self.version += 1
+        super().save(*args, **kwargs)
+
+
 class Parameter(models.Model):
     """A system parameter whose value the PGC manager can change (CLAUDE.md rule 6).
 

@@ -29,7 +29,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 - [x] T3.4 Contas por perfil geridas pelo gestor da PGC. *(feita em 4 partes: base de segurança e serviços, telas de contas, perfis na conta, conta a partir do docente)*
 
 ## 4. Salas (bloco 8)
-- [ ] T4.1 Sala (edifício, número, nome opcional, tipo, capacidade) introduzida pelo Património.
+- [ ] T4.1 Sala (edifício, número, nome opcional, tipo, capacidade) introduzida pelo Património. *(em curso, 2 partes: 1 modelos e bloqueio otimista ✔; 2 telas)*
 - [ ] T4.2 Consulta de salas por tipo e capacidade.
 
 ## 5. SII
