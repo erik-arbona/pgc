@@ -54,9 +54,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [ ] T4.5 Alertas: unidade sem docente, quotas ≠ 100%, sem sala pedida, fora do intervalo (`05`).
 
 ## 5. Atribuição (bloco 4)
-- [ ] T5.1 Um docente por unidade letiva, só da coordenação da disciplina (D08, D19); bloqueio otimista e restrição na BD.
+- [x] T5.1 Um docente por unidade letiva, só da coordenação da disciplina (D08, D19); bloqueio otimista e restrição na BD.
   - [x] T5.1a Serviço: `assign_teacher` / `unassign_teacher`, permissão, regras de junção, separação e divisão (D94).
-  - [ ] T5.1b Cálculo ao vivo (adaptador para as regras puras) e ecrãs: coluna «Docente» e botões.
+  - [x] T5.1b Cálculo ao vivo (adaptador para as regras puras) e ecrãs: coluna «Docente», formulário para dar, mudar e retirar.
 - ~~T5.2 Partilha com quota~~ **Cancelada** (D94): uma unidade tem um só docente e não há quotas.
 - [ ] T5.3 Componente não letiva por docente e semestre: tipo, descrição e horas (D15).
 - [ ] T5.4 Horas extra aceites, registadas pelo coordenador (D13). ⚑ Q13

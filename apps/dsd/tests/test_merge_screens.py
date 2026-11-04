@@ -413,3 +413,26 @@ def test_a_member_of_another_unit_in_the_url_is_not_found(client, world):
     other_member = unit_of(world, "A", "P").members.get()
     client.force_login(world["coordinator"])
     assert client.get(separate_url(world, host, other_member)).status_code == 404
+
+
+def test_a_separate_post_without_the_version_is_refused(client, world):
+    """The version of the merged unit is part of the form."""
+    host = merged(world)
+    member = host.members.get(class_group_link=world["links"]["B"])
+    client.force_login(world["coordinator"])
+    response = client.post(separate_url(world, host, member), {"reason": "x"})
+    assert response.status_code == 200
+    assert TeachingUnit.objects.get(pk=host.pk).members.count() == 2
+
+
+def test_a_merge_post_without_the_versions_is_refused(client, world):
+    """The versions of the units are part of the form."""
+    open_cell(world)
+    units = [unit_of(world, "A"), unit_of(world, "B")]
+    client.force_login(world["coordinator"])
+    response = client.post(
+        reverse("dsd:offering_merge", args=[world["offering"].pk]),
+        {"units": [u.pk for u in units], "room_capacity": 55},
+    )
+    assert response.status_code == 200
+    assert TeachingUnit.objects.get(pk=units[0].pk).members.count() == 1
