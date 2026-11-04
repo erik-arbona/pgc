@@ -18,6 +18,8 @@
       {% if can_years %}<a href="{% url 'academic:academicyear_list' %}">{% translate "Anos letivos" %}</a>{% endif %}
       {% can "dsd.view" as can_dsd %}
       {% if can_dsd %}<a href="{% url 'dsd:dsd_list' %}">{% translate "DSD" %}</a>{% endif %}
+      {% has_scope "dsd.teacher.view" "teacher" as has_sheet %}
+      {% if has_sheet %}<a href="{% url 'dsd:my_sheet' %}">{% translate "A minha ficha" %}</a>{% endif %}
       {% has_scope "coordination.edit" "faculty" as can_scoped %}
       {% if can_scoped %}<a href="{% url 'academic:coordination_list' %}">{% translate "Coordenações" %}</a>
       <a href="{% url 'academic:course_list' %}">{% translate "Cursos" %}</a>{% endif %}

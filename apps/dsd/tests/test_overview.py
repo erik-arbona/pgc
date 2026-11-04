@@ -153,16 +153,16 @@ def test_the_screen_needs_a_session(board, client):
 
 
 def test_the_board_gets_no_links_to_pages_it_cannot_open(board, client):
-    """The Executive Board reads the overview but not the teacher sheets or the offerings.
+    """The Executive Board reads the overview and the teacher sheets, but not the offerings.
 
-    The links are only drawn for who can open them (review of T6.1).
+    The links are only drawn for who can open them (review of T6.1, T6.3).
     """
     client.force_login(board["ce"])
     html = client.get(url(board)).content.decode()
-    assert "/teachers/" not in html
+    assert "/teachers/" in html
     assert "/offerings/" not in html
     client.force_login(board["manager"])
-    assert "/teachers/" in client.get(url(board)).content.decode()
+    assert "/offerings/" in client.get(url(board)).content.decode()
 
 
 def test_a_teacher_of_another_coordination_is_marked_and_does_not_count_as_pending(board):

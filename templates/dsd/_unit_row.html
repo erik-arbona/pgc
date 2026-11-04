@@ -8,7 +8,7 @@
           {% if row.has_groups %}—{% elif row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}
         </td>
         <td>
-          {% if row.unit.teacher %}<a href="{% url 'dsd:teacher_sheet' offering.dsd_semester.dsd_id row.unit.teacher_id %}">{{ row.unit.teacher.name }}</a>{% if row.teacher_status %}<br><small>{{ row.teacher_status }}</small>{% endif %}
+          {% if row.unit.teacher %}{% if row.teacher_link %}<a href="{% url 'dsd:teacher_sheet' offering.dsd_semester.dsd_id row.unit.teacher_id %}">{{ row.unit.teacher.name }}</a>{% else %}{{ row.unit.teacher.name }}{% endif %}{% if row.teacher_status %}<br><small>{{ row.teacher_status }}</small>{% endif %}
           {% elif row.choices %}
             <form method="post" action="{% url 'dsd:unit_teacher_inline' offering.pk row.unit.pk %}" hx-post="{% url 'dsd:unit_teacher_inline' offering.pk row.unit.pk %}" hx-trigger="change" hx-target="closest tr" hx-swap="outerHTML">
               {% csrf_token %}<input type="hidden" name="seen" value="{{ row.unit.version }}">

@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import DetailView, FormView, TemplateView
+from django.views.generic import DetailView, FormView, TemplateView, View
 
 from apps.academic.models import ClassType, Coordination
 from apps.academic.services import class_group_sizes
@@ -52,6 +52,7 @@ from .lifecycle import cell_writable
 from .load_facts import (
     load_text,
     minimum_reason_text,
+    status_text,
     teacher_loads,
 )
 from .models import (
@@ -72,6 +73,7 @@ from .services import (
     GENERATE,
     LEAD_TEACHER,
     REVIEW_MINIMUM,
+    TEACHER_SHEET_VIEW,
     TEACHING_UNIT_EDIT,
     add_activity,
     assign_teacher,
@@ -434,6 +436,11 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         )
         return context
 
+    @cached_property
+    def _sheet_coordinations(self) -> set[int]:
+        """The coordinations whose teachers' sheets the user may open."""
+        return registry.coordination_ids(self.request.user, TEACHER_SHEET_VIEW)
+
     def _unit_rows(self, offering, units, stale, sizes, can_edit):
         """Build the rows of some units of an offering, with the teacher selector where it applies.
 
@@ -502,6 +509,8 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             "unit": unit,
             "weekly_hours": hours.get(unit.class_type_id),
             "teacher_load": (loads or {}).get(unit.teacher_id),
+            "teacher_link": unit.teacher_id is not None
+            and unit.teacher.coordination_id in self._sheet_coordinations,
             "teacher_status": (
                 load_text(loads[unit.teacher_id]) if loads and unit.teacher_id in loads else ""
             ),
@@ -1029,16 +1038,91 @@ class UnitTeacherView(_UnitEditMixin, FormView):
         return redirect("dsd:offering_detail", pk=self.offering.pk)
 
 
-class TeacherSheetView(ManagedViewMixin, TemplateView):
-    """The sheet of a teacher in a DSD: load per semester and the other activities (T5.3).
+class TeacherSheetView(PageMixin, LoginRequiredMixin, TemplateView):
+    """The sheet of a teacher in a DSD: lessons, load per semester, activities (T5.3, T6.3).
 
-    It shows, for each semester, the teaching hours, the preparation and the other activities,
-    then the annual teaching hours with their state and the general total (D95). The buttons to
-    add, change and remove activities show only to who may write the cell (D86).
+    It shows, for each semester, the lessons the teacher gives, the teaching hours, the
+    preparation and the other activities, then the annual teaching hours with their state and
+    the general total (D95). The teacher reads their own sheet and whoever covers their
+    coordination reads it too (``dsd.teacher.view``, D09, D69). The teacher only reads: the
+    management notes (the reason for a low load and the board's comment, the pending extra hours)
+    and every button are for who covers the coordination, and the buttons also follow the state of
+    the cell (D86).
     """
 
-    permission_action = "dsd.view"
     template_name = "dsd/teacher_sheet.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who read no sheet, then those who may not read this one."""
+        if request.user.is_authenticated:
+            if not (
+                registry.own_teacher_ids(request.user, TEACHER_SHEET_VIEW)
+                or registry.coordination_ids(request.user, TEACHER_SHEET_VIEW)
+            ):
+                raise PermissionDenied
+            if not registry.can_on_teacher(request.user, TEACHER_SHEET_VIEW, self.teacher):
+                raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    @cached_property
+    def manages(self) -> bool:
+        """Whether the user covers the teacher's coordination (not only reads their own sheet)."""
+        return registry.can_on_coordination(
+            self.request.user, TEACHER_SHEET_VIEW, self.teacher.coordination_id
+        )
+
+    def _lessons(self) -> dict[int, list[dict]]:
+        """The lessons the teacher gives in the DSD, by semester number (T6.3).
+
+        Each lesson has its subject and course, class type, weekly hours, the turmas or groups
+        it is given to and whether it puts several of them together.
+        """
+        units = (
+            TeachingUnit.objects.filter(offering__dsd_semester__dsd=self.dsd, teacher=self.teacher)
+            .select_related(
+                "class_type",
+                "offering__subject__study_plan__course",
+                "offering__dsd_semester",
+            )
+            .prefetch_related(
+                "offering__subject__class_loads",
+                "members__class_group_link__class_group",
+                "members__subgroup__class_group_link__class_group",
+            )
+            .order_by(
+                "offering__dsd_semester__number",
+                "offering__subject__code",
+                "class_type__position",
+                "pk",
+            )
+        )
+        lessons: dict[int, list[dict]] = {}
+        for unit in units:
+            members = list(unit.members.all())
+            hours = next(
+                (
+                    load.weekly_hours
+                    for load in unit.offering.subject.class_loads.all()
+                    if load.class_type_id == unit.class_type_id
+                ),
+                None,
+            )
+            lessons.setdefault(unit.offering.dsd_semester.number, []).append(
+                {
+                    "unit": unit,
+                    "subject": unit.offering.subject,
+                    "course": unit.offering.subject.study_plan.course,
+                    "weekly_hours": hours,
+                    "groups": [
+                        member.subgroup
+                        if member.subgroup_id
+                        else member.class_group_link.class_group
+                        for member in members
+                    ],
+                    "merged": len(members) > 1,
+                }
+            )
+        return lessons
 
     @cached_property
     def dsd(self) -> Dsd:
@@ -1079,10 +1163,12 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
             .first()
         )
         blocks = []
+        lessons = self._lessons()
         for index, semester in enumerate(self.dsd.semesters.order_by("number")):
             blocks.append(
                 {
                     "semester": semester,
+                    "lessons": lessons.get(semester.number, []),
                     "teaching": load.assessment.semester_weekly_hours[index],
                     "preparation": load.preparation[index],
                     "other": load.other_hours[index],
@@ -1098,7 +1184,8 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
                 "dsd": self.dsd,
                 "teacher": self.teacher,
                 "load": load,
-                "status": load_text(load),
+                "status": load_text(load) if self.manages else status_text(load.assessment),
+                "manages": self.manages,
                 "extra_record": extra_record,
                 "minimum_record": minimum_record,
                 "can_edit_minimum": load.minimum_reason != MinimumReasonState.NOT_NEEDED
@@ -1611,12 +1698,19 @@ class CoordinationOverviewView(PageMixin, LoginRequiredMixin, TemplateView):
         except DsdSemester.DoesNotExist:
             raise Http404 from None
         by_id = {row.teacher.pk: row.teacher for row in result.rows}
+        covered = registry.coordination_ids(self.request.user, TEACHER_SHEET_VIEW)
+        own = registry.own_teacher_ids(self.request.user, TEACHER_SHEET_VIEW)
         context.update(
             {
                 "title": coordination.name,
                 "dsd": dsd,
                 "coordination": coordination,
                 "overview": result,
+                "openable": {
+                    row.teacher.pk
+                    for row in result.rows
+                    if row.teacher.coordination_id in covered or row.teacher.pk in own
+                },
                 "semester_number": int(number),
                 "items": [
                     {
@@ -1709,3 +1803,21 @@ class UnitTeacherInlineView(OfferingDetailView):
         row = self._unit_rows(offering, [unit], stale, sizes, can_edit)[0]
         row["error"] = error
         return {"row": row, "offering": offering, "can_edit": can_edit, "request": request}
+
+
+class MySheetView(PageMixin, LoginRequiredMixin, View):
+    """Send a teacher to their own sheet in the latest DSD (T6.3, D09).
+
+    Only accounts linked to a teacher record have one; anybody else is refused. When no DSD
+    exists there is nothing to show.
+    """
+
+    def get(self, request, *args, **kwargs):
+        """Redirect to the sheet of the user's teacher in the DSD of the latest year."""
+        own = sorted(registry.own_teacher_ids(request.user, TEACHER_SHEET_VIEW))
+        if not own:
+            raise PermissionDenied
+        dsd = Dsd.objects.order_by("-academic_year__start_year").first()
+        if dsd is None:
+            raise Http404
+        return redirect("dsd:teacher_sheet", pk=dsd.pk, teacher_pk=own[0])

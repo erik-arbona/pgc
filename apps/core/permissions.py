@@ -395,6 +395,14 @@ registry.register(
     write=True,
     scoped=True,
 )
+# The sheet of a teacher: the teacher reads their own (D09); whoever covers the teacher's
+# coordination reads it too (D69, D100).
+registry.register(
+    "dsd.teacher.view",
+    {Profile.COORDINATOR, Profile.PGC_MANAGER, Profile.EXECUTIVE_BOARD, Profile.TEACHER},
+    write=False,
+    scoped=True,
+)
 # The overview of a coordination: who covers a coordination reads it (D69, D98).
 registry.register(
     "dsd.coordination.view",
