@@ -275,6 +275,60 @@ class ScopedViewMixin(PageMixin, LoginRequiredMixin):
         return super().dispatch(request, *args, **kwargs)
 
 
+class CoordinationScopeMixin:
+    """Scope a ``Scoped*`` view by the coordination each object belongs to (D69).
+
+    List it before the ``Scoped*`` base: ``class X(CoordinationScopeMixin, ScopedUpdateView)``.
+    It replaces the exact-scope check of ``ScopedViewMixin`` with the coordination rule of
+    ``PermissionRegistry.can_on_coordination``: the coordinator needs their own coordination,
+    the Executive Board and the PGC manager the Faculty of the coordination. The 403 for users
+    with no coordination, the origin check on load, the destination check on save, the list
+    filter and the form choices then work unchanged.
+
+    Set ``permission_action`` (a scoped action), ``scope_field`` (attribute holding the
+    coordination id; dotted path allowed, e.g. ``"subject.coordination_id"``) and
+    ``scope_lookup`` (queryset filter, e.g. ``"subject__coordination__in"``). The defaults are
+    for a model with a ``coordination`` field. ``permission_registry`` exists so tests can use
+    an isolated registry.
+
+    A form used with this mixin must set ``scope_field = "coordination"`` (or the field that
+    holds the coordination), because ``ScopedModelForm`` filters a ``faculty`` field by default.
+    """
+
+    permission_registry = registry
+    scope_kind = ScopeKind.COORDINATION
+    scope_field = "coordination_id"
+    scope_lookup = "coordination__in"
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        """Refuse a class that lists this mixin after a ``Scoped*`` base.
+
+        Python would then pick the Faculty attributes of ``ScopedViewMixin`` and silently
+        apply the wrong rule, so the mistake is made loud when the class is defined.
+
+        Raises:
+            TypeError: if ``ScopedViewMixin`` comes before this mixin in the MRO.
+        """
+        super().__init_subclass__(**kwargs)
+        for base in cls.__mro__:
+            if base is CoordinationScopeMixin:
+                return
+            if base is ScopedViewMixin:  # reached the Faculty rule first: wrong order
+                raise TypeError(
+                    f"{cls.__name__}: list CoordinationScopeMixin before the Scoped* base."
+                )
+
+    def allowed_scope_ids(self) -> set[int]:
+        """Return the ids of the coordinations the current user may act on."""
+        return self.permission_registry.coordination_ids(self.request.user, self.permission_action)
+
+    def require_scope_of(self, obj) -> None:
+        """Raise ``PermissionDenied`` unless the user covers the object's coordination."""
+        self.permission_registry.require_on_coordination(
+            self.request.user, self.permission_action, attrgetter(self.scope_field)(obj)
+        )
+
+
 class ScopedObjectMixin(ScopedViewMixin):
     """For views on one object: check the object's scope when it is loaded."""
 

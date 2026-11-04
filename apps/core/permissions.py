@@ -1,7 +1,7 @@
 """Server-side permission checks: which profiles may perform which actions, and on what scope.
 
 Implements: docs/especificacao/07_arquitetura.md – Permissions (always checked on the server).
-Pure domain module: no dependency on views or templates. See D38 and D39.
+Pure domain module: no dependency on views or templates. See D38, D39 and D69.
 
 Only rules the specification states unambiguously are registered here. Each feature
 registers its own actions when it is built; the specification has no complete
@@ -13,12 +13,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.db.models import Q
 
 from .roles import Profile, ScopeKind
+from .scopes import ScopeNotFound, faculty_of_scope, scope_ids_in_faculties
 
 # Profiles that never write (specification: viewer is read-only; the teacher only reads
 # their own distribution).
 READ_ONLY_PROFILES = frozenset({Profile.VIEWER, Profile.TEACHER})
+
+# Which kind of assignment lets a profile act on the data of a coordination (D69):
+# the coordinator only through their own coordination, the Executive Board and the PGC manager
+# through the Faculty the coordination belongs to. No other profile ever covers a coordination.
+COORDINATION_COVER: dict[str, str] = {
+    Profile.COORDINATOR: ScopeKind.COORDINATION,
+    Profile.EXECUTIVE_BOARD: ScopeKind.FACULTY,
+    Profile.PGC_MANAGER: ScopeKind.FACULTY,
+}
 
 
 @dataclass(frozen=True)
@@ -82,8 +93,9 @@ class PermissionRegistry:
 
         For an unscoped action any assignment with an allowed profile qualifies. A scoped
         action must be checked against its target: the assignment must have exactly that
-        scope kind and id (scope hierarchy, such as a Faculty covering its coordinations,
-        arrives with T2.1). Omitting the scope is never read as "any scope".
+        scope kind and id. The Faculty-covers-coordination hierarchy is deliberately not
+        here: use ``can_on_coordination`` for data that belongs to a coordination (D69).
+        Omitting the scope is never read as "any scope".
 
         Args:
             user: the requesting user (may be anonymous).
@@ -138,6 +150,163 @@ class PermissionRegistry:
             profile__in=action.profiles, scope_kind=scope_kind
         ).values_list("scope_id", flat=True)
         return {i for i in ids if i is not None}
+
+    # --- coordination scope (D69) ---------------------------------------------------------
+
+    def _action(self, code: str) -> Action:
+        """Return a registered action, failing closed on an unknown code."""
+        try:
+            return self._actions[code]
+        except KeyError:
+            raise LookupError(f"Unknown action: {code}") from None
+
+    def _scoped_action(self, code: str) -> Action:
+        """Return a registered action that must be scoped, as every coordination check needs."""
+        action = self._action(code)
+        if not action.scoped:
+            raise ImproperlyConfigured(f"Coordination check on an unscoped action: {code}")
+        return action
+
+    @staticmethod
+    def _is_active(user) -> bool:
+        """Tell whether the user is authenticated and has an enabled account."""
+        return bool(user.is_authenticated and user.is_active)
+
+    def can_on_coordination(self, user, code: str, coordination_id: int | None) -> bool:
+        """Tell whether a user may perform a scoped action on data of one coordination.
+
+        The coordinator needs an assignment to that coordination; the Executive Board and the
+        PGC manager need an assignment to the Faculty the coordination belongs to; no other
+        profile covers a coordination (``COORDINATION_COVER``, D69). The action must also admit
+        the profile. The Faculty is read at check time, so moving a coordination to another
+        Faculty moves the access with it (D62).
+
+        Args:
+            user: the requesting user (may be anonymous).
+            code: code of a scoped action.
+            coordination_id: id of the coordination that owns the data.
+
+        Returns:
+            True only for an active, authenticated user covering the coordination. A missing
+            or unknown coordination gives False (fail closed); ``is_superuser`` gives no pass.
+
+        Raises:
+            LookupError: if the action is not registered.
+            ImproperlyConfigured: if the action is not scoped.
+        """
+        action = self._scoped_action(code)
+        if coordination_id is None or not self._is_active(user):
+            return False
+        try:
+            faculty_id = faculty_of_scope(ScopeKind.COORDINATION, coordination_id)
+        except ScopeNotFound:
+            return False
+        covers = Q()
+        if Profile.COORDINATOR in action.profiles:
+            covers |= Q(
+                profile=Profile.COORDINATOR,
+                scope_kind=ScopeKind.COORDINATION,
+                scope_id=coordination_id,
+            )
+        faculty_profiles = action.profiles & {Profile.EXECUTIVE_BOARD, Profile.PGC_MANAGER}
+        if faculty_profiles:
+            covers |= Q(
+                profile__in=faculty_profiles, scope_kind=ScopeKind.FACULTY, scope_id=faculty_id
+            )
+        if not covers:
+            return False
+        return user.role_assignments.filter(covers).exists()
+
+    def require_on_coordination(self, user, code: str, coordination_id: int | None) -> None:
+        """Like ``can_on_coordination`` but raise on denial.
+
+        Raises:
+            PermissionDenied: if the user does not cover the coordination (HTTP 403).
+            LookupError: if the action is not registered.
+            ImproperlyConfigured: if the action is not scoped.
+        """
+        if not self.can_on_coordination(user, code, coordination_id):
+            raise PermissionDenied(f"Not allowed: {code}")
+
+    def coordination_ids(self, user, code: str) -> set[int]:
+        """Return the ids of the coordinations on which a user may perform a scoped action.
+
+        Used to filter lists and to limit form choices. It agrees with ``can_on_coordination``:
+        the coordinator's own coordinations plus every coordination of the Faculties held by an
+        Executive Board member or a PGC manager (D69).
+
+        Args:
+            user: the requesting user (may be anonymous).
+            code: code of a scoped action.
+
+        Returns:
+            The coordination ids; empty for anonymous or inactive users.
+
+        Raises:
+            LookupError: if the action is not registered.
+            ImproperlyConfigured: if the action is not scoped.
+        """
+        action = self._scoped_action(code)
+        if not self._is_active(user):
+            return set()
+        rows = user.role_assignments.filter(
+            profile__in=action.profiles & COORDINATION_COVER.keys()
+        ).values_list("profile", "scope_kind", "scope_id")
+        direct: set[int] = set()
+        faculties: set[int] = set()
+        for profile, kind, scope_id in rows:
+            if scope_id is None or kind != COORDINATION_COVER[profile]:
+                continue  # an assignment of the wrong kind covers nothing
+            (direct if kind == ScopeKind.COORDINATION else faculties).add(scope_id)
+        if faculties:
+            direct |= scope_ids_in_faculties(ScopeKind.COORDINATION, faculties)
+        return direct
+
+    def own_teacher_ids(self, user, code: str) -> set[int]:
+        """Return the ids of the teacher records linked to the user's own account (D09).
+
+        Args:
+            user: the requesting user (may be anonymous).
+            code: action code; the teacher profile must be allowed to perform it.
+
+        Returns:
+            The teacher ids; empty unless the user holds a teacher assignment and the action
+            admits the teacher profile. Since the teacher never writes, only read actions do.
+
+        Raises:
+            LookupError: if the action is not registered.
+        """
+        action = self._action(code)
+        if Profile.TEACHER not in action.profiles or not self._is_active(user):
+            return set()
+        ids = user.role_assignments.filter(
+            profile=Profile.TEACHER, scope_kind=ScopeKind.TEACHER
+        ).values_list("scope_id", flat=True)
+        return {i for i in ids if i is not None}
+
+    def can_on_teacher(self, user, code: str, teacher) -> bool:
+        """Tell whether a user may perform a scoped action on a teacher's data.
+
+        True for the teacher's own record (D09) or for whoever covers the teacher's
+        coordination. Pass a teacher loaded from the database, never one built from submitted
+        form data, because the coordination decides the answer.
+
+        Args:
+            user: the requesting user (may be anonymous).
+            code: code of a scoped action.
+            teacher: an object with ``pk`` and ``coordination_id``.
+
+        Returns:
+            True if the teacher is the user's own record or the user covers their coordination.
+
+        Raises:
+            LookupError: if the action is not registered.
+            ImproperlyConfigured: if the action is not scoped.
+        """
+        self._scoped_action(code)
+        if teacher.pk in self.own_teacher_ids(user, code):
+            return True
+        return self.can_on_coordination(user, code, teacher.coordination_id)
 
     def require(
         self,
@@ -205,4 +374,30 @@ def require(user, code: str, scope_kind: str | None = None, scope_id: int | None
     registry.require(user, code, scope_kind, scope_id)
 
 
-__all__ = ["Action", "PermissionRegistry", "ScopeKind", "can", "registry", "require"]
+def can_on_coordination(user, code: str, coordination_id: int | None) -> bool:
+    """Shortcut for ``registry.can_on_coordination``."""
+    return registry.can_on_coordination(user, code, coordination_id)
+
+
+def require_on_coordination(user, code: str, coordination_id: int | None) -> None:
+    """Shortcut for ``registry.require_on_coordination``."""
+    registry.require_on_coordination(user, code, coordination_id)
+
+
+def coordination_ids_for(user, code: str) -> set[int]:
+    """Shortcut for ``registry.coordination_ids``."""
+    return registry.coordination_ids(user, code)
+
+
+__all__ = [
+    "COORDINATION_COVER",
+    "Action",
+    "PermissionRegistry",
+    "ScopeKind",
+    "can",
+    "can_on_coordination",
+    "coordination_ids_for",
+    "registry",
+    "require",
+    "require_on_coordination",
+]
