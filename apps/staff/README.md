@@ -8,6 +8,8 @@
 - `TeacherPosition` (positions held; only full-time teachers can have them).
 - Planned: hours ranges by category, position and type (T3.2).
 
+**Screens (PGC manager area):** categories (`/staff/categories/`) and positions (`/staff/positions/`): list, create, edit/deactivate (reason required) and delete when unused, with the generic views of `core.generic` (D50).
+
 **Permissions:** `teacher.edit` (scoped to the Faculty of the teacher's coordination), `position.edit`, `category.edit`; PGC manager only. See D56.
 
 **Dependencies:** `core`, `academic` (coordination).

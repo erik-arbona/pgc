@@ -1,4 +1,4 @@
-"""Shared fixtures for the academic view tests."""
+"""Shared fixtures for the view tests of every app."""
 
 import pytest
 from django.contrib.auth import get_user_model

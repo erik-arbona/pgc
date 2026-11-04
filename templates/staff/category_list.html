@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p><a href="{% url 'staff:category_create' %}">{% translate "Nova categoria" %}</a></p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Código" %}</th><th>{% translate "Nome" %}</th>
+        <th>{% translate "Posição" %}</th><th>{% translate "Ativa" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.position }}</td>
+        <td>{% if item.is_active %}{% translate "Sim" %}{% else %}{% translate "Não" %}{% endif %}</td>
+        <td>
+          <a href="{% url 'staff:category_update' item.pk %}">{% translate "Editar" %}</a>
+          <a href="{% url 'staff:category_delete' item.pk %}">{% translate "Eliminar" %}</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+{% endblock %}
