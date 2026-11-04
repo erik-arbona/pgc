@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n l10n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ coordination.name }}</h1>
+  <p>{{ coordination.faculty.name }} · {{ dsd }}</p>
+  <p>
+    {% for number in "12" %}
+      {% if number == semester_number|stringformat:"s" %}<strong>{{ number }}.º {% translate "semestre" %}</strong>{% else %}<a href="?semester={{ number }}">{{ number }}.º {% translate "semestre" %}</a>{% endif %}
+    {% endfor %}
+  </p>
+
+  <h2>{% translate "O que precisa de atenção" %}</h2>
+  {% if items %}
+    <ul class="attention">
+      {% for item in items %}
+        <li>
+          {{ item.text }}
+          {% if item.kind == "unassigned_units" or item.kind == "stale_units" %}
+            — <a href="{% url 'dsd:offering_list' dsd.pk %}">{% translate "Ofertas" %}</a>
+          {% endif %}
+          {% if item.teachers %}
+            — {% for teacher in item.teachers %}<a href="{% url 'dsd:teacher_sheet' dsd.pk teacher.pk %}">{{ teacher.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>{% translate "Nada pendente." %}</p>
+  {% endif %}
+  <p><small>{% translate "Propostas a concurso e prazos ainda não existem e não aparecem aqui." %}</small></p>
+
+  <h2>{% translate "Carga letiva anual dos docentes" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Docente" %}</th>
+        <th>{% translate "Horas" %}</th>
+        <th>{% translate "Intervalo" %}</th>
+        <th>{% translate "Carga" %}</th>
+        <th>{% translate "Estado" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in overview.rows %}
+        <tr>
+          <td><a href="{% url 'dsd:teacher_sheet' dsd.pk row.teacher.pk %}">{{ row.teacher.name }}</a></td>
+          <td>{{ row.load.assessment.weekly_hours }}</td>
+          <td>{% if row.load.assessment.range %}{{ row.load.assessment.range.minimum|default_if_none:"—" }} – {{ row.load.assessment.range.maximum }}{% else %}—{% endif %}</td>
+          <td>
+            <div class="load-bar {{ row.css_class }}" role="meter" aria-valuemin="0" aria-valuemax="{{ row.bar.scale|unlocalize }}" aria-valuenow="{{ row.load.assessment.weekly_hours|unlocalize }}" aria-label="{{ row.teacher.name }}: {{ row.status }}">
+              <div class="fill" style="width: {{ row.bar.fill_percent|unlocalize }}%"></div>
+              {% if row.bar.minimum_percent is not None %}<span class="mark" style="left: {{ row.bar.minimum_percent|unlocalize }}%" title="{% translate 'mínimo' %}"></span>{% endif %}
+              {% if row.bar.maximum_percent is not None %}<span class="mark" style="left: {{ row.bar.maximum_percent|unlocalize }}%" title="{% translate 'máximo' %}"></span>{% endif %}
+            </div>
+          </td>
+          <td>{{ row.status }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% translate "Sem docentes." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{% url 'dsd:dsd_detail' dsd.pk %}">{% translate "Voltar" %}</a></p>
+{% endblock %}
