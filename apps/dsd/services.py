@@ -47,6 +47,7 @@ SEMESTER_NUMBERS = (1, 2)
 GENERATE = "dsd.offering.generate"
 LEAD_TEACHER = "dsd.offering.lead_teacher.edit"
 TEACHING_UNIT_EDIT = "dsd.teaching_unit.edit"
+ASSIGNMENT_EDIT = "dsd.assignment.edit"
 MAX_GROUPS = 20
 
 
@@ -498,6 +499,11 @@ def _drop_unit(actor, unit: TeachingUnit, reason: str) -> None:
     Raises:
         ValidationError: if the unit holds more than one member (a merge): separate it first.
     """
+    # Read the teacher again under a lock: the copy in memory may be older than a teacher given
+    # by another request, and ``audited_delete`` does not check versions (D94).
+    current = TeachingUnit.objects.select_for_update().filter(pk=unit.pk).first()
+    if current is not None and current.teacher_id:
+        raise ValidationError(_("A unidade tem docente atribuído: retire-o primeiro."))
     members = list(unit.members.select_related("subgroup"))
     if len(members) > 1:
         raise ValidationError(
@@ -830,7 +836,7 @@ def merge_units(
         raise ValidationError(_("Só se juntam unidades do mesmo semestre."))
     if len({unit.class_type_id for unit in unique}) != 1:
         raise ValidationError(_("Só se juntam unidades do mesmo tipo de aula."))
-    host_pk = (host or unique[0]).pk
+    host_pk = (host or next((unit for unit in unique if unit.teacher_id), unique[0])).pk
     if host_pk not in {unit.pk for unit in unique}:
         raise ValidationError(_("A unidade que fica tem de ser uma das que se juntam."))
     offering = next(unit for unit in unique if unit.pk == host_pk).offering
@@ -894,6 +900,15 @@ def merge_units(
             raise ValidationError(
                 _("Nenhuma sala do campus tem %(capacity)s lugares ou mais: não se pode juntar.")
                 % {"capacity": room_capacity}
+            )
+        teachers = [unit for unit in locked.values() if unit.teacher_id]
+        if len(teachers) > 1:
+            raise ValidationError(
+                _("Mais de uma das unidades tem docente: retire os que sobram antes de juntar.")
+            )
+        if teachers and teachers[0].pk != host_pk:
+            raise ValidationError(
+                _("A unidade com docente tem de ser a que fica: o docente não se perde.")
             )
         why = reason.strip() or _("Junção de turmas")
         target = locked[host_pk]
@@ -1084,3 +1099,110 @@ def set_room_request(
         locked.room_type = room_type
         audited_save(locked, actor, reason.strip() or _("Pedido de sala"))
     return locked
+
+
+def _set_teacher(
+    actor,
+    unit: TeachingUnit,
+    teacher: Teacher | None,
+    reason: str,
+    seen_version: int | None,
+) -> TeachingUnit:
+    """Give a unit a teacher, change it or take it off, inside ``dsd_write`` (T5.1, D94).
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination.
+        ValidationError: if the cell is not writable, the version is stale, the teacher is not
+            eligible, the unit is obsolete or the reason is missing.
+    """
+    offering = unit.offering
+    coordination_id = offering.subject.coordination_id
+    with dsd_write(actor, ASSIGNMENT_EDIT, offering.dsd_semester, coordination_id):
+        # Lock the turma links of the unit first and the unit after, like merge and separate, so
+        # that a teacher cannot be given while set_group_count is deleting this unit: both hold
+        # the link lock, so one waits for the other (D94).
+        members = TeachingUnitMember.objects.filter(unit_id=unit.pk).select_related(
+            "class_group_link", "subgroup__class_group_link"
+        )
+        list(
+            OfferingClassGroup.objects.select_for_update()
+            .filter(pk__in={member.turma_link.pk for member in members})
+            .order_by("pk")
+        )
+        try:
+            locked = TeachingUnit.objects.select_for_update().get(pk=unit.pk)
+        except TeachingUnit.DoesNotExist:
+            raise _stale_message() from None
+        if seen_version is not None and locked.version != seen_version:
+            raise _stale_message()
+        new_id = teacher.pk if teacher else None
+        if locked.teacher_id == new_id:
+            return locked
+        if teacher is not None:
+            if not teacher.is_active or teacher.coordination_id != coordination_id:
+                raise ValidationError(
+                    _("O docente tem de ser um docente ativo da coordenação da disciplina.")
+                )
+            if locked.pk in stale_unit_ids(offering.dsd_semester, coordination_id):
+                raise ValidationError(
+                    _("A unidade está obsoleta: já não é pedida pelo plano nem pelas turmas.")
+                )
+        if locked.teacher_id is not None and not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        locked.teacher = teacher
+        audited_save(locked, actor, reason.strip() or _("Atribuição de docente"))
+    return locked
+
+
+def assign_teacher(
+    actor,
+    unit: TeachingUnit,
+    teacher: Teacher,
+    reason: str = "",
+    seen_version: int | None = None,
+) -> TeachingUnit:
+    """Give a teaching unit its teacher, or replace the one it has (T5.1, D19, D94).
+
+    A unit has one teacher and nobody shares it. The teacher must be active and of the
+    coordination of the unit's subject (D69); an obsolete unit takes none. The first teacher needs
+    no reason; replacing one does (D40). The write goes through ``dsd_write`` with the action
+    ``dsd.assignment.edit`` (D86) and the version of the unit the user saw (D54).
+
+    Args:
+        actor: the user acting.
+        unit: the unit.
+        teacher: the teacher to give it.
+        reason: why; required when the unit already has another teacher.
+        seen_version: the version of the unit the user saw.
+
+    Returns:
+        The unit as saved (unchanged and not written if the teacher is the same).
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination.
+        ValidationError: if the cell is not writable, the teacher is not eligible, the unit is
+            obsolete, the version is stale or the reason is missing.
+    """
+    return _set_teacher(actor, unit, teacher, reason, seen_version)
+
+
+def unassign_teacher(
+    actor, unit: TeachingUnit, reason: str, seen_version: int | None = None
+) -> TeachingUnit:
+    """Take the teacher off a teaching unit (T5.1); the reason is required (D40).
+
+    Args:
+        actor: the user acting.
+        unit: the unit.
+        reason: why.
+        seen_version: the version of the unit the user saw.
+
+    Returns:
+        The unit as saved (unchanged if it had no teacher).
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination.
+        ValidationError: if the cell is not writable, the version is stale or the reason is
+            missing.
+    """
+    return _set_teacher(actor, unit, None, reason, seen_version)

@@ -386,6 +386,15 @@ registry.register(
     write=True,
     scoped=True,
 )
+# The coordinator of a coordination, or the manager of its Faculty, gives a teacher of that
+# coordination to the teaching units of its subjects (D19, D69, D94). A separate action from
+# the unit edits because phase 3 adds assignments with another footing (tenders).
+registry.register(
+    "dsd.assignment.edit",
+    {Profile.COORDINATOR, Profile.PGC_MANAGER},
+    write=True,
+    scoped=True,
+)
 # Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
 registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
