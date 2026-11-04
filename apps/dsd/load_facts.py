@@ -26,8 +26,9 @@ from apps.staff.models import Teacher
 from apps.staff.services import load_ranges_for
 
 from .annual_load import AnnualLoad, AnnualTeachingHours, annual_teaching_hours
+from .extra_hours import ExtraAssessment, ExtraStatus, assess_extra
 from .load_status import LoadAssessment, LoadStatus, assess_load
-from .models import Dsd, DsdSemester, OtherActivity, TeachingUnit
+from .models import AcceptedExtraHours, Dsd, DsdSemester, OtherActivity, TeachingUnit
 from .other_activities import ActivityFact, general_total, other_hours_by_teacher
 from .preparation import preparation_by_teacher
 from .teaching_hours import (
@@ -50,12 +51,14 @@ class TeacherLoad:
         other_hours: weekly hours of the other activities in each semester (T5.3, D95).
         general_total: teaching + preparation + other activities; only the teaching hours are
             compared with the range (D95).
+        extra: the extra hours against the hours the teacher accepted (T5.4, D13, D96).
     """
 
     assessment: LoadAssessment
     preparation: tuple[Decimal, Decimal]
     other_hours: tuple[Decimal, Decimal]
     general_total: Decimal
+    extra: ExtraAssessment
 
 
 def unit_facts(
@@ -152,6 +155,11 @@ def teacher_loads(
         results.append(result)
         preparation.append(preparation_by_teacher(result, weights))
     annual = {hours.teacher_id: hours for hours in annual_teaching_hours(*results)}
+    accepted = dict(
+        AcceptedExtraHours.objects.filter(dsd=dsd, teacher_id__in=ids).values_list(
+            "teacher_id", "hours"
+        )
+    )
     other = other_hours_by_teacher(
         ActivityFact(teacher_id, number, hours)
         for teacher_id, number, hours in OtherActivity.objects.filter(
@@ -178,6 +186,7 @@ def teacher_loads(
             preparation=prep,
             other_hours=other_hours,
             general_total=general_total(assessment.weekly_hours, prep, other_hours),
+            extra=assess_extra(assessment.extra_hours, accepted.get(teacher.pk, ZERO)),
         )
     return loads
 
@@ -234,3 +243,34 @@ def assessment_with_unit(
             as_of=load.assessment.as_of,
         )
     )
+
+
+def extra_text(extra: ExtraAssessment) -> str:
+    """Return the state of the extra hours in Portuguese, or an empty text without an excess.
+
+    Args:
+        extra: the extra hours against what the teacher accepted (D13, D96).
+
+    Returns:
+        ``aceites`` when the acceptance covers the excess, ``por aceitar: X h`` with what is
+        pending otherwise, and ``""`` when there is no excess.
+    """
+    if extra.status == ExtraStatus.ACCEPTED:
+        return str(_("aceites"))
+    if extra.status == ExtraStatus.PENDING:
+        return str(_("por aceitar: %(hours)s h")) % {"hours": extra.pending_hours}
+    return ""
+
+
+def load_text(load: TeacherLoad) -> str:
+    """Return the state of the annual load with the state of the extra hours, if any.
+
+    Args:
+        load: the live load of a teacher.
+
+    Returns:
+        For example ``acima do máximo (+2.00 h) · por aceitar: 2.00 h``.
+    """
+    text = status_text(load.assessment)
+    extra = extra_text(load.extra)
+    return f"{text} · {extra}" if extra else text

@@ -47,6 +47,12 @@ urlpatterns = [
         views.ActivityAddView.as_view(),
         name="activity_add",
     ),
+    path(
+        "<int:pk>/teachers/<int:teacher_pk>/extra/",
+        views.ExtraAcceptView.as_view(),
+        name="extra_accept",
+    ),
+    path("extra/<int:pk>/clear/", views.ExtraClearView.as_view(), name="extra_clear"),
     path("activities/<int:pk>/edit/", views.ActivityEditView.as_view(), name="activity_edit"),
     path("activities/<int:pk>/remove/", views.ActivityRemoveView.as_view(), name="activity_remove"),
     path(

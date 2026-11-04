@@ -542,3 +542,69 @@ class OtherActivity(GuardedDsdWrites, VersionedModel):
 
     def __str__(self) -> str:
         return f"{self.teacher} – {self.get_kind_display()}: {self.description}"
+
+
+class AcceptedExtraHours(GuardedDsdWrites, VersionedModel):
+    """The extra hours a teacher accepted in a DSD, recorded by the coordinator (T5.4, D13, D96).
+
+    One record per teacher and DSD (the year), with the hours accepted. Whether they cover the
+    excess over the maximum is computed, not stored. The record belongs to the year, not to a
+    semester, but the write guard needs a cell: ``dsd_semester`` is the semester through which it
+    was last written (any of the two that was writable) and ``coordination`` is the teacher's
+    coordination at that moment.
+    """
+
+    dsd = models.ForeignKey(
+        Dsd,
+        on_delete=models.PROTECT,  # a DSD with records cannot be removed
+        related_name="accepted_extra_hours",
+        verbose_name=_("DSD"),
+        help_text=_("The DSD (academic year) the acceptance is valid for."),
+    )
+    teacher = models.ForeignKey(
+        Teacher,
+        on_delete=models.PROTECT,  # a teacher with records cannot be deleted (T0.5)
+        related_name="accepted_extra_hours",
+        verbose_name=_("docente"),
+        help_text=_("The teacher who accepted the extra hours."),
+    )
+    dsd_semester = models.ForeignKey(
+        DsdSemester,
+        on_delete=models.PROTECT,  # the semester through which the record was written
+        related_name="accepted_extra_hours",
+        verbose_name=_("semestre do DSD"),
+        help_text=_("Semester whose cell was used for the last write; it is not a validity."),
+    )
+    coordination = models.ForeignKey(
+        Coordination,
+        on_delete=models.PROTECT,  # a coordination that wrote data cannot be removed
+        related_name="accepted_extra_hours",
+        verbose_name=_("coordenação"),
+        help_text=_("Coordination of the teacher at the last write; it owns the cell."),
+    )
+    hours = models.DecimalField(
+        _("horas aceites"),
+        max_digits=5,
+        decimal_places=2,
+        help_text=_("Weekly hours over the maximum that the teacher accepted."),
+    )
+
+    class Meta:
+        verbose_name = _("horas extra aceites")
+        verbose_name_plural = _("horas extra aceites")
+        ordering = ["dsd", "teacher"]
+        constraints = [
+            # One acceptance per teacher and year; it is changed, not duplicated (Q13).
+            models.UniqueConstraint(fields=["dsd", "teacher"], name="one_accepted_extra_per_year"),
+            # Accepting nothing is clearing the record.
+            models.CheckConstraint(
+                condition=models.Q(hours__gt=0), name="accepted_extra_hours_positive"
+            ),
+        ]
+
+    def dsd_cell(self) -> tuple[int, int]:
+        """Return the cell used to write the record: its semester and coordination."""
+        return (self.dsd_semester_id, self.coordination_id)
+
+    def __str__(self) -> str:
+        return f"{self.teacher} – {self.hours} h ({self.dsd})"

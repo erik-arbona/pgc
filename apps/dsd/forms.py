@@ -345,3 +345,26 @@ class ActivityRemoveForm(ReasonFieldsMixin, forms.Form):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._setup_reason(required=True)
+
+
+class ExtraAcceptForm(ReasonFieldsMixin, forms.Form):
+    """Record or change the extra hours a teacher accepted in a DSD (T5.4, D13).
+
+    When a record already exists the form carries its version and asks for a reason; the first
+    time it asks for neither.
+    """
+
+    hours = forms.DecimalField(
+        label=_("Horas extra aceites (semanais)"),
+        min_value=Decimal("0.01"),
+        max_digits=5,
+        decimal_places=2,
+    )
+    seen = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, existing: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._existing = existing
+        self.fields["seen"].required = existing
+        self._setup_reason(required=existing)

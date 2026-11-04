@@ -6,6 +6,14 @@
   <p>{{ dsd }} · {{ teacher.coordination }}</p>
   <p>{% translate "Horas letivas por ano" %}: {{ load.assessment.weekly_hours }} h ({{ status }}). {% translate "Só as horas letivas contam para o intervalo; a preparação e as outras atividades somam-se ao total geral." %}</p>
   <p><strong>{% translate "Total geral" %}: {{ load.general_total }} h</strong></p>
+  <p>
+    {% translate "Horas extra aceites" %}:
+    {% if extra_record %}{{ extra_record.hours }} h{% else %}—{% endif %}
+    {% if can_edit_extra %}
+      <a href="{% url 'dsd:extra_accept' dsd.pk teacher.pk %}">{% if extra_record %}{% translate "Alterar" %}{% else %}{% translate "Registar" %}{% endif %}</a>
+      {% if extra_record %}<a href="{% url 'dsd:extra_clear' extra_record.pk %}">{% translate "Remover" %}</a>{% endif %}
+    {% endif %}
+  </p>
   {% for block in blocks %}
     <h2>{% blocktranslate with number=block.semester.number %}Semestre {{ number }}{% endblocktranslate %}</h2>
     <p>{% translate "Horas letivas" %}: {{ block.teaching }} h · {% translate "Preparação" %}: {{ block.preparation }} h · {% translate "Outras atividades" %}: {{ block.other }} h</p>
