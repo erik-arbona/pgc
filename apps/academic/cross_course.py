@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 
+from .plans import PlanFacts, plan_in_force
+
 
 @dataclass(frozen=True)
 class SubjectFacts:
@@ -25,6 +27,7 @@ class SubjectFacts:
         name: subject name.
         ects: ECTS credits.
         semester: semester (1 or 2).
+        curricular_year: year of the course in which the subject is taught.
         semester_hours: total hours in the semester.
         weekly_hours: weekly hours by class type code.
     """
@@ -37,6 +40,7 @@ class SubjectFacts:
     semester: int
     semester_hours: Decimal
     weekly_hours: Mapping[str, Decimal] = field(default_factory=dict)
+    curricular_year: int = 1
 
 
 class WarningKind(StrEnum):
@@ -111,3 +115,30 @@ def compare_members(members: Collection[SubjectFacts]) -> list[CrossCourseWarnin
         if len({m.weekly_hours.get(code, Decimal("0")) for m in items}) > 1:
             warnings.append(CrossCourseWarning(WarningKind.CLASS_LOAD_DIFFERS, code))
     return warnings
+
+
+def effective_members(
+    members: Collection[SubjectFacts],
+    plans_by_course: Mapping[int, Collection[PlanFacts]],
+    academic_year: int,
+) -> list[SubjectFacts]:
+    """Return the members that count in an academic year.
+
+    A member counts only while its plan is the one in force for its curricular year (D48):
+    once a new plan reaches that year, the old plan's subject stops counting, without being
+    removed from the group. The manager adds the new plan's subjects by hand.
+
+    Args:
+        members: the subjects recorded in the group.
+        plans_by_course: all study plans of each course, keyed by course id.
+        academic_year: start year of the academic year.
+
+    Returns:
+        The members whose plan is in force, in the original order.
+    """
+    return [
+        m
+        for m in members
+        if plan_in_force(plans_by_course.get(m.course_id, ()), m.curricular_year, academic_year)
+        == m.plan_id
+    ]
