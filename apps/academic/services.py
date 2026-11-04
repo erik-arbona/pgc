@@ -13,6 +13,7 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.audit import audited_delete, audited_save
+from apps.core.parameters import SEMESTER_WEEKS, get_parameter
 
 from .cross_course import (
     CrossCourseWarning,
@@ -131,6 +132,58 @@ def create_class_group(
     return group
 
 
+def _plain(value: Decimal) -> str:
+    """Format a decimal without trailing zeros, e.g. ``75.00`` as ``75``."""
+    return format(value.normalize(), "f")
+
+
+def check_semester_load(subject: Subject, loads: Mapping[int, Decimal | None]) -> None:
+    """Check that the subject has weekly hours and that its semester load matches them (D60).
+
+    Every subject has a weekly load, and the semester load is the weekly load times the number
+    of weeks in a semester (a parameter, 15 by default).
+
+    Args:
+        subject: the subject, new or existing, with the semester hours to be saved.
+        loads: weekly hours being saved, keyed by class type id; ``None`` or zero removes a
+            class type. Class types not mentioned keep the hours already stored.
+
+    Raises:
+        ValidationError: if the subject would have no weekly hours, or if its semester hours
+            differ from the weekly total times the weeks.
+    """
+    current: dict[int, Decimal] = (
+        {}
+        if subject.pk is None
+        else {load.class_type_id: load.weekly_hours for load in subject.class_loads.all()}
+    )
+    for class_type_id, hours in loads.items():
+        if hours is None or hours == 0:
+            current.pop(class_type_id, None)
+        else:
+            current[class_type_id] = hours
+    weekly = sum(current.values(), Decimal("0"))
+    if weekly <= 0:
+        raise ValidationError(
+            str(_("Toda a disciplina tem carga semanal: indique as horas por tipo de aula."))
+        )
+    weeks = get_parameter(SEMESTER_WEEKS)
+    expected = weekly * weeks
+    if subject.semester_hours != expected:
+        message = str(
+            _(
+                "A carga semestral (%(actual)s h) tem de ser igual à carga semanal "
+                "(%(weekly)s h) × %(weeks)s semanas = %(expected)s h."
+            )
+        ) % {
+            "actual": _plain(subject.semester_hours),
+            "weekly": _plain(weekly),
+            "weeks": _plain(weeks),
+            "expected": _plain(expected),
+        }
+        raise ValidationError({"semester_hours": [message]})
+
+
 def save_subject_with_loads(
     subject: Subject,
     loads: Mapping[int, Decimal | None],
@@ -154,8 +207,11 @@ def save_subject_with_loads(
 
     Raises:
         ValidationError: if a row is refused (for example a missing reason on an update, or
-            a new load of an inactive class type). Nothing is saved in that case.
+            a new load of an inactive class type), if the subject has no weekly hours or if its
+            semester hours differ from the weekly hours times the weeks (D60). Nothing is saved
+            in that case.
     """
+    check_semester_load(subject, loads)
     with transaction.atomic():
         if save_subject:
             audited_save(subject, actor, reason)

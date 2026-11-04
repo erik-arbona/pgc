@@ -81,7 +81,7 @@ def test_creating_a_subject_with_loads_audits_every_row(a, actor):
 def test_updating_loads_creates_changes_and_removes_rows(a, actor):
     """T 3 to 2, P removed with a blank value, L added; each row logs its own action."""
     ct = kinds()
-    subject = a.subject()
+    subject = a.subject(semester_hours=Decimal("45"))  # 3 weekly hours x 15 weeks after the change
     SubjectClassLoad.objects.create(subject=subject, class_type=ct["T"], weekly_hours=3)
     SubjectClassLoad.objects.create(subject=subject, class_type=ct["P"], weekly_hours=2)
     save_subject_with_loads(
@@ -104,18 +104,19 @@ def test_updating_loads_creates_changes_and_removes_rows(a, actor):
 def test_zero_hours_removes_the_row(a, actor):
     """Zero means no hours of that class type."""
     ct = kinds()
-    subject = a.subject()
+    subject = a.subject(semester_hours=Decimal("30"))  # 2 weekly hours x 15 weeks remain
+    SubjectClassLoad.objects.create(subject=subject, class_type=ct["P"], weekly_hours=2)
     SubjectClassLoad.objects.create(subject=subject, class_type=ct["T"], weekly_hours=3)
     save_subject_with_loads(
         subject, {ct["T"].pk: Decimal("0")}, actor, "Sem teóricas", save_subject=False
     )
-    assert hours_of(subject) == {}
+    assert hours_of(subject) == {"P": Decimal("2.00")}
 
 
 def test_unchanged_hours_write_nothing(a, actor):
     """Saving the same values logs no load entry."""
     ct = kinds()
-    subject = a.subject()
+    subject = a.subject(semester_hours=Decimal("45"))
     SubjectClassLoad.objects.create(subject=subject, class_type=ct["T"], weekly_hours=3)
     save_subject_with_loads(
         subject, {ct["T"].pk: Decimal("3")}, actor, "Sem alterações", save_subject=False
@@ -177,11 +178,15 @@ def test_posting_a_new_subject_saves_its_weekly_hours(client, a):
 def test_updating_hours_needs_a_reason_and_changes_nothing_without_it(client, a):
     """Without a reason neither the subject nor the hours change."""
     ct = kinds()
-    subject = a.subject()
+    subject = a.subject(semester_hours=Decimal("45"))
     SubjectClassLoad.objects.create(subject=subject, class_type=ct["T"], weekly_hours=3)
     manager_of(client, a.faculty)
     url = reverse("academic:subject_update", kwargs={"pk": subject.pk})
-    data = {**a.post_data("subject", code=subject.code, name=subject.name), "reason": ""}
+    data = {
+        **a.post_data("subject", code=subject.code, name=subject.name),
+        "semester_hours": "15",  # 1 weekly hour x 15 weeks
+        "reason": "",
+    }
     data[f"hours_{ct['T'].pk}"] = "1"
     client.post(url, data)
     assert hours_of(subject) == {"T": Decimal("3.00")}
@@ -198,4 +203,101 @@ def test_negative_hours_are_a_form_error(client, a):
     data[f"hours_{ct['T'].pk}"] = "-1"
     response = client.post(reverse("academic:subject_create"), data)
     assert response.status_code == 200
+    assert not Subject.objects.exists()
+
+
+# --- the semester load must equal the weekly load times the weeks (D60) --------------------
+
+
+def test_the_semester_hours_must_equal_the_weekly_hours_times_the_weeks(a, actor):
+    """5 weekly hours over 15 weeks are 75 semester hours; 70 is refused."""
+    ct = kinds()
+    wrong = new_subject(a)
+    wrong.semester_hours = Decimal("70")
+    loads = {ct["T"].pk: Decimal("3"), ct["P"].pk: Decimal("2")}
+    with pytest.raises(ValidationError) as error:
+        save_subject_with_loads(wrong, loads, actor, "", save_subject=True)
+    text = " ".join(error.value.messages)
+    assert "70" in text and "75" in text and "15" in text
+    assert not Subject.objects.exists()
+    assert not AuditEntry.objects.exists()
+
+
+def test_the_correct_semester_hours_are_accepted(a, actor):
+    """75 = 5 x 15 saves."""
+    ct = kinds()
+    subject = new_subject(a)
+    save_subject_with_loads(
+        subject,
+        {ct["T"].pk: Decimal("3"), ct["P"].pk: Decimal("2")},
+        actor,
+        "",
+        save_subject=True,
+    )
+    assert Subject.objects.count() == 1
+
+
+def test_half_hours_are_compared_exactly(a, actor):
+    """2.5 weekly hours over 15 weeks are 37.5 semester hours."""
+    ct = kinds()
+    subject = new_subject(a)
+    subject.semester_hours = Decimal("37.50")
+    save_subject_with_loads(subject, {ct["T"].pk: Decimal("2.5")}, actor, "", save_subject=True)
+    assert Subject.objects.count() == 1
+
+
+def test_every_subject_needs_weekly_hours(a, actor):
+    """A subject with no weekly hours at all cannot be saved (D60)."""
+    ct = kinds()
+    with pytest.raises(ValidationError) as error:
+        save_subject_with_loads(
+            new_subject(a),
+            {ct["T"].pk: None, ct["P"].pk: Decimal("0")},
+            actor,
+            "",
+            save_subject=True,
+        )
+    assert "carga semanal" in " ".join(error.value.messages)
+    assert not Subject.objects.exists()
+
+
+def test_the_weeks_come_from_the_parameter(a, actor):
+    """With 16 weeks, 5 weekly hours need 80 semester hours, not 75."""
+    from apps.core.models import Parameter
+
+    Parameter.objects.filter(code="semester_weeks").update(value=Decimal("16"))
+    ct = kinds()
+    loads = {ct["T"].pk: Decimal("3"), ct["P"].pk: Decimal("2")}
+    with pytest.raises(ValidationError):
+        save_subject_with_loads(new_subject(a), loads, actor, "", save_subject=True)
+    ok = new_subject(a, code="OK80")
+    ok.semester_hours = Decimal("80")
+    save_subject_with_loads(ok, loads, actor, "", save_subject=True)
+    assert Subject.objects.count() == 1
+
+
+def test_changing_only_the_hours_is_checked_against_the_semester_hours(a, actor):
+    """Editing the weekly hours of a saved subject must keep the 15-week relation."""
+    ct = kinds()
+    subject = new_subject(a)
+    save_subject_with_loads(
+        subject, {ct["T"].pk: Decimal("3"), ct["P"].pk: Decimal("2")}, actor, "", save_subject=True
+    )
+    with pytest.raises(ValidationError):
+        save_subject_with_loads(
+            subject, {ct["T"].pk: Decimal("4")}, actor, "Mais horas", save_subject=False
+        )
+    assert hours_of(subject) == {"T": Decimal("3.00"), "P": Decimal("2.00")}
+
+
+def test_the_form_shows_the_mismatch_on_the_semester_hours_field(client, a):
+    """The message is attached to the field the user must fix."""
+    ct = kinds()
+    manager_of(client, a.faculty)
+    data = {**a.post_data("subject", code="IP1", name="Intro"), "semester_hours": "70"}
+    data[f"hours_{ct['T'].pk}"] = "3"
+    data[f"hours_{ct['P'].pk}"] = "2"
+    response = client.post(reverse("academic:subject_create"), data)
+    assert response.status_code == 200
+    assert "semester_hours" in response.context["form"].errors
     assert not Subject.objects.exists()

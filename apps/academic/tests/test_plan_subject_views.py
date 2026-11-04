@@ -71,6 +71,8 @@ class Setup:
             "coordination": self.coordination.pk,
             "semester_hours": "60",
             "programme": "",
+            # Every subject has weekly hours; 4 h x 15 weeks = the 60 semester hours (D60).
+            f"hours_{ClassType.objects.get(code='T').pk}": "4",
         }
 
     def item(self, screen):
@@ -198,7 +200,7 @@ def test_creating_a_subject_is_audited_and_may_use_a_coordination_of_another_fac
     client.post(reverse("academic:subject_create"), data)
     subject = Subject.objects.get(code="N1")
     assert subject.coordination == b.coordination
-    assert AuditEntry.objects.get().entity_id == str(subject.pk)
+    assert AuditEntry.objects.get(entity="academic.subject").entity_id == str(subject.pk)
 
 
 def test_a_duplicate_subject_code_in_a_plan_is_a_form_error(client, a):
@@ -230,7 +232,7 @@ def test_updating_needs_a_reason_and_is_audited(client, a, screen):
     client.post(url, {**data, "reason": ""})
     assert not AuditEntry.objects.exists()
     client.post(url, {**data, "reason": "Correção"})
-    entry = AuditEntry.objects.get()
+    entry = AuditEntry.objects.get(entity=f"academic.{screen}")
     assert entry.action == "update" and entry.reason == "Correção"
 
 
