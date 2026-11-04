@@ -1,6 +1,6 @@
 {% load i18n %}
       <tr id="unit-{{ row.unit.pk }}"{% if row.unassigned %} class="unassigned"{% endif %}>
-        {% if can_edit %}<td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}">{% endif %}</td>{% endif %}
+        {% if can_edit %}<td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}" form="merge-form">{% endif %}</td>{% endif %}
         <td>{{ row.unit.class_type.code }}</td>
         <td>{{ row.weekly_hours|default:"—" }}</td>
         <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>

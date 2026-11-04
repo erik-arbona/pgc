@@ -9,7 +9,8 @@
   </p>
   <p>{% translate "Regente" %}: {{ offering.lead_teacher|default:"—" }}</p>
   {% if current_units %}<p>{% if to_assign %}<strong>{{ to_assign }} {% translate "de" %} {{ current_units }} {% translate "aulas por atribuir" %}</strong>{% else %}{% translate "Todas as aulas têm docente." %}{% endif %}</p>{% endif %}
-  <form method="get" action="{% url 'dsd:offering_merge' offering.pk %}">
+  {% comment %}The merge form is empty and its fields point to it by id: the rows hold their own forms (the teacher selector), and a form cannot sit inside another one.{% endcomment %}
+  <form id="merge-form" method="get" action="{% url 'dsd:offering_merge' offering.pk %}"></form>
   <table>
     <thead>
       <tr>
@@ -39,7 +40,7 @@
     <tbody>
       {% for row in partner_rows %}
       <tr>
-        <td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}">{% endif %}</td>
+        <td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}" form="merge-form">{% endif %}</td>
         <td>{{ row.unit.offering.subject.code }} – {{ row.unit.offering.subject.name }} ({{ row.unit.offering.subject.study_plan.course.name }})</td>
         <td>{{ row.unit.class_type.code }}</td>
         <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
@@ -51,8 +52,7 @@
     </tbody>
   </table>
   {% endif %}
-  {% if can_edit %}<p><button type="submit">{% translate "Juntar selecionadas" %}</button></p>{% endif %}
-  </form>
+  {% if can_edit %}<p><button type="submit" form="merge-form">{% translate "Juntar selecionadas" %}</button></p>{% endif %}
   {% if guest_rows %}
   <h2>{% translate "Juntada em" %}</h2>
   <ul>

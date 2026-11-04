@@ -7,6 +7,8 @@ work without JavaScript, HTMX only to update parts), D94 (one teacher per unit),
 # The fixtures come from other test modules; F811 flags every test that uses them.
 # ruff: noqa: F811
 
+from html.parser import HTMLParser
+
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -206,3 +208,68 @@ def test_the_page_reads_a_fixed_number_of_queries_whatever_the_candidates(board,
     with CaptureQueriesContext(connection) as after:
         client.get(page_url(board))
     assert len(after) == len(before)
+
+
+class _FormDepth(HTMLParser):
+    """Record whether a <form> is ever opened inside another one."""
+
+    def __init__(self):
+        super().__init__()
+        self.depth = 0
+        self.nested = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "form":
+            self.nested = self.nested or self.depth > 0
+            self.depth += 1
+
+    def handle_endtag(self, tag):
+        if tag == "form":
+            self.depth -= 1
+
+
+def test_the_page_has_no_form_inside_another_form(board, client):
+    """The selector's form must not sit inside the merge form: the browser would drop it.
+
+    A nested form is invalid HTML and the parser ignores the inner tag, so the selector would
+    do nothing and the fallback button would submit the merge form (review of T6.2).
+    """
+    open_cell(board)
+    client.force_login(board["coordinator"])
+    html = client.get(page_url(board)).content.decode()
+    parser = _FormDepth()
+    parser.feed(html)
+    assert not parser.nested
+    assert 'hx-post="' in html
+    assert "{#" not in html and "#}" not in html  # a template comment must not show
+
+
+def test_the_merge_checkboxes_and_button_belong_to_the_merge_form(board, client):
+    """With the merge form closed before the table, its fields point to it by id."""
+    open_cell(board)
+    client.force_login(board["coordinator"])
+    html = client.get(page_url(board)).content.decode()
+    assert 'id="merge-form"' in html
+    assert html.count('name="units"') == html.count('name="units" value') > 0
+    assert html.count('form="merge-form"') >= html.count('name="units"') + 1
+
+
+def test_a_unit_that_vanishes_during_the_request_refreshes_the_page(board, client, monkeypatch):
+    """Another user deleted the unit (groups changed): ask HTMX to reload, not a 500."""
+    from django.core.exceptions import ValidationError
+
+    from apps.dsd.models import TeachingUnit, TeachingUnitMember
+
+    open_cell(board)
+    unit = unit_of(board, "A", "T")
+
+    def vanish(actor, target, teacher, reason, seen):
+        TeachingUnitMember.objects.filter(unit=target).delete()
+        TeachingUnit.objects.filter(pk=target.pk).delete()
+        raise ValidationError("stale")
+
+    monkeypatch.setattr("apps.dsd.views.assign_teacher", vanish)
+    client.force_login(board["coordinator"])
+    response = post(client, board, unit, board["mine"])
+    assert response.status_code == 200
+    assert response.headers["HX-Refresh"] == "true"

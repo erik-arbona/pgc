@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
@@ -1666,7 +1666,11 @@ class UnitTeacherInlineView(OfferingDetailView):
             else:
                 messages.success(request, _("Docente guardado."))
             return redirect("dsd:offering_detail", pk=offering.pk)
-        return self.render_to_response(self._row_context(request, offering, unit, error))
+        context = self._row_context(request, offering, unit, error)
+        if context is None:
+            # The unit is gone (its turma was divided or merged meanwhile): reload the page.
+            return HttpResponse(headers={"HX-Refresh": "true"})
+        return self.render_to_response(context)
 
     def _assign(self, request, offering, unit) -> str:
         """Give the unit the teacher of the request; return an error text, or an empty one."""
@@ -1688,9 +1692,14 @@ class UnitTeacherInlineView(OfferingDetailView):
             return " ".join(error.messages)
         return ""
 
-    def _row_context(self, request, offering, unit, error: str) -> dict:
-        """Build the context to draw the row of one unit again, with an error if there is one."""
-        unit = self._units(offering).get(pk=unit.pk)
+    def _row_context(self, request, offering, unit, error: str) -> dict | None:
+        """Build the context to draw the row of one unit again, with an error if there is one.
+
+        Returns ``None`` if the unit no longer exists.
+        """
+        unit = self._units(offering).filter(pk=unit.pk).first()
+        if unit is None:
+            return None
         coordination_id = offering.subject.coordination_id
         stale = stale_unit_ids(offering.dsd_semester, coordination_id)
         sizes = class_group_sizes(offering.dsd_semester.dsd.academic_year)
