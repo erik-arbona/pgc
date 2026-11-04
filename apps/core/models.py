@@ -6,12 +6,13 @@ Audit models arrive with T1.3.
 
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from .roles import Profile, ScopeKind, scope_kind_allowed
 
-__all__ = ["Profile", "RoleAssignment", "ScopeKind", "User"]
+__all__ = ["AuditEntry", "Profile", "RoleAssignment", "ScopeKind", "User"]
 
 
 class User(AbstractUser):
@@ -20,6 +21,117 @@ class User(AbstractUser):
     A custom model from the start: swapping the user model after the first migration is
     very costly. Profiles and scopes live in ``RoleAssignment``.
     """
+
+
+class AuditQuerySet(models.QuerySet):
+    """Queryset that refuses bulk updates and deletes: the audit log is append-only."""
+
+    def update(self, **kwargs):
+        """Refuse bulk updates.
+
+        Raises:
+            PermissionError: always.
+        """
+        raise PermissionError("Audit entries cannot be modified.")
+
+    def delete(self):
+        """Refuse bulk deletes.
+
+        Raises:
+            PermissionError: always.
+        """
+        raise PermissionError("Audit entries cannot be deleted.")
+
+
+class AuditEntry(models.Model):
+    """One audited change to business data: who, when, previous value, new value and reason.
+
+    Append-only: existing entries cannot be saved again or deleted through the ORM
+    (an extra database-level guard is a possible later hardening). Written by
+    ``apps.core.audit`` in the same transaction as the change itself.
+    """
+
+    class Action(models.TextChoices):
+        """Kind of change recorded."""
+
+        CREATE = "create", _("criação")
+        UPDATE = "update", _("alteração")
+        DELETE = "delete", _("eliminação")
+
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("autor"),
+        help_text=_("Who made the change; empty only for system actions."),
+    )
+    created_at = models.DateTimeField(
+        _("data e hora"), auto_now_add=True, help_text=_("When the change was made.")
+    )
+    entity = models.CharField(
+        _("entidade"),
+        max_length=100,
+        help_text=_("Model label of the changed record, e.g. 'core.roleassignment'."),
+    )
+    entity_id = models.CharField(
+        _("identificador da entidade"),
+        max_length=64,
+        help_text=_("Primary key of the changed record, as text."),
+    )
+    action = models.CharField(
+        _("ação"), max_length=8, choices=Action.choices, help_text=_("Kind of change.")
+    )
+    old_value = models.JSONField(
+        _("valor anterior"),
+        null=True,
+        blank=True,
+        encoder=DjangoJSONEncoder,
+        help_text=_("Field values before the change; empty on creation."),
+    )
+    new_value = models.JSONField(
+        _("valor novo"),
+        null=True,
+        blank=True,
+        encoder=DjangoJSONEncoder,
+        help_text=_("Field values after the change; empty on deletion."),
+    )
+    reason = models.TextField(
+        _("motivo"), blank=True, help_text=_("Why it was changed; required for update and delete.")
+    )
+
+    objects = AuditQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = _("registo de auditoria")
+        verbose_name_plural = _("registos de auditoria")
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            # Look up the history of one record.
+            models.Index(fields=["entity", "entity_id"], name="audit_entity_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.entity}#{self.entity_id} {self.action}"
+
+    def save(self, *args, **kwargs):
+        """Insert a new entry; refuse to change an existing one.
+
+        Raises:
+            PermissionError: if the entry already exists.
+        """
+        if not self._state.adding:
+            raise PermissionError("Audit entries cannot be modified.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Refuse deletion.
+
+        Raises:
+            PermissionError: always.
+        """
+        raise PermissionError("Audit entries cannot be deleted.")
 
 
 class RoleAssignment(models.Model):
