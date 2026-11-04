@@ -13,7 +13,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T0.4 Verificação de âmbito por coordenação reutilizável: coordenador (própria), CE e gestor (Faculdade da coordenação), docente (o próprio) (D39, D51, D09).
 - [ ] T0.6 Percursos de um curso (D75, D79), em três partes:
   - [x] T0.6a Modelo e regras: `Track` por plano, `Subject.track` e `ClassGroup.track` opcionais, validações, ano curricular da turma, disciplinas que cada turma vê, `create_class_group` com percurso.
-  - [ ] T0.6b Ecrãs: gerir percursos, escolher o percurso na disciplina e na turma, colunas nas listas.
+  - [x] T0.6b Ecrãs: gerir percursos, escolher o percurso na disciplina e na turma, colunas nas listas.
   - [ ] T0.6c Carregar os planos reais de EIC e TM (D78), comando `load_real_plans`. ⚑ Q26, Q27, Q28
 - [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições. **Aplazada**: fazer com T5.1 (atribuições) e T7.2 (exames), porque ainda não existem esses modelos.
 

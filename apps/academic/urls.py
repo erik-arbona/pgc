@@ -62,6 +62,10 @@ urlpatterns = [
     path(
         "study-plans/<int:pk>/delete/", views.StudyPlanDeleteView.as_view(), name="studyplan_delete"
     ),
+    path("tracks/", views.TrackListView.as_view(), name="track_list"),
+    path("tracks/new/", views.TrackCreateView.as_view(), name="track_create"),
+    path("tracks/<int:pk>/edit/", views.TrackUpdateView.as_view(), name="track_update"),
+    path("tracks/<int:pk>/delete/", views.TrackDeleteView.as_view(), name="track_delete"),
     path("subjects/", views.SubjectListView.as_view(), name="subject_list"),
     path("subjects/new/", views.SubjectCreateView.as_view(), name="subject_create"),
     path("subjects/<int:pk>/edit/", views.SubjectUpdateView.as_view(), name="subject_update"),

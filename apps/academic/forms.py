@@ -23,6 +23,7 @@ from .models import (
     Faculty,
     StudyPlan,
     Subject,
+    Track,
 )
 from .services import evaluate_selection
 
@@ -103,6 +104,20 @@ class StudyPlanForm(ScopedModelForm):
         fields = ["course", "academic_year"]
 
 
+class TrackForm(ScopedModelForm):
+    """Create or edit a track (percurso) of a plan; the plans offered are the manager's own (D51).
+
+    A track belongs to one plan version and starts in a curricular year (D79).
+    """
+
+    scope_field = "study_plan"
+    scope_filter = "course__faculty_id__in"
+
+    class Meta:
+        model = Track
+        fields = ["study_plan", "code", "name", "first_curricular_year", "sii_ref"]
+
+
 class SubjectForm(ScopedModelForm):
     """Create or edit a subject; the plans offered are those of the manager's courses (D51).
 
@@ -128,10 +143,16 @@ class SubjectForm(ScopedModelForm):
             "semester_hours",
             "programme",
             "sii_ref",
+            "track",
         ]
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        if self.allowed_scope_ids is not None:
+            tracks = self.fields["track"]
+            tracks.queryset = tracks.queryset.filter(
+                study_plan__course__faculty_id__in=self.allowed_scope_ids
+            )
         existing = {}
         if self.instance.pk:
             existing = {load.class_type_id: load for load in self.instance.class_loads.all()}

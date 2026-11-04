@@ -20,7 +20,8 @@
       {% if can_scoped %}<a href="{% url 'academic:coordination_list' %}">{% translate "Coordenações" %}</a>
       <a href="{% url 'academic:course_list' %}">{% translate "Cursos" %}</a>{% endif %}
       {% has_scope "study_plan.edit" "faculty" as can_plans %}
-      {% if can_plans %}<a href="{% url 'academic:studyplan_list' %}">{% translate "Planos de estudos" %}</a>{% endif %}
+      {% if can_plans %}<a href="{% url 'academic:studyplan_list' %}">{% translate "Planos de estudos" %}</a>
+      <a href="{% url 'academic:track_list' %}">{% translate "Percursos" %}</a>{% endif %}
       {% has_scope "subject.edit" "faculty" as can_subjects %}
       {% if can_subjects %}<a href="{% url 'academic:subject_list' %}">{% translate "Disciplinas" %}</a>{% endif %}
       {% has_scope "class_group.edit" "faculty" as can_groups %}
