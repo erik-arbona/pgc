@@ -18,17 +18,43 @@ class ScopeNotFound(LookupError):
 
 
 _RESOLVERS: dict[str, Callable[[int], int]] = {}
+_IN_FACULTIES: dict[str, Callable[[set[int]], set[int]]] = {}
+_LABELS: dict[str, Callable[[int], str]] = {}
 
 
-def register_scope(kind: str, resolver: Callable[[int], int]) -> None:
-    """Register how to find the Faculty of a scope kind.
+def register_scope(
+    kind: str,
+    resolver: Callable[[int], int],
+    in_faculties: Callable[[set[int]], set[int]],
+    label: Callable[[int], str],
+) -> None:
+    """Register how to work with a scope kind.
 
     Args:
         kind: a ``ScopeKind`` value.
         resolver: a function from the scope id to the Faculty id; it raises ``ScopeNotFound``
             if the id names no record.
+        in_faculties: a function from a set of Faculty ids to the ids of this kind that belong
+            to them (used to list the accounts a manager can see).
+        label: a function from the scope id to a name for the interface.
     """
     _RESOLVERS[kind] = resolver
+    _IN_FACULTIES[kind] = in_faculties
+    _LABELS[kind] = label
+
+
+def scope_ids_in_faculties(kind: str, faculty_ids: set[int]) -> set[int]:
+    """Return the ids of a scope kind that belong to the given Faculties (empty if unknown)."""
+    finder = _IN_FACULTIES.get(kind)
+    return finder(faculty_ids) if finder else set()
+
+
+def scope_label(kind: str, scope_id: int | None) -> str:
+    """Return a name for a scope, or a dash if it has none or names nothing."""
+    namer = _LABELS.get(kind)
+    if namer is None or scope_id is None:
+        return "—"
+    return namer(scope_id)
 
 
 def faculty_of_scope(kind: str, scope_id: int | None) -> int:

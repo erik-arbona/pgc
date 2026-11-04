@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}: {{ account.username }}</h1>
+  {% if active %}
+  <p>{% translate "A conta volta a poder iniciar sessão." %}</p>
+  {% else %}
+  <p>{% translate "A conta deixa de poder iniciar sessão e a sessão atual termina. Os dados e a auditoria mantêm-se." %}</p>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{{ title }}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}

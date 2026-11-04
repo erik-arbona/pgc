@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}: {{ account.username }}</h1>
+  <p>{% translate "A palavra-passe não se define aqui." %}
+    {% if not account.is_active %}<strong>{% translate "Conta desativada." %}</strong>{% endif %}</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Guardar" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Voltar à lista" %}</a>
+  </form>
+  <h2>{% translate "Perfis" %}</h2>
+  {% if roles %}
+  <ul>{% for role in roles %}<li>{{ role.profile }} – {{ role.scope }}</li>{% endfor %}</ul>
+  {% else %}
+  <p>{% translate "Esta conta ainda não tem perfis." %}</p>
+  {% endif %}
+{% endblock %}

@@ -31,6 +31,8 @@
       {% if can_teachers %}<a href="{% url 'staff:teacher_list' %}">{% translate "Docentes" %}</a>{% endif %}
       {% can "category.edit" as can_categories %}
       {% if can_categories %}<a href="{% url 'staff:category_list' %}">{% translate "Categorias" %}</a>{% endif %}
+      {% has_scope "account.edit" "faculty" as can_accounts %}
+      {% if can_accounts %}<a href="{% url 'core:account_list' %}">{% translate "Contas" %}</a>{% endif %}
       {% can "parameter.edit" as can_parameters %}
       {% if can_parameters %}<a href="{% url 'core:parameter_list' %}">{% translate "Parâmetros" %}</a>{% endif %}
       {% can "load_range.edit" as can_ranges %}

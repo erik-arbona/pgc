@@ -31,4 +31,14 @@ class StaffConfig(AppConfig):
                 raise ScopeNotFound(f"Teacher {scope_id} does not exist.")
             return faculty_id
 
-        register_scope(ScopeKind.TEACHER, teacher_scope)
+        def teachers_in(faculty_ids: set[int]) -> set[int]:
+            return set(
+                Teacher.objects.filter(coordination__faculty_id__in=faculty_ids).values_list(
+                    "pk", flat=True
+                )
+            )
+
+        def teacher_label(scope_id: int) -> str:
+            return str(Teacher.objects.filter(pk=scope_id).first() or "—")
+
+        register_scope(ScopeKind.TEACHER, teacher_scope, teachers_in, teacher_label)
