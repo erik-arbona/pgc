@@ -228,3 +228,36 @@ class SeparateForm(ReasonFieldsMixin, forms.Form):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._setup_reason(required=True)
+
+
+class RoomRequestForm(ReasonFieldsMixin, forms.Form):
+    """Ask for the capacity (and optionally the type) of room a teaching unit needs (T3.5).
+
+    The coordinator never chooses a concrete room (D64). Leaving the capacity empty clears the
+    request. The reason is required only when the unit already has a request (D40).
+    """
+
+    room_capacity = forms.IntegerField(
+        label=_("Lotação da sala pedida"),
+        min_value=1,
+        required=False,
+        help_text=_("Lugares da sala de que a aula precisa; vazio retira o pedido."),
+    )
+    room_type = forms.ModelChoiceField(
+        label=_("Tipo de sala"),
+        queryset=RoomType.objects.all(),
+        required=False,
+        empty_label=_("Qualquer tipo"),
+    )
+    seen = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, changing: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._changing = changing
+        self._setup_reason(required=False)
+
+    def clean(self):
+        """Require the reason when the unit already has a request."""
+        self.reason_required = self._changing
+        return super().clean()
