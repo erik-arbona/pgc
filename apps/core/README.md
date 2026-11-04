@@ -12,4 +12,6 @@
 
 **Audit:** `AuditEntry` is an append-only log (actor, time, entity, previous/new values, reason). Write business data with `audit.audited_save(instance, actor, reason)` and `audit.audited_delete(instance, actor, reason)`, which log in the same transaction; a reason is required for updates and deletes. See D40.
 
+**Authentication:** `identity.py` defines the `IdentityProvider` contract, the development-only `LocalIdentityProvider` and `IdentityProviderBackend` (the Django backend that delegates to the provider in `AUTH_IDENTITY_PROVIDER`). `checks.py` fails startup on an unknown provider (`core.E001`) or local login in production (`core.E002`). LDAP/SSO is an open question. See D41.
+
 **Dependencies:** none. Every other app may depend on `core`.

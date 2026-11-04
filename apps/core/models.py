@@ -42,6 +42,16 @@ class AuditQuerySet(models.QuerySet):
         """
         raise PermissionError("Audit entries cannot be deleted.")
 
+    def bulk_create(self, objs, *args, **kwargs):
+        """Insert entries in bulk, refusing upserts that would overwrite existing ones.
+
+        Raises:
+            PermissionError: if ``update_conflicts`` is requested.
+        """
+        if kwargs.get("update_conflicts"):
+            raise PermissionError("Audit entries cannot be modified.")
+        return super().bulk_create(objs, *args, **kwargs)
+
 
 class AuditEntry(models.Model):
     """One audited change to business data: who, when, previous value, new value and reason.
@@ -107,6 +117,8 @@ class AuditEntry(models.Model):
         verbose_name = _("registo de auditoria")
         verbose_name_plural = _("registos de auditoria")
         ordering = ["-created_at", "-id"]
+        # Django uses the base manager for related access; make it the guarded one too.
+        base_manager_name = "objects"
         indexes = [
             # Look up the history of one record.
             models.Index(fields=["entity", "entity_id"], name="audit_entity_idx"),
@@ -121,8 +133,15 @@ class AuditEntry(models.Model):
         Raises:
             PermissionError: if the entry already exists.
         """
-        if not self._state.adding:
+        if (
+            not self._state.adding
+            or kwargs.get("force_update")
+            or kwargs.get("update_fields") is not None
+        ):
             raise PermissionError("Audit entries cannot be modified.")
+        # Always INSERT: a new object carrying an existing id (or a loaded entry with a
+        # forced 'adding' flag) would otherwise be saved as an UPDATE of that row.
+        kwargs["force_insert"] = True
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

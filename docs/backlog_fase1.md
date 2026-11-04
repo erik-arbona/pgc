@@ -12,7 +12,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 - [x] T1.1 Utilizador com perfil(is) e âmbito (Faculdade, coordenação ou docente), conforme `07_arquitetura.md` › Permissões.
 - [x] T1.2 Verificação de permissões no servidor (camada reutilizável), com testes por perfil.
 - [x] T1.3 Registo de auditoria genérico (quem, quando, valor anterior, valor novo, motivo).
-- [ ] T1.4 Autenticação local para desenvolvimento; ponto de extensão para LDAP/SSO (*questão em aberto: confirmar com os serviços informáticos*).
+- [x] T1.4 Autenticação local para desenvolvimento; ponto de extensão para LDAP/SSO (*questão em aberto: confirmar com os serviços informáticos*).
 
 ## 2. Estrutura académica (bloco 1)
 - [ ] T2.1 Faculdade, coordenação, curso (licenciatura, mestrado, doutoramento), ano letivo.

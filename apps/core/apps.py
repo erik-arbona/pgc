@@ -14,3 +14,7 @@ class CoreConfig(AppConfig):
     name = "apps.core"
     label = "core"
     verbose_name = _("Núcleo")
+
+    def ready(self) -> None:
+        """Register the system checks of this app (authentication configuration)."""
+        from . import checks  # noqa: F401  (importing registers the checks)

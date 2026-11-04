@@ -7,6 +7,7 @@ Implements: docs/especificacao/07_arquitetura.md – Versions and audit
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
 from apps.core.audit import audited_delete, audited_save
 from apps.core.models import AuditEntry, Profile, RoleAssignment, ScopeKind
@@ -127,6 +128,60 @@ def test_entries_cannot_be_deleted_one_by_one_or_in_bulk(actor, target):
         AuditEntry.objects.all().delete()
     with pytest.raises(PermissionError):
         AuditEntry.objects.all().update(reason="rewritten")
+    assert AuditEntry.objects.count() == 1
+
+
+def test_a_new_object_reusing_an_existing_id_cannot_overwrite_an_entry(actor, target):
+    """Building an entry with the id of an existing one is refused, never an update."""
+    audited_save(new_assignment(target), actor)
+    entry = AuditEntry.objects.get()
+    forged = AuditEntry(
+        pk=entry.pk,
+        created_at=entry.created_at,  # a complete row, so only the guard can stop the update
+        actor=actor,
+        entity="x",
+        entity_id="1",
+        action="create",
+        reason="forged",
+    )
+    with pytest.raises((IntegrityError, PermissionError)), transaction.atomic():
+        forged.save()
+    entry.refresh_from_db()
+    assert entry.reason == ""
+
+
+def test_marking_a_loaded_entry_as_new_does_not_rewrite_it(actor, target):
+    """Forcing the 'adding' flag on a loaded entry still cannot update the stored row."""
+    audited_save(new_assignment(target), actor)
+    entry = AuditEntry.objects.get()
+    entry._state.adding = True
+    entry.reason = "rewritten"
+    with pytest.raises((IntegrityError, PermissionError)), transaction.atomic():
+        entry.save()
+    assert AuditEntry.objects.get().reason == ""
+
+
+def test_bulk_create_cannot_upsert_over_existing_entries(actor, target):
+    """bulk_create with update_conflicts would overwrite entries, so it is refused."""
+    audited_save(new_assignment(target), actor)
+    entry = AuditEntry.objects.get()
+    clone = AuditEntry(
+        pk=entry.pk, actor=actor, entity="x", entity_id="1", action="create", reason="bulk"
+    )
+    with pytest.raises(PermissionError):
+        AuditEntry.objects.bulk_create(
+            [clone], update_conflicts=True, unique_fields=["id"], update_fields=["reason"]
+        )
+    assert AuditEntry.objects.get().reason == ""
+
+
+def test_the_base_manager_is_guarded_too(actor, target):
+    """Django's base manager (used for related access) refuses updates and deletes."""
+    audited_save(new_assignment(target), actor)
+    with pytest.raises(PermissionError):
+        AuditEntry._base_manager.all().update(reason="rewritten")
+    with pytest.raises(PermissionError):
+        AuditEntry._base_manager.all().delete()
     assert AuditEntry.objects.count() == 1
 
 
