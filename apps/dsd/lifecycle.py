@@ -17,21 +17,28 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from contextvars import ContextVar
 
-from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext as _
 
 from apps.core.permissions import PermissionRegistry, registry
 
+from .guard import _ACTIVE, GuardedDsdWrites
 from .lifecycle_rules import CLOSED
 from .models import CoordinationSemester, DsdSemester
 
+__all__ = ["CellNotWritable", "GuardedDsdWrites", "STATE_EDIT", "dsd_write"]
+
 STATE_EDIT = "dsd.semester_state.edit"
 
-# The cell (semester id, coordination id) the current code is allowed to write.
-_ACTIVE: ContextVar[tuple[int, int] | None] = ContextVar("dsd_active_cell", default=None)
+
+class CellNotWritable(ValidationError):
+    """The cell is closed, or not opened and the user cannot change states (D86).
+
+    A ``ValidationError`` subclass, so screens show it as usual, but a bulk operation can
+    catch exactly this one to skip the cell without hiding other validation errors.
+    """
 
 
 @contextmanager
@@ -67,7 +74,7 @@ def dsd_write(
         status = None if cell is None else cell.status
         year = dsd_semester.dsd.academic_year.label
         if status == CLOSED:
-            raise ValidationError(
+            raise CellNotWritable(
                 _(
                     "O semestre %(number)s de %(year)s está fechado para esta coordenação: "
                     "só leitura."
@@ -75,7 +82,7 @@ def dsd_write(
                 % {"number": dsd_semester.number, "year": year}
             )
         if status is None and not registry.can(user, STATE_EDIT):
-            raise ValidationError(
+            raise CellNotWritable(
                 _("O semestre %(number)s de %(year)s ainda não foi aberto para esta coordenação.")
                 % {"number": dsd_semester.number, "year": year}
             )
@@ -84,33 +91,3 @@ def dsd_write(
             yield
         finally:
             _ACTIVE.reset(token)
-
-
-class GuardedDsdWrites:
-    """Mixin for the DSD models that hold data of a semester and a coordination.
-
-    List it before ``models.Model`` in the bases and implement ``dsd_cell``. ``save`` and
-    ``delete`` then refuse to run outside ``dsd_write`` for the same cell, so a write that skips
-    the state check fails loudly instead of silently ignoring a closed semester (D43).
-    """
-
-    def dsd_cell(self) -> tuple[int, int]:
-        """Return ``(dsd_semester_id, coordination_id)`` of the data this record holds."""
-        raise NotImplementedError
-
-    def assert_write_allowed(self) -> None:
-        """Raise unless the current code runs inside ``dsd_write`` for this record's cell."""
-        if _ACTIVE.get() != self.dsd_cell():
-            raise ImproperlyConfigured(
-                "DSD data must be written inside dsd_write() for its semester and coordination."
-            )
-
-    def save(self, *args, **kwargs):
-        """Save the record, only inside ``dsd_write`` for its cell."""
-        self.assert_write_allowed()
-        return super().save(*args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        """Delete the record, only inside ``dsd_write`` for its cell."""
-        self.assert_write_allowed()
-        return super().delete(*args, **kwargs)

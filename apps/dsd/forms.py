@@ -60,3 +60,27 @@ class StateChangeForm(ReasonFieldsMixin, forms.Form):
         action = self.data.get(self.add_prefix("action"))
         self.reason_required = action in ACTIONS and needs_reason(action)
         return super().clean()
+
+
+class GenerateOfferingsForm(ReasonFieldsMixin, forms.Form):
+    """Generate the offerings of one or both semesters, for one coordination or all (T2.3).
+
+    ``coordination_ids`` limits the choice to the coordinations the manager covers (D69). The
+    reason is optional: generating only creates records (D40).
+    """
+
+    SEMESTER_CHOICES = [("1", _("1.º semestre")), ("2", _("2.º semestre")), ("both", _("Ambos"))]
+
+    semester = forms.ChoiceField(label=_("Semestre"), choices=SEMESTER_CHOICES, initial="both")
+    coordination = forms.ModelChoiceField(
+        label=_("Coordenação"),
+        queryset=Coordination.objects.none(),
+        required=False,
+        empty_label=_("Todas as que posso gerir"),
+    )
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, coordination_ids=(), **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["coordination"].queryset = Coordination.objects.filter(pk__in=coordination_ids)
+        self._setup_reason(required=False)

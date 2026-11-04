@@ -1,28 +1,32 @@
-"""Screens of the DSD: list, create, state grid and state change (T2.1, T2.2).
+"""Screens of the DSD: list, create, state grid, state change and offerings (T2.1-T2.3).
 
 Implements: docs/backlog_fase2.md T2.1 and T2.2; D43 (only the manager creates and changes
 the state; the coordinator reads), D86.
 """
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import DetailView, FormView
+from django.views.generic import DetailView, FormView, TemplateView
 
 from apps.academic.models import Coordination
+from apps.academic.services import class_group_sizes
 from apps.core.generic import (
     ManagedCreateView,
     ManagedListView,
     ManagedViewMixin,
+    PageMixin,
     add_validation_errors,
 )
+from apps.core.permissions import registry
 
-from .forms import DsdForm, StateChangeForm
-from .models import CoordinationSemester, Dsd
-from .services import change_state, create_dsd
+from .forms import DsdForm, GenerateOfferingsForm, StateChangeForm
+from .models import CoordinationSemester, Dsd, Offering
+from .services import GENERATE, change_state, create_dsd, generate_offerings
 
 
 class DsdListView(ManagedListView):
@@ -122,3 +126,107 @@ class DsdStateView(ManagedViewMixin, FormView):
             % {"changed": len(result.changed), "skipped": len(result.skipped)},
         )
         return redirect("dsd:dsd_detail", pk=self.dsd.pk)
+
+
+class OfferingListView(ManagedViewMixin, TemplateView):
+    """The offerings of a DSD by semester and coordination, with the turmas and their size.
+
+    The manager and the coordinator read it (``dsd.view``, D69). The size is the number that
+    counts for the turma in the academic year (D81), marked provisional while it is an estimate.
+    """
+
+    permission_action = "dsd.view"
+    template_name = "dsd/offering_list.html"
+
+    def get_context_data(self, **kwargs):
+        """Filter by semester and coordination and attach the turmas with their size."""
+        context = super().get_context_data(**kwargs)
+        dsd = get_object_or_404(Dsd, pk=self.kwargs["pk"])
+        offerings = (
+            Offering.objects.filter(dsd_semester__dsd=dsd)
+            .select_related("dsd_semester", "subject__coordination", "subject__study_plan__course")
+            .prefetch_related("class_group_links__class_group")
+        )
+        params = self.request.GET
+        if params.get("semester") in ("1", "2"):
+            offerings = offerings.filter(dsd_semester__number=int(params["semester"]))
+        if params.get("coordination", "").isdigit():
+            offerings = offerings.filter(subject__coordination_id=int(params["coordination"]))
+        sizes = class_group_sizes(dsd.academic_year)
+        rows = [
+            (
+                offering,
+                [
+                    (link.class_group, sizes.get(link.class_group_id))
+                    for link in offering.class_group_links.all()
+                ],
+            )
+            for offering in offerings
+        ]
+        context.update(
+            {
+                "dsd": dsd,
+                "title": _("Ofertas do %(dsd)s") % {"dsd": dsd},
+                "rows": rows,
+                "can_generate": bool(registry.coordination_ids(self.request.user, GENERATE)),
+                "coordinations": Coordination.objects.select_related("faculty"),
+                "selected_semester": params.get("semester", ""),
+                "selected_coordination": params.get("coordination", ""),
+            }
+        )
+        return context
+
+
+class OfferingGenerateView(PageMixin, LoginRequiredMixin, FormView):
+    """Generate the offerings of a DSD; only a manager who covers some coordination (D87)."""
+
+    form_class = GenerateOfferingsForm
+    template_name = "core/form.html"
+    title = _("Gerar ofertas")
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who cover no coordination for the action before any handler runs."""
+        if request.user.is_authenticated and not registry.coordination_ids(request.user, GENERATE):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    @cached_property
+    def dsd(self) -> Dsd:
+        """The DSD of the URL; read after the permission check (403, never 404)."""
+        return get_object_or_404(Dsd, pk=self.kwargs["pk"])
+
+    def get_form_kwargs(self):
+        """Offer only the coordinations the manager covers."""
+        kwargs = super().get_form_kwargs()
+        kwargs["coordination_ids"] = registry.coordination_ids(self.request.user, GENERATE)
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Cancel goes back to the offerings of the DSD."""
+        context = super().get_context_data(**kwargs)
+        context["cancel_url"] = reverse("dsd:offering_list", args=[self.dsd.pk])
+        return context
+
+    def form_valid(self, form):
+        """Generate and report what was created, what is stale and what was skipped."""
+        data = form.cleaned_data
+        semesters = self.dsd.semesters.all()
+        if data["semester"] != "both":
+            semesters = semesters.filter(number=int(data["semester"]))
+        only = [data["coordination"].pk] if data["coordination"] else None
+        result = generate_offerings(self.request.user, semesters, only, data["reason"])
+        messages.success(
+            self.request,
+            _(
+                "Ofertas criadas: %(offerings)s; turmas ligadas: %(links)s. "
+                "Fechadas: %(blocked)s; fora do âmbito: %(scope)s; obsoletas: %(stale)s."
+            )
+            % {
+                "offerings": result.created_offerings,
+                "links": result.created_links,
+                "blocked": len(result.blocked),
+                "scope": len(result.out_of_scope),
+                "stale": result.stale_offerings + result.stale_links,
+            },
+        )
+        return redirect("dsd:offering_list", pk=self.dsd.pk)

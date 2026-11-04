@@ -5,11 +5,15 @@ See D43: a single DSD per academic year for the whole University, created only b
 manager. The state of each semester per coordination (open, closed) comes with T2.2.
 """
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from apps.academic.models import AcademicYear, Coordination
+from apps.academic.models import AcademicYear, ClassGroup, Coordination, Subject
 from apps.core.models import VersionedModel
+from apps.staff.models import Teacher
+
+from .guard import GuardedDsdWrites
 
 
 class Dsd(models.Model):
@@ -118,3 +122,113 @@ class CoordinationSemester(VersionedModel):
 
     def __str__(self) -> str:
         return f"{self.dsd_semester} – {self.coordination} – {self.status}"
+
+
+class Offering(GuardedDsdWrites, VersionedModel):
+    """A subject taught in a semester of a DSD (T2.3, D48, D49).
+
+    There is one per semester and subject. The coordination that owns it is the subject's, so
+    the write guard checks the cell ``(semester, subject.coordination)``. The turmas that take it
+    are in ``OfferingClassGroup``; the teaching units (T3.1) and the assignments (T5.1) hang
+    from it. ``lead_teacher`` (the regente) is set by T2.3b.
+    """
+
+    dsd_semester = models.ForeignKey(
+        DsdSemester,
+        on_delete=models.PROTECT,  # an offering is history of the DSD, never lost with it
+        related_name="offerings",
+        verbose_name=_("semestre do DSD"),
+        help_text=_("Semester of the DSD in which the subject is taught."),
+    )
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,  # a subject with offerings cannot be deleted
+        related_name="offerings",
+        verbose_name=_("disciplina"),
+        help_text=_("Subject taught; its coordination owns the offering (D69)."),
+    )
+    lead_teacher = models.ForeignKey(
+        Teacher,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # a teacher who is regente cannot be deleted
+        related_name="led_offerings",
+        verbose_name=_("regente"),
+        help_text=_("Teacher who leads the subject; one of the subject's coordination."),
+    )
+
+    class Meta:
+        verbose_name = _("oferta no semestre")
+        verbose_name_plural = _("ofertas no semestre")
+        ordering = ["dsd_semester", "subject__curricular_year", "subject__name"]
+        constraints = [
+            # A subject is offered once per semester of a DSD, also when two managers
+            # generate at the same time.
+            models.UniqueConstraint(
+                fields=["dsd_semester", "subject"], name="unique_offering_per_semester"
+            ),
+        ]
+
+    def dsd_cell(self) -> tuple[int, int]:
+        """Return the cell of this offering: its semester and the subject's coordination."""
+        return self.dsd_semester_id, self.subject.coordination_id
+
+    def clean(self) -> None:
+        """Check that the subject is taught in the semester of the offering.
+
+        Raises:
+            ValidationError: if the subject's semester is not the semester number.
+        """
+        if self.subject.semester != self.dsd_semester.number:
+            raise ValidationError(
+                {"subject": _("A disciplina é lecionada noutro semestre do plano.")}
+            )
+
+    def save(self, *args, **kwargs) -> None:
+        """Validate the semester before saving, so no path can create a wrong offering."""
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.dsd_semester} – {self.subject}"
+
+
+class OfferingClassGroup(GuardedDsdWrites, models.Model):
+    """A turma that takes an offering: a snapshot taken when the offering is generated.
+
+    It is stored, not derived, because a turma that ends (D49) must keep the history of the
+    offerings it had in earlier DSDs.
+    """
+
+    offering = models.ForeignKey(
+        Offering,
+        on_delete=models.CASCADE,  # the links only exist inside their offering
+        related_name="class_group_links",
+        verbose_name=_("oferta"),
+        help_text=_("Offering the turma takes."),
+    )
+    class_group = models.ForeignKey(
+        ClassGroup,
+        on_delete=models.PROTECT,  # a turma with offerings cannot be deleted (D54)
+        related_name="offering_links",
+        verbose_name=_("turma"),
+        help_text=_("Turma that takes the subject in that semester."),
+    )
+
+    class Meta:
+        verbose_name = _("turma da oferta")
+        verbose_name_plural = _("turmas da oferta")
+        ordering = ["offering", "class_group"]
+        constraints = [
+            # A turma appears once in an offering.
+            models.UniqueConstraint(
+                fields=["offering", "class_group"], name="unique_class_group_per_offering"
+            ),
+        ]
+
+    def dsd_cell(self) -> tuple[int, int]:
+        """Return the cell of the offering the link belongs to."""
+        return self.offering.dsd_cell()
+
+    def __str__(self) -> str:
+        return f"{self.offering} – {self.class_group}"
