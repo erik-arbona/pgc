@@ -6,7 +6,8 @@ by the manager, who also opens, closes and reopens the semesters by coordination
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -29,9 +30,10 @@ from apps.rooms.models import RoomType
 from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
-from .lifecycle import CellNotWritable, dsd_write
+from .lifecycle import CellNotWritable, cell_writable, dsd_write
 from .lifecycle_rules import needs_reason, next_state
 from .models import (
+    AcceptedExtraHours,
     CoordinationSemester,
     Dsd,
     DsdSemester,
@@ -1358,4 +1360,135 @@ def remove_activity(
         locked = _locked_activity(activity, seen_version)
         if not reason.strip():
             raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        audited_delete(locked, actor, reason.strip())
+
+
+@contextmanager
+def _year_write(actor, dsd: Dsd, coordination_id: int) -> Iterator[DsdSemester]:
+    """Write data that belongs to the whole year through the cell of one of its semesters (D96).
+
+    The DSD has two semesters, each with its own state per coordination. A record of the year
+    is writable if any of the two cells is: the later one is tried first. If neither is, the
+    error of the later one is raised (closed, not opened, or no permission).
+
+    Args:
+        actor: the user writing.
+        dsd: the DSD.
+        coordination_id: the coordination that owns the data.
+
+    Yields:
+        The semester whose cell is open for the write.
+    """
+    semesters = list(dsd.semesters.order_by("-number"))
+    chosen = next(
+        (s for s in semesters if cell_writable(actor, ASSIGNMENT_EDIT, s, coordination_id)),
+        semesters[0],
+    )
+    with dsd_write(actor, ASSIGNMENT_EDIT, chosen, coordination_id):
+        yield chosen
+
+
+def set_accepted_extra(
+    actor,
+    teacher: Teacher,
+    dsd: Dsd,
+    hours: Decimal,
+    reason: str = "",
+    seen_version: int | None = None,
+) -> AcceptedExtraHours:
+    """Record the extra hours a teacher accepted in a DSD, or change them (T5.4, D13, D96).
+
+    One record per teacher and year. The first time needs no reason; changing it does (D40) and
+    needs the version the user saw (D54). The write goes through the cell of any writable
+    semester of the year (``_year_write``) with ``dsd.assignment.edit``.
+
+    Args:
+        actor: the user acting.
+        teacher: the teacher.
+        dsd: the DSD.
+        hours: the accepted hours, greater than zero.
+        reason: why; required when a record already exists.
+        seen_version: the version of the existing record the user saw.
+
+    Returns:
+        The record as saved.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination of the teacher.
+        ValidationError: if no cell of the year is writable, the teacher is inactive or moved,
+            the hours are not valid, the version is stale or the reason is missing.
+    """
+    with _year_write(actor, dsd, teacher.coordination_id) as semester:
+        # Lock the teacher: it serializes two creators and shows a move that happened after the
+        # caller loaded them (the cell above was chosen from the caller's copy).
+        try:
+            current = Teacher.objects.select_for_update().get(pk=teacher.pk)
+        except Teacher.DoesNotExist:
+            raise _stale_message() from None
+        if current.coordination_id != teacher.coordination_id:
+            raise _stale_message()
+        if not current.is_active:
+            raise ValidationError(_("O docente tem de estar ativo."))
+        if hours is None or hours <= 0:
+            raise ValidationError({"hours": _("As horas têm de ser maiores que zero.")})
+        record = (
+            AcceptedExtraHours.objects.select_for_update().filter(dsd=dsd, teacher=current).first()
+        )
+        if record is None:
+            record = AcceptedExtraHours(
+                dsd=dsd,
+                teacher=current,
+                dsd_semester=semester,
+                coordination_id=current.coordination_id,
+                hours=hours,
+            )
+            audited_save(record, actor, _("Horas extra aceites"))
+            return record
+        # A form loaded before the record existed carries no version: that is stale too.
+        if seen_version is None or record.version != seen_version:
+            raise _stale_message()
+        if not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        record.hours = hours
+        record.dsd_semester = semester
+        record.coordination_id = current.coordination_id
+        audited_save(record, actor, reason.strip())
+    return record
+
+
+def clear_accepted_extra(
+    actor, record: AcceptedExtraHours, reason: str, seen_version: int | None = None
+) -> None:
+    """Remove the record of accepted extra hours, with a reason (T5.4, D13, D40).
+
+    Args:
+        actor: the user acting.
+        record: the record.
+        reason: why; required.
+        seen_version: the version the user saw.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination of the record.
+        ValidationError: if no cell of the year is writable, the version is stale or the reason
+            is missing.
+    """
+    # The cell is the teacher's coordination now, read from the database, not the caller's copy.
+    coordination_id = Teacher.objects.values_list("coordination_id", flat=True).get(
+        pk=record.teacher_id
+    )
+    with _year_write(actor, record.dsd, coordination_id) as semester:
+        # Same lock order as set_accepted_extra (teacher, then record), so the two cannot
+        # interleave; and the teacher may have moved since the caller loaded the record.
+        current = Teacher.objects.select_for_update().get(pk=record.teacher_id)
+        if current.coordination_id != coordination_id:
+            raise _stale_message()
+        try:
+            locked = AcceptedExtraHours.objects.select_for_update().get(pk=record.pk)
+        except AcceptedExtraHours.DoesNotExist:
+            raise _stale_message() from None
+        if seen_version is not None and locked.version != seen_version:
+            raise _stale_message()
+        if not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        locked._write_cell = (semester.pk, coordination_id)  # for the guard only
         audited_delete(locked, actor, reason.strip())

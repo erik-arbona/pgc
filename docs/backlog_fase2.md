@@ -59,7 +59,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
   - [x] T5.1b Cálculo ao vivo (adaptador para as regras puras) e ecrãs: coluna «Docente», formulário para dar, mudar e retirar.
 - ~~T5.2 Partilha com quota~~ **Cancelada** (D94): uma unidade tem um só docente e não há quotas.
 - [x] T5.3 Componente não letiva por docente e semestre: tipo, descrição e horas (D15).
-- [ ] T5.4 Horas extra aceites, registadas pelo coordenador (D13). ⚑ Q13
+- [x] T5.4 Horas extra aceites, registadas pelo coordenador (D13). ⚑ Q13
 - [ ] T5.5 Motivo abaixo da mínima (coordenador); aceitação ou recusa pelo CE, que devolve o caso (D16, bloco 6). ⚑ Q14
 
 ## 6. Vistas (D20, `07`)

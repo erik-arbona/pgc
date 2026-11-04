@@ -34,6 +34,7 @@ from .forms import (
     ActivityForm,
     ActivityRemoveForm,
     DsdForm,
+    ExtraAcceptForm,
     GenerateOfferingsForm,
     GroupCountForm,
     LeadTeacherForm,
@@ -44,8 +45,9 @@ from .forms import (
     TeacherAssignForm,
 )
 from .lifecycle import cell_writable
-from .load_facts import assessment_with_unit, status_text, teacher_loads
+from .load_facts import assessment_with_unit, load_text, status_text, teacher_loads
 from .models import (
+    AcceptedExtraHours,
     CoordinationSemester,
     Dsd,
     DsdSemester,
@@ -64,6 +66,7 @@ from .services import (
     add_activity,
     assign_teacher,
     change_state,
+    clear_accepted_extra,
     create_dsd,
     edit_activity,
     generate_offerings,
@@ -75,6 +78,7 @@ from .services import (
     remove_activity,
     room_request_warnings,
     separate_member,
+    set_accepted_extra,
     set_group_count,
     set_lead_teacher,
     set_room_request,
@@ -451,9 +455,7 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             "weekly_hours": hours.get(unit.class_type_id),
             "teacher_load": (loads or {}).get(unit.teacher_id),
             "teacher_status": (
-                status_text(loads[unit.teacher_id].assessment)
-                if loads and unit.teacher_id in loads
-                else ""
+                load_text(loads[unit.teacher_id]) if loads and unit.teacher_id in loads else ""
             ),
             "groups": groups,
             "students": sum(size.students for size in counted) if counted else None,
@@ -1044,6 +1046,7 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
         activities = OtherActivity.objects.filter(
             dsd_semester__dsd=self.dsd, teacher=self.teacher
         ).select_related("dsd_semester")
+        extra_record = AcceptedExtraHours.objects.filter(dsd=self.dsd, teacher=self.teacher).first()
         blocks = []
         for index, semester in enumerate(self.dsd.semesters.order_by("number")):
             blocks.append(
@@ -1064,7 +1067,14 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
                 "dsd": self.dsd,
                 "teacher": self.teacher,
                 "load": load,
-                "status": status_text(load.assessment),
+                "status": load_text(load),
+                "extra_record": extra_record,
+                "can_edit_extra": any(
+                    cell_writable(
+                        self.request.user, ASSIGNMENT_EDIT, semester, self.teacher.coordination_id
+                    )
+                    for semester in self.dsd.semesters.all()
+                ),
                 "blocks": blocks,
             }
         )
@@ -1253,4 +1263,112 @@ class ActivityRemoveView(_ExistingActivityMixin, FormView):
             add_validation_errors(form, error)
             return self.form_invalid(form)
         messages.success(self.request, _("Atividade removida."))
+        return redirect(self.sheet_url())
+
+
+class ExtraAcceptView(_ActivityMixin, FormView):
+    """Record, or change, the extra hours a teacher accepted in a DSD (T5.4, D13)."""
+
+    form_class = ExtraAcceptForm
+    title = _("Horas extra aceites")
+
+    @cached_property
+    def teacher(self) -> Teacher:
+        """The teacher of the URL."""
+        return get_object_or_404(
+            Teacher.objects.select_related("coordination"), pk=self.kwargs["teacher_pk"]
+        )
+
+    @cached_property
+    def dsd(self) -> Dsd:
+        """The DSD of the URL."""
+        return get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+
+    @property
+    def coordination_id(self) -> int:
+        """The coordination of the teacher."""
+        return self.teacher.coordination_id
+
+    @cached_property
+    def existing(self) -> AcceptedExtraHours | None:
+        """The record of the teacher in this DSD, if any."""
+        return AcceptedExtraHours.objects.filter(dsd=self.dsd, teacher=self.teacher).first()
+
+    def get_form_kwargs(self):
+        """Start from the recorded hours and version, if there is a record."""
+        kwargs = super().get_form_kwargs()
+        kwargs["existing"] = self.existing is not None
+        if "data" not in kwargs and self.existing is not None:
+            kwargs["initial"] = {"hours": self.existing.hours, "seen": self.existing.version}
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Show the record being changed, if any."""
+        context = super().get_context_data(**kwargs)
+        context["extra_record"] = self.existing
+        return context
+
+    def form_valid(self, form):
+        """Record the hours or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            set_accepted_extra(
+                self.request.user,
+                self.teacher,
+                self.dsd,
+                data["hours"],
+                data["reason"],
+                data["seen"],
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Horas extra aceites guardadas."))
+        return redirect(self.sheet_url())
+
+
+class ExtraClearView(_ActivityMixin, FormView):
+    """Remove the record of accepted extra hours, with a reason (T5.4, D40)."""
+
+    form_class = ActivityRemoveForm
+    title = _("Remover horas extra aceites")
+
+    @cached_property
+    def record(self) -> AcceptedExtraHours:
+        """The record of the URL."""
+        return get_object_or_404(
+            AcceptedExtraHours.objects.select_related(
+                "teacher__coordination", "dsd__academic_year"
+            ),
+            pk=self.kwargs["pk"],
+        )
+
+    @property
+    def teacher(self) -> Teacher:
+        """The teacher of the record."""
+        return self.record.teacher
+
+    @property
+    def dsd(self) -> Dsd:
+        """The DSD of the record."""
+        return self.record.dsd
+
+    @property
+    def coordination_id(self) -> int:
+        """The current coordination of the teacher: the record follows them (D96)."""
+        return self.record.teacher.coordination_id
+
+    def get_initial(self):
+        """Carry the version the user is seeing."""
+        return {"seen": self.record.version}
+
+    def form_valid(self, form):
+        """Remove the record or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            clear_accepted_extra(self.request.user, self.record, data["reason"], data["seen"])
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Horas extra aceites removidas."))
         return redirect(self.sheet_url())
