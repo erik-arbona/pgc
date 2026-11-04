@@ -410,3 +410,40 @@ def test_a_teacher_without_assignments_can_still_be_deleted(world):
     """Nothing uses the teacher."""
     world["mine2"].delete()
     assert not Teacher.objects.filter(identifier="T2").exists()
+
+
+# --- concurrency with the group count ----------------------------------------------------------
+
+
+def test_dropping_a_unit_re_reads_the_teacher_given_after_it_was_loaded(world):
+    """A copy of the unit loaded before another request gave it a teacher is not deleted."""
+    from apps.dsd.lifecycle import dsd_write
+    from apps.dsd.services import TEACHING_UNIT_EDIT, _drop_unit
+
+    open_cell(world)
+    stale_copy = unit_of(world, "A", "P")
+    TeachingUnit.objects.filter(pk=stale_copy.pk).update(teacher=world["mine"])
+    offering = world["offering"]
+    with dsd_write(
+        world["coordinator"],
+        TEACHING_UNIT_EDIT,
+        offering.dsd_semester,
+        offering.subject.coordination_id,
+    ):
+        with pytest.raises(ValidationError):
+            _drop_unit(world["coordinator"], stale_copy, "x")
+    assert TeachingUnit.objects.filter(pk=stale_copy.pk, teacher=world["mine"]).exists()
+
+
+def test_giving_a_teacher_locks_the_turma_link_before_the_unit(world):
+    """The same lock order as set_group_count, so the two wait for each other."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    open_cell(world)
+    with CaptureQueriesContext(connection) as queries:
+        assign_teacher(world["coordinator"], unit_of(world, "A"), world["mine"])
+    locking = [q["sql"] for q in queries if "FOR UPDATE" in q["sql"]]
+    link_lock = next(i for i, sql in enumerate(locking) if "dsd_offeringclassgroup" in sql)
+    unit_lock = next(i for i, sql in enumerate(locking) if 'FROM "dsd_teachingunit"' in sql)
+    assert link_lock < unit_lock

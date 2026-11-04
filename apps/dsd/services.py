@@ -499,7 +499,10 @@ def _drop_unit(actor, unit: TeachingUnit, reason: str) -> None:
     Raises:
         ValidationError: if the unit holds more than one member (a merge): separate it first.
     """
-    if unit.teacher_id:
+    # Read the teacher again under a lock: the copy in memory may be older than a teacher given
+    # by another request, and ``audited_delete`` does not check versions (D94).
+    current = TeachingUnit.objects.select_for_update().filter(pk=unit.pk).first()
+    if current is not None and current.teacher_id:
         raise ValidationError(_("A unidade tem docente atribuído: retire-o primeiro."))
     members = list(unit.members.select_related("subgroup"))
     if len(members) > 1:
@@ -1115,6 +1118,17 @@ def _set_teacher(
     offering = unit.offering
     coordination_id = offering.subject.coordination_id
     with dsd_write(actor, ASSIGNMENT_EDIT, offering.dsd_semester, coordination_id):
+        # Lock the turma links of the unit first and the unit after, like merge and separate, so
+        # that a teacher cannot be given while set_group_count is deleting this unit: both hold
+        # the link lock, so one waits for the other (D94).
+        members = TeachingUnitMember.objects.filter(unit_id=unit.pk).select_related(
+            "class_group_link", "subgroup__class_group_link"
+        )
+        list(
+            OfferingClassGroup.objects.select_for_update()
+            .filter(pk__in={member.turma_link.pk for member in members})
+            .order_by("pk")
+        )
         try:
             locked = TeachingUnit.objects.select_for_update().get(pk=unit.pk)
         except TeachingUnit.DoesNotExist:
