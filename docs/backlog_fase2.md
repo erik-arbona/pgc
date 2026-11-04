@@ -38,9 +38,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T3.2 Divisão em N grupos por tipo de aula (`SubGroup`). ~~⚑ Q6, Q7~~ (D90)
   - [x] T3.2a Modelo `SubGroup`, público da unidade com turmas ou grupos, operação «definir o número de grupos», gerador e obsoletas.
   - [x] T3.2b Formulário e botões na página da oferta.
-- [ ] T3.3 Junção de turmas do mesmo curso por tipo de aula (D23).
+- [x] T3.3 Junção de turmas do mesmo curso por tipo de aula (D23).
   - [x] T3.3a Juntar e separar (serviço): regra da sala por quantidades, pedido de sala na unidade, tamanho dos grupos (D91).
-  - [ ] T3.3b Casillas e «Juntar selecionadas», página de confirmação, «Separar»; botão «Alterar n.º de grupos» num grupo juntado.
+  - [x] T3.3b Casillas e «Juntar selecionadas», página de confirmação, «Separar»; botão «Alterar n.º de grupos» num grupo juntado.
 - [ ] T3.4 Junção entre cursos: só transversais, só cursos indicados, mesmo semestre (bloqueia); aviso de carga diferente (D22, D47, D48). ⚑ Q8
 - [ ] T3.5 Tipo e capacidade de sala pedidos por turma ou grupo; aviso se nenhuma sala serve (`room_summary`, bloco 8, D64). ⚑ Q9
 

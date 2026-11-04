@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{{ offering.subject.code }} – {{ offering.subject.name }}</p>
+  <ul>
+    {% for unit in units %}
+    <li>{{ unit.class_type.code }}: {% for member in unit.members.all %}{% if member.subgroup_id %}{{ member.subgroup }}{% else %}{{ member.class_group_link.class_group }}{% endif %}{% if not forloop.last %}; {% endif %}{% endfor %}</li>
+    {% endfor %}
+  </ul>
+  {% if students_error %}
+    <p class="error">{{ students_error }}</p>
+  {% else %}
+    <p>{% translate "Alunos no total" %}: {{ students }}.</p>
+  {% endif %}
+  {% if can_see_rooms and rooms is not None %}
+    <h2>{% translate "Salas disponíveis" %}</h2>
+    {% if rooms %}
+    <table>
+      <thead><tr><th>{% translate "Tipo" %}</th><th>{% translate "Lotação" %}</th><th>{% translate "Salas" %}</th></tr></thead>
+      <tbody>
+        {% for row in rooms %}<tr><td>{{ row.room_type_name }}</td><td>{{ row.capacity }}</td><td>{{ row.rooms }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>{% translate "Nenhuma sala do campus tem lugar para estes alunos: não se pode juntar." %}</p>
+    {% endif %}
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    {% for unit in units %}<input type="hidden" name="units" value="{{ unit.pk }}">{% endfor %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Juntar" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}

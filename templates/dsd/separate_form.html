@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>
+    {{ offering.subject.code }} – {{ offering.subject.name }} · {{ unit.class_type.code }} ·
+    {% if member.subgroup_id %}{{ member.subgroup }}{% else %}{{ member.class_group_link.class_group }}{% endif %}
+  </p>
+  <p>{% translate "A turma ou o grupo passa a ter uma unidade própria, sem pedido de sala." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Separar" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}
