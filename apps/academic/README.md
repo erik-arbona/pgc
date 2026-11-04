@@ -10,6 +10,6 @@
 
 **Notes:** `Faculty.pk` and `Coordination.pk` are what `core.RoleAssignment.scope_id` refers to. All writes should use `core.audit.audited_save`.
 
-**Screens (PGC manager area, T2.6):** class types so far (`/academic/class-types/`); see `apps/core/generic.py` for the shared list/create/edit/delete views and D50.
+**Screens (PGC manager area, T2.6):** class types, Faculties and academic years so far (`/academic/class-types/`, `/academic/faculties/`, `/academic/academic-years/`; actions `class_type.edit`, `faculty.edit`, `academic_year.edit`); see `apps/core/generic.py` for the shared list/create/edit/delete views and D50.
 
 **Dependencies:** `core`.

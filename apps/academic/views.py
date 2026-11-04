@@ -14,8 +14,8 @@ from apps.core.generic import (
     ManagedUpdateView,
 )
 
-from .forms import ClassTypeForm
-from .models import ClassType
+from .forms import AcademicYearForm, ClassTypeForm, FacultyForm
+from .models import AcademicYear, ClassType, Faculty
 
 
 class ClassTypeMixin:
@@ -51,3 +51,73 @@ class ClassTypeDeleteView(ClassTypeMixin, ManagedDeleteView):
     """Delete a class type that no subject uses."""
 
     title = _("Eliminar tipo de aula")
+
+
+class FacultyMixin:
+    """Settings shared by the Faculty screens."""
+
+    model = Faculty
+    permission_action = "faculty.edit"
+    success_url = reverse_lazy("academic:faculty_list")
+
+
+class FacultyListView(FacultyMixin, ManagedListView):
+    """List the Faculties."""
+
+    template_name = "academic/faculty_list.html"
+    title = _("Faculdades")
+
+
+class FacultyCreateView(FacultyMixin, ManagedCreateView):
+    """Add a Faculty."""
+
+    form_class = FacultyForm
+    title = _("Nova faculdade")
+
+
+class FacultyUpdateView(FacultyMixin, ManagedUpdateView):
+    """Edit a Faculty (needs a reason)."""
+
+    form_class = FacultyForm
+    title = _("Editar faculdade")
+
+
+class FacultyDeleteView(FacultyMixin, ManagedDeleteView):
+    """Delete a Faculty that has no coordinations or courses."""
+
+    title = _("Eliminar faculdade")
+
+
+class AcademicYearMixin:
+    """Settings shared by the academic year screens."""
+
+    model = AcademicYear
+    permission_action = "academic_year.edit"
+    success_url = reverse_lazy("academic:academicyear_list")
+
+
+class AcademicYearListView(AcademicYearMixin, ManagedListView):
+    """List the academic years."""
+
+    template_name = "academic/academicyear_list.html"
+    title = _("Anos letivos")
+
+
+class AcademicYearCreateView(AcademicYearMixin, ManagedCreateView):
+    """Add an academic year."""
+
+    form_class = AcademicYearForm
+    title = _("Novo ano letivo")
+
+
+class AcademicYearUpdateView(AcademicYearMixin, ManagedUpdateView):
+    """Edit an academic year (needs a reason)."""
+
+    form_class = AcademicYearForm
+    title = _("Editar ano letivo")
+
+
+class AcademicYearDeleteView(AcademicYearMixin, ManagedDeleteView):
+    """Delete an academic year that nothing uses."""
+
+    title = _("Eliminar ano letivo")
