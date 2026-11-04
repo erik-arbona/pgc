@@ -82,4 +82,4 @@ pip install -r requirements-dev.txt                   # só para o linter local
 ruff check . && ruff format --check .                 # linter e formatação (o CI corre o mesmo)
 ```
 
-Carregar dados fictícios: comando ainda por criar (T6.1).
+Carregar dados fictícios (só em desenvolvimento): `docker compose exec web python manage.py load_demo_data`; cria contas `demo_gestor`, `demo_coordenador`, `demo_ce`, `demo_patrimonio`, `demo_consulta` e `demo_docente` com a palavra-passe `demo1234`.

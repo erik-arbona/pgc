@@ -6,7 +6,7 @@ Implements: docs/especificacao/07_arquitetura.md – one Django app per function
 import pytest
 from django.apps import apps
 
-EXPECTED_APPS = ["core", "academic", "staff", "rooms"]
+EXPECTED_APPS = ["core", "academic", "staff", "rooms", "demo"]
 
 
 @pytest.mark.parametrize("label", EXPECTED_APPS)

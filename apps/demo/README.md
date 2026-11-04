@@ -1,0 +1,12 @@
+# demo
+
+**Responsibility:** the command that loads the fictitious data set of `docs/dados_ficticios.md` (D65). No models.
+
+**Command:** `docker compose exec web python manage.py load_demo_data`
+- Creates 2 Faculties, 4 coordinations, 3 bachelor courses and 1 master with 2-year plans, 8 subjects per course (obeying the 15-week rule), one turma per course and two (A and B) in one course, the subject "Introdução à Programação" in 3 courses declared cross-course in 2, 8 teachers (every category and type, some with positions), test hour ranges, 6 rooms of 3 types (one tiny) and one account per profile.
+- Safe to run twice (only creates what is missing), never deletes, writes through the audit log as the system.
+- Refuses to run with `DEBUG` off unless `--force`; outside development the demo accounts have no password. In development the password is `demo1234`.
+
+**Not covered yet (needs later phases):** assignments and the four load states, the 50/50 shared lesson type, the exam season and the enrolment lists.
+
+**Dependencies:** `core`, `academic`, `staff`, `rooms`.

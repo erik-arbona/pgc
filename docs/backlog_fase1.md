@@ -36,7 +36,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 - [ ] T5.1 Interface (contrato) de importação de matrículas, inscritos e docentes, com implementação por ficheiro CSV de teste. *Questão em aberto: que dados, por que meio e quando — não implementar a ligação real até haver resposta.*
 
 ## 6. Dados fictícios
-- [ ] T6.1 Comando para carregar o conjunto descrito em `docs/dados_ficticios.md` (a parte que a fase 1 já suporta).
+- [x] T6.1 Comando para carregar o conjunto descrito em `docs/dados_ficticios.md` (a parte que a fase 1 já suporta).
 
 ## Critério de fim da fase 1
 O gestor da PGC introduz, com dados fictícios, uma Faculdade completa (coordenações, cursos, planos, disciplinas, disciplinas transversais, docentes, cargos, intervalos) e o Património as salas; cada perfil vê e altera só o seu âmbito; todas as alterações ficam na auditoria; testes a passar.
