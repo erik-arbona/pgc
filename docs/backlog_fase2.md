@@ -11,6 +11,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T0.2 Ligação curso → coordenação responsável, da mesma Faculdade (D10, D44). ⚑ Q2
 - [x] T0.3 Referência opaca do SII em curso e disciplina, editável pelo gestor (D66).
 - [x] T0.4 Verificação de âmbito por coordenação reutilizável: coordenador (própria), CE e gestor (Faculdade da coordenação), docente (o próprio) (D39, D51, D09).
+- [ ] T0.6 Percursos de um curso (D75): cada percurso é uma turma própria no 4.º ano; disciplina comum ou de um percurso; as turmas de percursos diferentes podem juntar-se nas comuns (D23). Carregar os planos reais de EIC e TM (D78) como dados de exemplo. ⚑ Q24, Q26, Q27, Q28
 - [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições. **Aplazada**: fazer com T5.1 (atribuições) e T7.2 (exames), porque ainda não existem esses modelos.
 
 ## 1. Matrículas e inscritos (bloco 3)
@@ -103,6 +104,16 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - **Q18** (T7.6): um exame sem inscritos é retirado automaticamente? *Defeito:* só assinalado.
 - **Q19** (T7.9): quem publica o calendário e quando deixa de ser rascunho. Bloqueia T7.9.
 - **Q20** (T7.10): o que é «dia equivalente» ao copiar. *Defeito:* mesmo desvio desde o início da época, passado ao dia útil seguinte.
+- ~~**Q24** (percursos, D75): o percurso é uma turma própria no 4.º ano, ou uma turma dividida em grupos por percurso?~~ Resolvida pelo utilizador: **são duas turmas, uma com cada percurso**; as disciplinas comuns podem juntar as duas turmas (D23). Fica por detalhar como se marca o que é comum e o que é de um percurso (T0.6). O plano real (`docs/Planos_EIC_TM.md`) mostra EIC com TIC e PSI e TM com as variantes Multimédia e Audiovisual; «percurso» e «variante» parecem o mesmo conceito.
+- **Q25** (matrícula prevista, D76): quem introduz a matrícula prevista, como se distingue da real, o que acontece às turmas e aos grupos quando a real chega e como se avisa o coordenador? *Defeito proposto:* a previsão introduz-se por curso e ano curricular como a real, com uma marca de «prevista»; quando entra a real, a previsão deixa de contar e o sistema assinala as turmas e os grupos cuja dimensão mudou.
+- **Q26** (plano real): os planos têm uma só coluna «P/L» (práticas/laboratoriais), mas o sistema tem os tipos P e L separados. Que tipo se regista nas disciplinas com P/L? *Defeito proposto:* o tipo P (pesam o mesmo na preparação, D61), ou criar um tipo combinado «P/L».
+- **Q27** (plano real): a UCT do 8.º semestre (PFC, ETC, monografia) não tem horas semanais, só 45 ou 60 horas de contacto, e D60 exige carga semanal em toda a disciplina. Como se modela e como entra na carga? *Sem defeito.*
+- **Q28** (plano real): a «Opção Condicionada» do 7.º semestre é uma vaga com cinco disciplinas alternativas (Robótica e Automação, Tecnologias Avançadas de Redes, Processamento de Imagem e Biométrica, Economia e Gestão, Inglês Técnico). Como se modela? *Sem defeito.*
+
+## Informação nova a incorporar (02/11/2026)
+- **Percursos (D75):** alguns cursos têm vários percursos no 4.º ano (EIC: TIC e PSI), com disciplinas comuns e próprias. Toca T1.5, T2.3, T3.1 a T3.4, T4.5 e a vista por curso. ⚑ Q24
+- **Matrícula prevista e real (D76):** o DSD faz-se com matrícula prevista e atualiza-se quando chega a real. Toca T1.1, T1.2, T1.5, T3.2 e T4.5 (alerta de dimensão alterada). ⚑ Q25
+- **Planos vindos do SII (D77):** futuro; sem trabalho agora, mas sem decisões que o impeçam.
 
 ## Critério de fim da fase 2
 Com dados fictícios, o gestor cria o DSD e abre os semestres; cada coordenador junta e divide turmas, atribui docentes e regista a componente não letiva; o sistema calcula a carga e mostra o estado certo nos quatro níveis (**Porta 1**: coincide com o Excel em todos os docentes, ou as diferenças ficam explicadas); os exames das três épocas ficam marcados sem conflitos de turma, sala ou júri, com a concorrência garantida pela BD; cada perfil vê e altera só o seu âmbito; tudo na auditoria; testes a passar.
