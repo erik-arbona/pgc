@@ -30,6 +30,7 @@ from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
 from .below_minimum import MinimumReasonState
+from .coordination_overview import attention_text, coordination_overview
 from .forms import (
     ActivityEditForm,
     ActivityForm,
@@ -1561,3 +1562,58 @@ class MinimumReviewView(PageMixin, LoginRequiredMixin, FormView):
             return self.form_invalid(form)
         messages.success(self.request, _("Decisão guardada."))
         return redirect("dsd:minimum_review_list", pk=self.reason.dsd_id)
+
+
+class CoordinationOverviewView(PageMixin, LoginRequiredMixin, TemplateView):
+    """What needs attention in a coordination and each teacher's load in a bar (T6.1, D20, D98).
+
+    Only who covers the coordination reads it (``dsd.coordination.view``, D69): the coordinator of
+    it, and the manager and the Executive Board of its Faculty. The semester comes from
+    ``?semester=1|2`` (the first by default).
+    """
+
+    template_name = "dsd/coordination_overview.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who cover no coordination, then those who do not cover this one."""
+        if request.user.is_authenticated:
+            if not registry.coordination_ids(request.user, "dsd.coordination.view"):
+                raise PermissionDenied
+            registry.require_on_coordination(
+                request.user, "dsd.coordination.view", self.kwargs["coordination_pk"]
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        """Compute the overview and describe each item with the teachers it concerns."""
+        context = super().get_context_data(**kwargs)
+        dsd = get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+        coordination = get_object_or_404(
+            Coordination.objects.select_related("faculty"), pk=self.kwargs["coordination_pk"]
+        )
+        number = self.request.GET.get("semester", "1")
+        if number not in ("1", "2"):
+            raise Http404
+        try:
+            result = coordination_overview(dsd, int(number), coordination)
+        except DsdSemester.DoesNotExist:
+            raise Http404 from None
+        by_id = {row.teacher.pk: row.teacher for row in result.rows}
+        context.update(
+            {
+                "title": coordination.name,
+                "dsd": dsd,
+                "coordination": coordination,
+                "overview": result,
+                "semester_number": int(number),
+                "items": [
+                    {
+                        "text": attention_text(item),
+                        "kind": item.kind,
+                        "teachers": [by_id[pk] for pk in item.teacher_ids if pk in by_id],
+                    }
+                    for item in result.items
+                ],
+            }
+        )
+        return context

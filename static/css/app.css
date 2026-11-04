@@ -14,3 +14,14 @@ th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #d9dee
 .messages li.success { background: #e6f4ea; }
 .errorlist { color: #b00020; padding-left: 1rem; }
 .pagination { display: flex; gap: 1rem; margin-top: 1rem; }
+
+/* Overview of a coordination (T6.1, D98): a bar with the range markers; the state is also in words. */
+.load-bar { position: relative; height: .9rem; min-width: 12rem; background: #e9edf2; border-radius: 3px; }
+.load-bar .fill { height: 100%; border-radius: 3px; background: #6b7785; }
+.load-bar .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #1d2733; }
+.state-below_minimum .fill { background: #c77700; }
+.state-in_range .fill { background: #1a7f37; }
+.state-at_maximum .fill { background: #0b6bcb; }
+.state-above_maximum .fill { background: #b00020; }
+.state-no_range .fill { background: #6b7785; }
+.attention { padding-left: 1.2rem; }

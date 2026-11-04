@@ -15,7 +15,7 @@
     <tbody>
       {% for coordination, states in rows %}
       <tr>
-        <td>{{ coordination.name }} ({{ coordination.faculty.name }})</td>
+        <td>{{ coordination.name }} ({{ coordination.faculty.name }}) <a href="{% url 'dsd:coordination_overview' object.pk coordination.pk %}">{% translate "Visão geral" %}</a></td>
         {% for state in states %}<td>{{ state }}</td>{% endfor %}
       </tr>
       {% endfor %}
