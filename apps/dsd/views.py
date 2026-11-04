@@ -25,6 +25,7 @@ from apps.core.generic import (
 )
 from apps.core.permissions import registry
 from apps.rooms.services import room_summary
+from apps.staff.models import Teacher
 
 from .forms import (
     DsdForm,
@@ -35,8 +36,10 @@ from .forms import (
     RoomRequestForm,
     SeparateForm,
     StateChangeForm,
+    TeacherAssignForm,
 )
 from .lifecycle import cell_writable
+from .load_facts import status_text, teacher_loads
 from .models import (
     CoordinationSemester,
     Dsd,
@@ -47,9 +50,11 @@ from .models import (
     TeachingUnitMember,
 )
 from .services import (
+    ASSIGNMENT_EDIT,
     GENERATE,
     LEAD_TEACHER,
     TEACHING_UNIT_EDIT,
+    assign_teacher,
     change_state,
     create_dsd,
     generate_offerings,
@@ -64,6 +69,7 @@ from .services import (
     set_lead_teacher,
     set_room_request,
     stale_unit_ids,
+    unassign_teacher,
     unit_students,
     unit_versions,
 )
@@ -361,7 +367,10 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         can_edit = cell_writable(
             self.request.user, TEACHING_UNIT_EDIT, offering.dsd_semester, coordination_id
         )
-        rows = [self._row(unit, offering, stale, sizes, can_edit) for unit in self._units(offering)]
+        units = list(self._units(offering))
+        teachers = {unit.teacher_id: unit.teacher for unit in units if unit.teacher_id}
+        loads = teacher_loads(offering.dsd_semester.dsd, teachers.values()) if teachers else {}
+        rows = [self._row(unit, offering, stale, sizes, can_edit, loads=loads) for unit in units]
         partner_rows = []
         guest_rows = []
         if can_edit:
@@ -403,7 +412,9 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         """Return the units of an offering with what a row needs."""
         return (
             TeachingUnit.objects.filter(offering=offering)
-            .select_related("class_type", "room_type", "offering__subject__study_plan__course")
+            .select_related(
+                "class_type", "room_type", "teacher", "offering__subject__study_plan__course"
+            )
             .prefetch_related(
                 "members__class_group_link__class_group",
                 "members__subgroup__class_group_link__class_group",
@@ -411,9 +422,9 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             )
         )
 
-    def _row(self, unit, offering, stale, sizes, can_edit, with_actions=True):
+    def _row(self, unit, offering, stale, sizes, can_edit, with_actions=True, loads=None):
         """Build the row of one unit: hours, turmas, size, room request, stale mark, buttons."""
-        loads = {
+        hours = {
             load.class_type_id: load.weekly_hours
             for load in unit.offering.subject.class_loads.all()
         }
@@ -427,7 +438,13 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         counted = [] if has_groups else [sizes[group.pk] for group in groups if group.pk in sizes]
         return {
             "unit": unit,
-            "weekly_hours": loads.get(unit.class_type_id),
+            "weekly_hours": hours.get(unit.class_type_id),
+            "teacher_load": (loads or {}).get(unit.teacher_id),
+            "teacher_status": (
+                status_text(loads[unit.teacher_id].assessment)
+                if loads and unit.teacher_id in loads
+                else ""
+            ),
             "groups": groups,
             "students": sum(size.students for size in counted) if counted else None,
             "provisional": any(size.provisional for size in counted),
@@ -453,9 +470,15 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             return []
         actions = [
             {
+                "url": reverse("dsd:unit_teacher", args=[offering.pk, unit.pk]),
+                "label": _("Mudar ou retirar docente")
+                if unit.teacher_id
+                else _("Atribuir docente"),
+            },
+            {
                 "url": reverse("dsd:unit_room", args=[offering.pk, unit.pk]),
                 "label": _("Alterar pedido de sala") if unit.room_capacity else _("Pedir sala"),
-            }
+            },
         ]
         for member in members:
             if member.subgroup_id:
@@ -592,13 +615,15 @@ class _UnitEditMixin(PageMixin, LoginRequiredMixin):
     do not cover the coordination of the offering (D69); the offering of the URL is 404 after.
     """
 
+    permission_code = TEACHING_UNIT_EDIT
+
     def dispatch(self, request, *args, **kwargs):
         """Refuse users who cover no coordination, then those who do not cover this one."""
         if request.user.is_authenticated:
-            if not registry.coordination_ids(request.user, TEACHING_UNIT_EDIT):
+            if not registry.coordination_ids(request.user, self.permission_code):
                 raise PermissionDenied
             registry.require_on_coordination(
-                request.user, TEACHING_UNIT_EDIT, self.offering.subject.coordination_id
+                request.user, self.permission_code, self.offering.subject.coordination_id
             )
         return super().dispatch(request, *args, **kwargs)
 
@@ -846,4 +871,74 @@ class UnitRoomView(_UnitEditMixin, FormView):
             add_validation_errors(form, error)
             return self.form_invalid(form)
         messages.success(self.request, _("Pedido de sala guardado."))
+        return redirect("dsd:offering_detail", pk=self.offering.pk)
+
+
+class UnitTeacherView(_UnitEditMixin, FormView):
+    """Give a teaching unit its teacher, change it or take it off (T5.1b, D94).
+
+    The choices are the active teachers of the coordination of the subject, each with the annual
+    hours and the state of the load they would have, to help decide. Choosing nobody takes the
+    teacher off. Same cell rules as the other edits (D86).
+    """
+
+    permission_code = ASSIGNMENT_EDIT
+    form_class = TeacherAssignForm
+    template_name = "dsd/teacher_form.html"
+    title = _("Docente da unidade")
+
+    @cached_property
+    def unit(self) -> TeachingUnit:
+        """The unit of the URL; it must belong to the offering."""
+        return get_object_or_404(
+            TeachingUnit.objects.select_related("class_type", "teacher"),
+            pk=self.kwargs["unit_pk"],
+            offering=self.offering,
+        )
+
+    @cached_property
+    def candidates(self) -> list[Teacher]:
+        """The active teachers of the coordination of the subject."""
+        return list(
+            Teacher.objects.filter(
+                coordination_id=self.offering.subject.coordination_id, is_active=True
+            ).order_by("name")
+        )
+
+    def get_form_kwargs(self):
+        """Give the form the candidates with their load, and start from the current teacher."""
+        kwargs = super().get_form_kwargs()
+        kwargs["teachers"] = self.candidates
+        kwargs["loads"] = teacher_loads(self.offering.dsd_semester.dsd, self.candidates)
+        kwargs["changing"] = self.unit.teacher_id is not None
+        if "data" not in kwargs:
+            kwargs["initial"] = {"teacher": self.unit.teacher_id, "seen": self.unit.version}
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Say which unit is being given a teacher."""
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "offering": self.offering,
+                "unit": self.unit,
+                "cancel_url": reverse("dsd:offering_detail", args=[self.offering.pk]),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        """Give, change or remove the teacher, or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            if data["teacher"] is None:
+                unassign_teacher(self.request.user, self.unit, data["reason"], data["seen"])
+            else:
+                assign_teacher(
+                    self.request.user, self.unit, data["teacher"], data["reason"], data["seen"]
+                )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Docente guardado."))
         return redirect("dsd:offering_detail", pk=self.offering.pk)

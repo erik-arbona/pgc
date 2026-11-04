@@ -33,6 +33,11 @@ urlpatterns = [
         name="unit_room",
     ),
     path(
+        "offerings/<int:pk>/units/<int:unit_pk>/teacher/",
+        views.UnitTeacherView.as_view(),
+        name="unit_teacher",
+    ),
+    path(
         "offerings/<int:pk>/lead-teacher/",
         views.OfferingLeadTeacherView.as_view(),
         name="offering_lead_teacher",

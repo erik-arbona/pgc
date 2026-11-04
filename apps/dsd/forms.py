@@ -12,6 +12,7 @@ from apps.rooms.models import RoomType
 from apps.staff.models import Teacher
 
 from .lifecycle_rules import ACTION_CLOSE, ACTION_OPEN, ACTION_REOPEN, ACTIONS, needs_reason
+from .load_facts import status_text
 from .models import Dsd, Offering
 
 
@@ -259,5 +260,51 @@ class RoomRequestForm(ReasonFieldsMixin, forms.Form):
 
     def clean(self):
         """Require the reason when the unit already has a request."""
+        self.reason_required = self._changing
+        return super().clean()
+
+
+class TeacherChoiceField(forms.ModelChoiceField):
+    """A teacher choice that shows the annual hours and the state of each candidate (T5.1b)."""
+
+    def __init__(self, *args, loads=None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.loads = loads or {}
+
+    def label_from_instance(self, obj: Teacher) -> str:
+        """Return the name with the annual weekly hours and the state of the load."""
+        load = self.loads.get(obj.pk)
+        if load is None:
+            return obj.name
+        return f"{obj.name} – {load.assessment.weekly_hours} h ({status_text(load.assessment)})"
+
+
+class TeacherAssignForm(ReasonFieldsMixin, forms.Form):
+    """Choose the teacher of a unit among the active teachers of its coordination (T5.1b, D94).
+
+    The empty choice takes the teacher off. The form carries the version of the unit the user
+    saw (D54). The reason is required only when the unit already has a teacher (D40).
+    """
+
+    teacher = TeacherChoiceField(
+        label=_("Docente"),
+        queryset=Teacher.objects.none(),
+        required=False,
+        empty_label=_("Sem docente"),
+    )
+    seen = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, teachers=(), loads=None, changing: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._changing = changing
+        self.fields["teacher"].queryset = Teacher.objects.filter(
+            pk__in=[teacher.pk for teacher in teachers]
+        ).order_by("name")
+        self.fields["teacher"].loads = loads or {}
+        self._setup_reason(required=False)
+
+    def clean(self):
+        """Require the reason when the unit already has a teacher."""
         self.reason_required = self._changing
         return super().clean()
