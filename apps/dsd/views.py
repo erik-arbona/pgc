@@ -24,9 +24,16 @@ from apps.core.generic import (
 )
 from apps.core.permissions import registry
 
-from .forms import DsdForm, GenerateOfferingsForm, StateChangeForm
+from .forms import DsdForm, GenerateOfferingsForm, LeadTeacherForm, StateChangeForm
 from .models import CoordinationSemester, Dsd, Offering
-from .services import GENERATE, change_state, create_dsd, generate_offerings
+from .services import (
+    GENERATE,
+    LEAD_TEACHER,
+    change_state,
+    create_dsd,
+    generate_offerings,
+    set_lead_teacher,
+)
 
 
 class DsdListView(ManagedListView):
@@ -169,6 +176,9 @@ class OfferingListView(ManagedViewMixin, TemplateView):
                 "title": _("Ofertas do %(dsd)s") % {"dsd": dsd},
                 "rows": rows,
                 "can_generate": bool(registry.coordination_ids(self.request.user, GENERATE)),
+                "editable_coordinations": registry.coordination_ids(
+                    self.request.user, LEAD_TEACHER
+                ),
                 "coordinations": Coordination.objects.select_related("faculty"),
                 "selected_semester": params.get("semester", ""),
                 "selected_coordination": params.get("coordination", ""),
@@ -230,3 +240,56 @@ class OfferingGenerateView(PageMixin, LoginRequiredMixin, FormView):
             },
         )
         return redirect("dsd:offering_list", pk=self.dsd.pk)
+
+
+class OfferingLeadTeacherView(PageMixin, LoginRequiredMixin, FormView):
+    """Set the regente of an offering; the coordinator of its coordination or the manager."""
+
+    form_class = LeadTeacherForm
+    template_name = "core/form.html"
+    title = _("Definir regente")
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who cover no coordination, then those who do not cover this one."""
+        if request.user.is_authenticated:
+            if not registry.coordination_ids(request.user, LEAD_TEACHER):
+                raise PermissionDenied
+            registry.require_on_coordination(
+                request.user, LEAD_TEACHER, self.offering.subject.coordination_id
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    @cached_property
+    def offering(self) -> Offering:
+        """The offering of the URL, read only after the first permission check."""
+        return get_object_or_404(
+            Offering.objects.select_related("subject", "dsd_semester__dsd__academic_year"),
+            pk=self.kwargs["pk"],
+        )
+
+    def get_form_kwargs(self):
+        """Give the form the offering."""
+        kwargs = super().get_form_kwargs()
+        kwargs["offering"] = self.offering
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Cancel goes back to the offerings of the DSD."""
+        context = super().get_context_data(**kwargs)
+        context["cancel_url"] = reverse(
+            "dsd:offering_list", args=[self.offering.dsd_semester.dsd_id]
+        )
+        return context
+
+    def form_valid(self, form):
+        """Save the regente with the version the user saw, or show the error."""
+        data = form.cleaned_data
+        offering = self.offering
+        offering.version = data["version"]  # the copy the user saw: stale ones are refused
+        try:
+            set_lead_teacher(self.request.user, offering, data["teacher"], data["reason"])
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Regente guardado."))
+        return redirect("dsd:offering_list", pk=offering.dsd_semester.dsd_id)

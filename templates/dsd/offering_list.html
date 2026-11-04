@@ -40,7 +40,8 @@
             {% if size %}{{ size.students }}{% if size.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}{% if not forloop.last %}; {% endif %}
           {% endfor %}
         </td>
-        <td>{{ offering.lead_teacher|default:"—" }}</td>
+        <td>{{ offering.lead_teacher|default:"—" }}
+          {% if offering.subject.coordination_id in editable_coordinations %}<a href="{% url 'dsd:offering_lead_teacher' offering.pk %}">{% translate "Definir" %}</a>{% endif %}</td>
       </tr>
       {% empty %}
       <tr><td colspan="7">{% translate "Ainda não há ofertas." %}</td></tr>

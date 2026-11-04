@@ -370,6 +370,14 @@ registry.register("dsd.semester_state.edit", {Profile.PGC_MANAGER}, write=True)
 # The manager generates the offerings of a semester, only for the coordinations of the
 # Faculties assigned to them: it writes data of the coordination (D69, D87).
 registry.register("dsd.offering.generate", {Profile.PGC_MANAGER}, write=True, scoped=True)
+# The coordinator of a coordination, or the manager of its Faculty, sets the regente of an
+# offering of that coordination (D69, D87).
+registry.register(
+    "dsd.offering.lead_teacher.edit",
+    {Profile.COORDINATOR, Profile.PGC_MANAGER},
+    write=True,
+    scoped=True,
+)
 # Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
 registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
