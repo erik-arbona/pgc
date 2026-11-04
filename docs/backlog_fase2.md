@@ -11,7 +11,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T0.2 Ligação curso → coordenação responsável, da mesma Faculdade (D10, D44). ⚑ Q2
 - [x] T0.3 Referência opaca do SII em curso e disciplina, editável pelo gestor (D66).
 - [x] T0.4 Verificação de âmbito por coordenação reutilizável: coordenador (própria), CE e gestor (Faculdade da coordenação), docente (o próprio) (D39, D51, D09).
-- [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições.
+- [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições. **Aplazada**: fazer com T5.1 (atribuições) e T7.2 (exames), porque ainda não existem esses modelos.
 
 ## 1. Matrículas e inscritos (bloco 3)
 - [ ] T1.1 Modelo de matrículas por curso, ano letivo e ano curricular, sem nomes (D66). ⚑ Q3
@@ -33,7 +33,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [ ] T3.5 Tipo e capacidade de sala pedidos por turma ou grupo; aviso se nenhuma sala serve (`room_summary`, bloco 8, D64). ⚑ Q9
 
 ## 4. Regras de cálculo (módulo de domínio puro, bloco 6)
-- [ ] T4.1 Horas letivas por semestre: junção conta uma vez, grupos N vezes, quota (`05`). Testes exaustivos.
+- [x] T4.1 Horas letivas por semestre: junção conta uma vez, grupos N vezes, quota (`05`). Testes exaustivos.
 - [ ] T4.2 Preparação por docente com os pesos (D14, D61). ⚑ Q10
 - [ ] T4.3 Total anual = soma dos semestres; intervalo por `resolve_load_range` com data de referência (D12, D58). ⚑ Q11
 - [ ] T4.4 Quatro estados mais «sem intervalo»; mínimo opcional (D46, D58); horas extra = total − máximo (D13).
