@@ -1431,7 +1431,9 @@ def set_accepted_extra(
             raise ValidationError(_("O docente tem de estar ativo."))
         if hours is None or hours <= 0:
             raise ValidationError({"hours": _("As horas têm de ser maiores que zero.")})
-        record = AcceptedExtraHours.objects.filter(dsd=dsd, teacher=current).first()
+        record = (
+            AcceptedExtraHours.objects.select_for_update().filter(dsd=dsd, teacher=current).first()
+        )
         if record is None:
             record = AcceptedExtraHours(
                 dsd=dsd,
@@ -1442,7 +1444,8 @@ def set_accepted_extra(
             )
             audited_save(record, actor, _("Horas extra aceites"))
             return record
-        if seen_version is not None and record.version != seen_version:
+        # A form loaded before the record existed carries no version: that is stale too.
+        if seen_version is None or record.version != seen_version:
             raise _stale_message()
         if not reason.strip():
             raise ValidationError({"reason": _("O motivo é obrigatório.")})
@@ -1469,7 +1472,16 @@ def clear_accepted_extra(
         ValidationError: if no cell of the year is writable, the version is stale or the reason
             is missing.
     """
-    with _year_write(actor, record.dsd, record.coordination_id) as semester:
+    # The cell is the teacher's coordination now, read from the database, not the caller's copy.
+    coordination_id = Teacher.objects.values_list("coordination_id", flat=True).get(
+        pk=record.teacher_id
+    )
+    with _year_write(actor, record.dsd, coordination_id) as semester:
+        # Same lock order as set_accepted_extra (teacher, then record), so the two cannot
+        # interleave; and the teacher may have moved since the caller loaded the record.
+        current = Teacher.objects.select_for_update().get(pk=record.teacher_id)
+        if current.coordination_id != coordination_id:
+            raise _stale_message()
         try:
             locked = AcceptedExtraHours.objects.select_for_update().get(pk=record.pk)
         except AcceptedExtraHours.DoesNotExist:
@@ -1478,5 +1490,5 @@ def clear_accepted_extra(
             raise _stale_message()
         if not reason.strip():
             raise ValidationError({"reason": _("O motivo é obrigatório.")})
-        locked.dsd_semester = semester  # the guard checks the cell used for this write
+        locked._write_cell = (semester.pk, coordination_id)  # for the guard only
         audited_delete(locked, actor, reason.strip())

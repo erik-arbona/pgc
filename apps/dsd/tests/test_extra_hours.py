@@ -175,3 +175,38 @@ def test_the_live_load_carries_the_acceptance(world):
     load = loads[world["mine"].pk]
     assert load.extra.accepted_hours == D("4.00")
     assert load.extra.status == ExtraStatus.NONE
+
+
+def test_after_a_transfer_the_new_coordinator_clears_and_the_old_one_cannot(world):
+    """The record follows the teacher: the cell is the teacher's current coordination (review)."""
+    open_cell(world)
+    record = accept(world)
+    new = world["foreign"].coordination
+    type(world["mine"]).objects.filter(pk=world["mine"].pk).update(coordination=new)
+    change_state(world["manager"], "open", [world["semester"]], [new])
+    with pytest.raises(PermissionDenied):
+        clear_accepted_extra(world["coordinator"], record, "r", record.version)
+    clear_accepted_extra(world["other_coordinator"], record, "r", record.version)
+    assert AcceptedExtraHours.objects.count() == 0
+
+
+def test_the_audit_of_a_clear_keeps_the_semester_that_was_stored(world):
+    """Clearing through the other semester does not rewrite the old value (review)."""
+    open_cell(world, 2)
+    record = accept(world)
+    stored = record.dsd_semester_id
+    open_cell(world, 1)
+    semester_two = world["semester"].dsd.semesters.get(number=2)
+    change_state(world["manager"], "close", [semester_two], [world["coordination"]], reason="fim")
+    clear_accepted_extra(world["coordinator"], record, "Recusou", record.version)
+    entry = AuditEntry.objects.get(entity="dsd.acceptedextrahours", action="delete")
+    assert entry.old_value["dsd_semester"] == stored
+
+
+def test_changing_without_the_version_when_a_record_exists_is_stale(world):
+    """The form was loaded before someone else created the record: say so (review)."""
+    open_cell(world)
+    accept(world)
+    with pytest.raises(ValidationError):
+        accept(world, "6", reason="r", seen_version=None)
+    assert AcceptedExtraHours.objects.get().hours == D("4.00")

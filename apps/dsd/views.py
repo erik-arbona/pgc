@@ -1355,8 +1355,8 @@ class ExtraClearView(_ActivityMixin, FormView):
 
     @property
     def coordination_id(self) -> int:
-        """The coordination stored with the record."""
-        return self.record.coordination_id
+        """The current coordination of the teacher: the record follows them (D96)."""
+        return self.record.teacher.coordination_id
 
     def get_initial(self):
         """Carry the version the user is seeing."""

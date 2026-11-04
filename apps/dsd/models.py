@@ -602,9 +602,13 @@ class AcceptedExtraHours(GuardedDsdWrites, VersionedModel):
             ),
         ]
 
+    # The cell a delete goes through, set by the service for that call only: the stored
+    # semester and coordination must stay as they were so that the audit keeps them.
+    _write_cell: tuple[int, int] | None = None
+
     def dsd_cell(self) -> tuple[int, int]:
-        """Return the cell used to write the record: its semester and coordination."""
-        return (self.dsd_semester_id, self.coordination_id)
+        """Return the cell used to write the record: the one set for the call, or its own."""
+        return self._write_cell or (self.dsd_semester_id, self.coordination_id)
 
     def __str__(self) -> str:
         return f"{self.teacher} – {self.hours} h ({self.dsd})"
