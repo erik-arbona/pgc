@@ -37,6 +37,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Project apps (one per functional block; see apps/*/README.md).
+    "apps.core",
+    "apps.academic",
+    "apps.staff",
+    "apps.rooms",
 ]
 
 MIDDLEWARE = [
