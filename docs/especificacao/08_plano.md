@@ -20,7 +20,7 @@ Os ficheiros Excel atuais servem apenas de comparação durante o piloto: para c
 | Porta 1 | A carga calculada coincide com a do Excel em todos os docentes | — |
 | Fase 3 · Pedidos e relatórios | Concursos, calendário do DSD e relatórios | ≈ 8 semanas |
 | Piloto em paralelo | Grupo de Faculdades, em paralelo com o Excel | 1 semestre |
-| Porta 2 | O Conselho Executivo fecha no sistema o DSD de cada coordenação, sem Excel | — |
+| Porta 2 | O gestor da PGC fecha no sistema o DSD de cada coordenação, sem Excel | — |
 | Depois | Toda a Universidade; módulo de horários | contínua |
 
 
