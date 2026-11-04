@@ -15,6 +15,7 @@ urlpatterns = [
     path("<int:pk>/", views.DsdDetailView.as_view(), name="dsd_detail"),
     path("<int:pk>/state/", views.DsdStateView.as_view(), name="dsd_state"),
     path("<int:pk>/offerings/", views.OfferingListView.as_view(), name="offering_list"),
+    path("offerings/<int:pk>/", views.OfferingDetailView.as_view(), name="offering_detail"),
     path(
         "offerings/<int:pk>/lead-teacher/",
         views.OfferingLeadTeacherView.as_view(),

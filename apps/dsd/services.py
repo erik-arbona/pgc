@@ -314,7 +314,7 @@ def _generate_cell(
             )
             result.created_links += linked
         _ensure_default_units(actor, offering, subject, reason, result)
-    result.stale_units += _count_stale_units(semester, coordination_id, wanted)
+    result.stale_units += len(_stale_unit_ids(semester, coordination_id, wanted))
 
 
 def _ensure_default_units(
@@ -349,13 +349,13 @@ def _ensure_default_units(
             result.created_units += 1
 
 
-def _count_stale_units(
+def _stale_unit_ids(
     semester: DsdSemester, coordination_id: int, wanted: dict[Subject, list[ClassGroup]]
-) -> int:
-    """Count the units of a cell that the plan and the turmas no longer call for (D87).
+) -> set[int]:
+    """Return the ids of the units of a cell that the plan and the turmas no longer call for.
 
     A unit is stale if its offering is not wanted, its class type left the subject's loads, or
-    one of its turmas no longer takes the offering. Nothing is deleted.
+    one of its turmas no longer takes the offering. Nothing is deleted (D87, D89).
     """
     wanted_by_subject = {
         subject.pk: (
@@ -371,18 +371,36 @@ def _count_stale_units(
         .select_related("offering")
         .prefetch_related("members__class_group_link")
     )
-    stale = 0
+    stale: set[int] = set()
     for unit in units:
         entry = wanted_by_subject.get(unit.offering.subject_id)
         if entry is None:
-            stale += 1
+            stale.add(unit.pk)
             continue
         types, groups = entry
         if unit.class_type_id not in types or any(
             member.class_group_link.class_group_id not in groups for member in unit.members.all()
         ):
-            stale += 1
+            stale.add(unit.pk)
     return stale
+
+
+def stale_unit_ids(semester: DsdSemester, coordination_id: int) -> set[int]:
+    """Return the ids of the stale units of one cell, computed from the current plans (D89).
+
+    Args:
+        semester: the semester of the DSD.
+        coordination_id: the coordination that owns the cell.
+
+    Returns:
+        The ids of the units to flag as obsolete.
+    """
+    wanted = {
+        subject: groups
+        for subject, groups in wanted_offerings(semester).items()
+        if subject.coordination_id == coordination_id
+    }
+    return _stale_unit_ids(semester, coordination_id, wanted)
 
 
 def set_lead_teacher(

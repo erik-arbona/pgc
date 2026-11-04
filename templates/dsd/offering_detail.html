@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>
+    {{ offering.dsd_semester.dsd.academic_year.label }} – {{ offering.dsd_semester.number }}.º {% translate "semestre" %} ·
+    {{ offering.subject.study_plan.course.name }} · {{ offering.subject.coordination.name }}
+  </p>
+  <p>{% translate "Regente" %}: {{ offering.lead_teacher|default:"—" }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Tipo de aula" %}</th><th>{% translate "Horas semanais" %}</th>
+        <th>{% translate "Turmas" %}</th><th>{% translate "Alunos" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.unit.class_type.code }}</td>
+        <td>{{ row.weekly_hours|default:"—" }}</td>
+        <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
+        <td>
+          {% if row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}
+        </td>
+        <td>{% if row.stale %}{% translate "Obsoleta" %}{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">{% translate "Esta oferta ainda não tem unidades letivas." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{% url 'dsd:offering_list' offering.dsd_semester.dsd_id %}">{% translate "Voltar" %}</a></p>
+{% endblock %}
