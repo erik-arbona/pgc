@@ -29,6 +29,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Ano letivo | Período anual do DSD e dos exames | `AcademicYear` |
 | Oferta no semestre | A disciplina lecionada num semestre de um ano letivo; pertence a uma versão do DSD | `Offering` |
 | Percurso (variante) | Divisão de um plano de estudos a partir de um ano curricular (EIC: TIC e PSI no 4.º ano; TM: Multimédia e Audiovisual). Cada percurso tem a sua turma; a disciplina é comum ou de um percurso (D75, D79) | `Track` |
+| Matrícula | Número de estudantes matriculados numa turma num ano letivo, estimado (quando se faz o DSD) e atualizado com o real (quando chega); só números, sem nomes (D66, D76, D81) | `Enrollment` |
 | Turma | Coorte de estudantes de um curso que entra num ano letivo e sobe um ano curricular por ano; hoje uma por entrada, o modelo admite várias (1.º A, 1.º B); mantém o plano de estudos com que entrou; pode terminar (último ano letivo) | `ClassGroup` |
 | Grupo | Divisão de uma turma (normalmente para P ou L) | `SubGroup` |
 | Junção de turmas | Várias turmas numa só aula ou exame: turmas de cursos diferentes só em disciplinas transversais e entre os cursos indicados; turmas do mesmo curso por decisão do coordenador | `Merge` / relação |

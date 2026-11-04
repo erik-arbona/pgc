@@ -18,9 +18,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições. **Aplazada**: fazer com T5.1 (atribuições) e T7.2 (exames), porque ainda não existem esses modelos.
 
 ## 1. Matrículas e inscritos (bloco 3)
-- [ ] T1.1 Modelo de matrículas por curso, ano letivo e ano curricular, sem nomes (D66). ⚑ Q3
-- [ ] T1.2 Importação pela `SiiSource` (CSV), com mapeamento de referências, relatório sem valores e auditoria; ecrã dos Serviços Académicos (`02`). ⚑ Q4
-- [ ] T1.3 Introdução e correção manual pelos Serviços Académicos.
+- [x] T1.1 Modelo de matrículas **por turma** e ano letivo, estimadas e atualizadas com as reais, sem nomes (D66, D76, D81).
+- [ ] T1.2 Importação pela `SiiSource` (CSV ou consulta à base do SII), com mapeamento de referências, relatório sem valores e auditoria. **Aplazada** até haver acesso ao SII (D82, Q4); o contrato aceitará a coluna opcional do percurso, porque os estudantes escolhem o percurso e o número tem de vir do SII ou ser introduzido.
+- [ ] T1.3 Introdução e correção manual da matrícula (estimada e depois real) de cada turma pelos Serviços Académicos, com lista das turmas que existem num ano e ainda não têm número.
 - [ ] T1.4 Inscritos por disciplina e época (importação; visibilidade D29). ⚑ Q4
 - [ ] T1.5 Dimensão de cada turma, consultável pelo coordenador (`02`).
 
@@ -89,7 +89,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 
 ## Questões que bloqueiam ou tocam tarefas (proposta por defeito)
 - **Q2** (T0.2): preciso do vínculo curso → coordenação nesta fase? *Defeito:* sim.
-- **Q3** (T1.1, T1.5): as matrículas vêm por curso e ano curricular; como se sabe a dimensão de cada turma A/B? *Defeito:* os Serviços Académicos repartem à mão.
+- ~~**Q3** (T1.1, T1.5): como se sabe a dimensão de cada turma A/B?~~ Resolvida: os Serviços Académicos introduzem o número **por turma** (D81).
 - **Q4** (T1.2, T1.4): que dados dá o SII, por que meio e quando (D66, em aberto). *Defeito:* só CSV.
 - ~~**Q5** (T2.1): um DSD por ano letivo para toda a Universidade ou um por Faculdade?~~ Resolvida: um por ano letivo, criado pelo gestor, aberto e fechado por coordenação (D43).
 - **Q6** (T3.2): mínimo e máximo de alunos por tipo de aula (questão em aberto 2). *Defeito:* sem regra; só se mostra a dimensão.
@@ -108,14 +108,15 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - **Q19** (T7.9): quem publica o calendário e quando deixa de ser rascunho. Bloqueia T7.9.
 - **Q20** (T7.10): o que é «dia equivalente» ao copiar. *Defeito:* mesmo desvio desde o início da época, passado ao dia útil seguinte.
 - ~~**Q24** (percursos, D75): o percurso é uma turma própria no 4.º ano, ou uma turma dividida em grupos por percurso?~~ Resolvida pelo utilizador: **são duas turmas, uma com cada percurso**; as disciplinas comuns podem juntar as duas turmas (D23). Fica por detalhar como se marca o que é comum e o que é de um percurso (T0.6). O plano real (`docs/Planos_EIC_TM.md`) mostra EIC com TIC e PSI e TM com as variantes Multimédia e Audiovisual; «percurso» e «variante» parecem o mesmo conceito.
-- **Q25** (matrícula prevista, D76): quem introduz a matrícula prevista, como se distingue da real, o que acontece às turmas e aos grupos quando a real chega e como se avisa o coordenador? *Defeito proposto:* a previsão introduz-se por curso e ano curricular como a real, com uma marca de «prevista»; quando entra a real, a previsão deixa de contar e o sistema assinala as turmas e os grupos cuja dimensão mudou.
+- ~~**Q25** (matrícula prevista, D76)~~ Resolvida (D81): a estimada introduz-se **por turma e ano** e atualiza-se com a real; esta substitui aquela, e `size_change` dá o que T4.5 usará para assinalar as turmas cuja dimensão mudou. Falta o aviso ao coordenador (T4.5).
 - **Q26** (plano real): os planos têm uma só coluna «P/L» (práticas/laboratoriais), mas o sistema tem os tipos P e L separados. Que tipo se regista nas disciplinas com P/L? *Defeito proposto:* o tipo P (pesam o mesmo na preparação, D61), ou criar um tipo combinado «P/L».
 - **Q27** (plano real): a UCT do 8.º semestre (PFC, ETC, monografia) não tem horas semanais, só 45 ou 60 horas de contacto, e D60 exige carga semanal em toda a disciplina. Como se modela e como entra na carga? *Sem defeito.*
 - **Q28** (plano real): a «Opção Condicionada» do 7.º semestre é uma vaga com cinco disciplinas alternativas (Robótica e Automação, Tecnologias Avançadas de Redes, Processamento de Imagem e Biométrica, Economia e Gestão, Inglês Técnico). Como se modela? *Sem defeito.*
 
 ## Informação nova a incorporar (02/11/2026)
+- **Matrícula (D81, D82):** os Serviços Académicos introduzem o número por turma, primeiro estimado e depois atualizado; no futuro a estimada poderá calcular-se com dados históricos do SII e a real obter-se por consulta à base do SII. Sem trabalho agora.
 - **Percursos (D75):** alguns cursos têm vários percursos no 4.º ano (EIC: TIC e PSI), com disciplinas comuns e próprias. Toca T1.5, T2.3, T3.1 a T3.4, T4.5 e a vista por curso. ⚑ Q24
-- **Matrícula prevista e real (D76):** o DSD faz-se com matrícula prevista e atualiza-se quando chega a real. Toca T1.1, T1.2, T1.5, T3.2 e T4.5 (alerta de dimensão alterada). ⚑ Q25
+- **Matrícula prevista e real (D76):** o DSD faz-se com matrícula prevista e atualiza-se quando chega a real. Toca T1.2, T1.5, T3.2 e T4.5 (alerta de dimensão alterada); modelo e regra em T1.1 (D81).
 - **Planos vindos do SII (D77):** futuro; sem trabalho agora, mas sem decisões que o impeçam.
 
 ## Critério de fim da fase 2

@@ -755,3 +755,99 @@ class ClassGroup(VersionedModel):
                 raise ValidationError({"track": _("Uma turma não muda de percurso.")})
         # The optimistic lock (version) is checked by ``VersionedModel.save``.
         super().save(*args, **kwargs)
+
+
+class Enrollment(models.Model):
+    """The number of students enrolled in a turma in an academic year (T1.1).
+
+    The Serviços Académicos enter it per turma, so the DSD knows the size of each one, including
+    the turmas of a track (D81). It is an estimate while the DSD is made, and the real number
+    replaces it when it arrives (D76). Only numbers are stored, never names (D66).
+    """
+
+    class Kind(models.TextChoices):
+        """Whether the number is an estimate or the real enrollment."""
+
+        ESTIMATED = "estimated", _("Estimada")
+        ACTUAL = "actual", _("Real")
+
+    class Source(models.TextChoices):
+        """Where the number came from."""
+
+        MANUAL = "manual", _("Introduzida")
+        SII = "sii", _("Importada do SII")
+
+    class_group = models.ForeignKey(
+        ClassGroup,
+        on_delete=models.PROTECT,  # never remove a turma that has enrollment numbers
+        related_name="enrollments",
+        verbose_name=_("turma"),
+        help_text=_("Turma the number refers to."),
+    )
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.PROTECT,  # never remove a year that has enrollment numbers
+        related_name="enrollments",
+        verbose_name=_("ano letivo"),
+        help_text=_("Academic year the number refers to; the turma must exist in it."),
+    )
+    kind = models.CharField(
+        _("tipo"),
+        max_length=10,
+        choices=Kind.choices,
+        default=Kind.ACTUAL,
+        help_text=_("Estimated (before the enrollment) or the real number (D76)."),
+    )
+    students = models.PositiveIntegerField(
+        _("matriculados"),
+        help_text=_("Number of students; zero is a number like any other."),
+    )
+    source = models.CharField(
+        _("origem"),
+        max_length=10,
+        choices=Source.choices,
+        default=Source.MANUAL,
+        help_text=_("Typed by the Serviços Académicos or imported from the SII."),
+    )
+
+    class Meta:
+        verbose_name = _("matrícula")
+        verbose_name_plural = _("matrículas")
+        ordering = ["academic_year__start_year", "class_group", "kind"]
+        constraints = [
+            # One estimate and one real number per turma and year.
+            models.UniqueConstraint(
+                fields=["class_group", "academic_year", "kind"], name="unique_enrollment_kind"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.class_group} {self.academic_year}: {self.students} ({self.get_kind_display()})"
+        )
+
+    def check_year(self) -> None:
+        """Check that the turma exists in the academic year.
+
+        A turma only exists between its intake year and its last year, and a turma of a track
+        only from the year its track starts (D49, D79). It compares two tables, so it cannot be
+        a database constraint: it runs from ``clean`` for the forms and from ``save`` for the
+        import and the services.
+
+        Raises:
+            ValidationError: if the turma has no curricular year in that academic year.
+        """
+        if self.class_group_id is None or self.academic_year_id is None:
+            return  # nothing to compare yet (a form with an invalid field reports that itself)
+        if self.class_group.curricular_year_in(self.academic_year.start_year) is None:
+            raise ValidationError({"academic_year": _("A turma não existe neste ano letivo.")})
+
+    def clean(self) -> None:
+        """Validate the year for the forms (see ``check_year``)."""
+        super().clean()
+        self.check_year()
+
+    def save(self, *args, **kwargs) -> None:
+        """Save after checking the year, so that no path stores a number for a missing turma."""
+        self.check_year()
+        super().save(*args, **kwargs)
