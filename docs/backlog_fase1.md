@@ -5,7 +5,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 ## 0. Esqueleto
 - [ ] T0.1 Projeto Django com Docker Compose (app web + PostgreSQL + Redis), configuração por variáveis de ambiente, pytest-django a correr.
 - [x] T0.2 Estrutura de apps: `core` (utilizadores, perfis, âmbitos, auditoria), `academic` (estrutura académica), `staff` (docentes), `rooms` (salas). Sem lógica ainda.
-- [ ] T0.3 Integração contínua: correr testes e linter a cada push.
+- [x] T0.3 Integração contínua: correr testes e linter a cada push.
 - [ ] T0.4 Completar a secção «Comandos» do `CLAUDE.md`.
 
 ## 1. Núcleo: utilizadores, perfis e auditoria
