@@ -4,6 +4,7 @@ Implements: docs/especificacao/03_requisitos_funcionais.md – block 1; D45 (cla
 D50 (UI pattern). Permissions are checked on the server with the registered actions.
 """
 
+from django.db.models import Sum
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
@@ -28,6 +29,7 @@ from .forms import (
     SubjectForm,
 )
 from .models import AcademicYear, ClassType, Coordination, Course, Faculty, StudyPlan, Subject
+from .services import save_subject_with_loads
 
 
 class ClassTypeMixin:
@@ -281,7 +283,13 @@ class SubjectListView(SubjectMixin, ScopedListView):
 
     def get_queryset(self):
         """Apply the ``course`` and ``semester`` filters; ignore invalid values."""
-        queryset = super().get_queryset().select_related("study_plan__course", "coordination")
+        queryset = (
+            super()
+            .get_queryset()
+            .select_related("study_plan__course", "coordination")
+            .annotate(weekly_total=Sum("class_loads__weekly_hours"))
+            .order_by("study_plan__course__name", "curricular_year", "semester", "code")
+        )
         course = self.request.GET.get("course", "")
         if course.isdigit():
             queryset = queryset.filter(study_plan__course_id=int(course))
@@ -299,14 +307,36 @@ class SubjectListView(SubjectMixin, ScopedListView):
         return context
 
 
-class SubjectCreateView(SubjectMixin, ScopedCreateView):
+class SubjectSaveMixin:
+    """Save the subject together with its weekly hours per class type (D53)."""
+
+    def save_form(self, form):
+        """Save the subject and its hours in one audited transaction.
+
+        The subject itself is written only when it is new or one of its own fields changed.
+        """
+        instance = form.save(commit=False)
+        subject_changed = instance._state.adding or bool(
+            set(form.changed_data) & set(form._meta.fields)
+        )
+        save_subject_with_loads(
+            instance,
+            form.class_loads(),
+            self.request.user,
+            form.cleaned_data.get("reason", ""),
+            save_subject=subject_changed,
+        )
+        return instance
+
+
+class SubjectCreateView(SubjectMixin, SubjectSaveMixin, ScopedCreateView):
     """Add a subject to a plan of the manager's courses."""
 
     form_class = SubjectForm
     title = _("Nova disciplina")
 
 
-class SubjectUpdateView(SubjectMixin, ScopedUpdateView):
+class SubjectUpdateView(SubjectMixin, SubjectSaveMixin, ScopedUpdateView):
     """Edit a subject (needs a reason)."""
 
     form_class = SubjectForm

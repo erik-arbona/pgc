@@ -4,9 +4,21 @@ Implements: docs/especificacao/03_requisitos_funcionais.md – block 1, data ent
 PGC manager. Every form that edits an existing record asks for a reason (D40).
 """
 
+from decimal import Decimal
+
+from django import forms
+
 from apps.core.generic import ReasonModelForm, ScopedModelForm
 
-from .models import AcademicYear, ClassType, Coordination, Course, Faculty, StudyPlan, Subject
+from .models import (
+    AcademicYear,
+    ClassType,
+    Coordination,
+    Course,
+    Faculty,
+    StudyPlan,
+    Subject,
+)
 
 
 class ClassTypeForm(ReasonModelForm):
@@ -65,6 +77,8 @@ class SubjectForm(ScopedModelForm):
 
     The responsible coordination may belong to any Faculty: the specification sets no
     same-Faculty rule between a course and the coordination that runs its subject (D44).
+    The form also has one ``hours_<class type id>`` field per active class type, plus the
+    types the subject already uses even if deactivated; blank or zero means no hours (D53).
     """
 
     scope_field = "study_plan"
@@ -83,3 +97,31 @@ class SubjectForm(ScopedModelForm):
             "semester_hours",
             "programme",
         ]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        existing = {}
+        if self.instance.pk:
+            existing = {load.class_type_id: load for load in self.instance.class_loads.all()}
+        class_types = ClassType.objects.filter(is_active=True) | ClassType.objects.filter(
+            pk__in=existing
+        )
+        self.class_type_ids: list[int] = []
+        for class_type in class_types.distinct().order_by("position", "code"):
+            load = existing.get(class_type.pk)
+            self.fields[f"hours_{class_type.pk}"] = forms.DecimalField(
+                label=f"{class_type.code} – {class_type.name}",
+                required=False,
+                min_value=Decimal("0"),
+                max_digits=4,
+                decimal_places=2,
+                initial=load.weekly_hours if load else None,
+                help_text="Horas semanais.",
+            )
+            self.class_type_ids.append(class_type.pk)
+        # Keep the reason as the last field.
+        self.fields["reason"] = self.fields.pop("reason")
+
+    def class_loads(self) -> dict[int, Decimal | None]:
+        """Return the weekly hours entered, keyed by class type id (``None`` if blank)."""
+        return {pk: self.cleaned_data.get(f"hours_{pk}") for pk in self.class_type_ids}
