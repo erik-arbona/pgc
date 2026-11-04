@@ -29,6 +29,7 @@ from apps.core.permissions import registry
 from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
+from .below_minimum import MinimumReasonState
 from .forms import (
     ActivityEditForm,
     ActivityForm,
@@ -39,15 +40,24 @@ from .forms import (
     GroupCountForm,
     LeadTeacherForm,
     MergeForm,
+    MinimumReasonForm,
+    MinimumReviewForm,
     RoomRequestForm,
     SeparateForm,
     StateChangeForm,
     TeacherAssignForm,
 )
 from .lifecycle import cell_writable
-from .load_facts import assessment_with_unit, load_text, status_text, teacher_loads
+from .load_facts import (
+    assessment_with_unit,
+    load_text,
+    minimum_reason_text,
+    status_text,
+    teacher_loads,
+)
 from .models import (
     AcceptedExtraHours,
+    BelowMinimumReason,
     CoordinationSemester,
     Dsd,
     DsdSemester,
@@ -62,6 +72,7 @@ from .services import (
     ASSIGNMENT_EDIT,
     GENERATE,
     LEAD_TEACHER,
+    REVIEW_MINIMUM,
     TEACHING_UNIT_EDIT,
     add_activity,
     assign_teacher,
@@ -76,11 +87,13 @@ from .services import (
     merged_students,
     partner_offerings,
     remove_activity,
+    review_minimum_reason,
     room_request_warnings,
     separate_member,
     set_accepted_extra,
     set_group_count,
     set_lead_teacher,
+    set_minimum_reason,
     set_room_request,
     stale_unit_ids,
     unassign_teacher,
@@ -1047,6 +1060,11 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
             dsd_semester__dsd=self.dsd, teacher=self.teacher
         ).select_related("dsd_semester")
         extra_record = AcceptedExtraHours.objects.filter(dsd=self.dsd, teacher=self.teacher).first()
+        minimum_record = (
+            BelowMinimumReason.objects.filter(dsd=self.dsd, teacher=self.teacher)
+            .select_related("review")
+            .first()
+        )
         blocks = []
         for index, semester in enumerate(self.dsd.semesters.order_by("number")):
             blocks.append(
@@ -1069,6 +1087,14 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
                 "load": load,
                 "status": load_text(load),
                 "extra_record": extra_record,
+                "minimum_record": minimum_record,
+                "can_edit_minimum": load.minimum_reason != MinimumReasonState.NOT_NEEDED
+                and any(
+                    cell_writable(
+                        self.request.user, ASSIGNMENT_EDIT, semester, self.teacher.coordination_id
+                    )
+                    for semester in self.dsd.semesters.all()
+                ),
                 "can_edit_extra": any(
                     cell_writable(
                         self.request.user, ASSIGNMENT_EDIT, semester, self.teacher.coordination_id
@@ -1089,13 +1115,16 @@ class _ActivityMixin(PageMixin, LoginRequiredMixin):
     """
 
     template_name = "dsd/activity_form.html"
+    permission_code = ASSIGNMENT_EDIT
 
     def dispatch(self, request, *args, **kwargs):
         """Refuse users who cover no coordination, then those who do not cover this one."""
         if request.user.is_authenticated:
-            if not registry.coordination_ids(request.user, ASSIGNMENT_EDIT):
+            if not registry.coordination_ids(request.user, self.permission_code):
                 raise PermissionDenied
-            registry.require_on_coordination(request.user, ASSIGNMENT_EDIT, self.coordination_id)
+            registry.require_on_coordination(
+                request.user, self.permission_code, self.coordination_id
+            )
         return super().dispatch(request, *args, **kwargs)
 
     @property
@@ -1372,3 +1401,163 @@ class ExtraClearView(_ActivityMixin, FormView):
             return self.form_invalid(form)
         messages.success(self.request, _("Horas extra aceites removidas."))
         return redirect(self.sheet_url())
+
+
+class MinimumReasonView(_ActivityMixin, FormView):
+    """Register, or change, the reason for a teacher whose load is below the minimum (T5.5)."""
+
+    form_class = MinimumReasonForm
+    title = _("Motivo abaixo da mínima")
+
+    @cached_property
+    def teacher(self) -> Teacher:
+        """The teacher of the URL."""
+        return get_object_or_404(
+            Teacher.objects.select_related("coordination"), pk=self.kwargs["teacher_pk"]
+        )
+
+    @cached_property
+    def dsd(self) -> Dsd:
+        """The DSD of the URL."""
+        return get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+
+    @property
+    def coordination_id(self) -> int:
+        """The coordination of the teacher."""
+        return self.teacher.coordination_id
+
+    @cached_property
+    def existing(self) -> BelowMinimumReason | None:
+        """The reason of the teacher in this DSD, if any."""
+        return BelowMinimumReason.objects.filter(dsd=self.dsd, teacher=self.teacher).first()
+
+    def get_form_kwargs(self):
+        """Start from the stored text and version, if there is a reason."""
+        kwargs = super().get_form_kwargs()
+        kwargs["existing"] = self.existing is not None
+        if "data" not in kwargs and self.existing is not None:
+            kwargs["initial"] = {"text": self.existing.text, "seen": self.existing.version}
+        return kwargs
+
+    def form_valid(self, form):
+        """Save the reason or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            set_minimum_reason(
+                self.request.user, self.teacher, self.dsd, data["text"], data["seen"]
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Motivo guardado."))
+        return redirect(self.sheet_url())
+
+
+class MinimumReviewListView(PageMixin, LoginRequiredMixin, TemplateView):
+    """The teachers below the minimum in the Faculties of the Executive Board, with reasons (T5.5).
+
+    Only the board sees it (``dsd.below_minimum.review``, D69); it lists the active teachers of
+    the coordinations the user covers whose annual load is below the minimum, each with the reason
+    and its state, and a link to decide.
+    """
+
+    template_name = "dsd/minimum_review_list.html"
+    title = _("Docentes abaixo da carga mínima")
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who review nothing."""
+        if request.user.is_authenticated and not registry.coordination_ids(
+            request.user, REVIEW_MINIMUM
+        ):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        """Build one row per teacher below the minimum or with a reason."""
+        context = super().get_context_data(**kwargs)
+        dsd = get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+        covered = registry.coordination_ids(self.request.user, REVIEW_MINIMUM)
+        teachers = list(
+            Teacher.objects.filter(coordination_id__in=covered, is_active=True)
+            .select_related("coordination")
+            .order_by("name")
+        )
+        loads = teacher_loads(dsd, teachers)
+        reasons = {
+            reason.teacher_id: reason
+            for reason in BelowMinimumReason.objects.filter(
+                dsd=dsd, teacher__in=teachers
+            ).select_related("review")
+        }
+        rows = []
+        for teacher in teachers:
+            load = loads[teacher.pk]
+            if load.minimum_reason == MinimumReasonState.NOT_NEEDED:
+                continue
+            rows.append(
+                {
+                    "teacher": teacher,
+                    "hours": load.assessment.weekly_hours,
+                    "state": minimum_reason_text(load.minimum_reason),
+                    "reason": reasons.get(teacher.pk),
+                }
+            )
+        context.update({"title": self.title, "dsd": dsd, "rows": rows})
+        return context
+
+
+class MinimumReviewView(PageMixin, LoginRequiredMixin, FormView):
+    """Accept or refuse the reason of a teacher below the minimum (T5.5, D16, D97)."""
+
+    form_class = MinimumReviewForm
+    template_name = "dsd/minimum_review_form.html"
+    title = _("Avaliar motivo")
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who review nothing, then those who do not cover this teacher."""
+        if request.user.is_authenticated:
+            if not registry.coordination_ids(request.user, REVIEW_MINIMUM):
+                raise PermissionDenied
+            registry.require_on_coordination(
+                request.user, REVIEW_MINIMUM, self.reason.teacher.coordination_id
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    @cached_property
+    def reason(self) -> BelowMinimumReason:
+        """The reason of the URL."""
+        return get_object_or_404(
+            BelowMinimumReason.objects.select_related(
+                "teacher__coordination", "dsd__academic_year"
+            ),
+            pk=self.kwargs["pk"],
+        )
+
+    def get_initial(self):
+        """Carry the version of the text the board is seeing."""
+        return {"seen": self.reason.version}
+
+    def get_context_data(self, **kwargs):
+        """Show the teacher and the text being reviewed."""
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "title": self.title,
+                "reason": self.reason,
+                "cancel_url": reverse("dsd:minimum_review_list", args=[self.reason.dsd_id]),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        """Save the decision or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            review_minimum_reason(
+                self.request.user, self.reason, data["decision"], data["comment"], data["seen"]
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Decisão guardada."))
+        return redirect("dsd:minimum_review_list", pk=self.reason.dsd_id)

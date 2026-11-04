@@ -30,10 +30,15 @@ from apps.rooms.models import RoomType
 from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
+from .below_minimum import DECISIONS, REFUSED
 from .lifecycle import CellNotWritable, cell_writable, dsd_write
 from .lifecycle_rules import needs_reason, next_state
+from .load_facts import teacher_loads
+from .load_status import LoadStatus
 from .models import (
     AcceptedExtraHours,
+    BelowMinimumReason,
+    BelowMinimumReview,
     CoordinationSemester,
     Dsd,
     DsdSemester,
@@ -51,6 +56,7 @@ GENERATE = "dsd.offering.generate"
 LEAD_TEACHER = "dsd.offering.lead_teacher.edit"
 TEACHING_UNIT_EDIT = "dsd.teaching_unit.edit"
 ASSIGNMENT_EDIT = "dsd.assignment.edit"
+REVIEW_MINIMUM = "dsd.below_minimum.review"
 MAX_GROUPS = 20
 
 
@@ -1492,3 +1498,126 @@ def clear_accepted_extra(
             raise ValidationError({"reason": _("O motivo é obrigatório.")})
         locked._write_cell = (semester.pk, coordination_id)  # for the guard only
         audited_delete(locked, actor, reason.strip())
+
+
+def set_minimum_reason(
+    actor,
+    teacher: Teacher,
+    dsd: Dsd,
+    text: str,
+    seen_version: int | None = None,
+) -> BelowMinimumReason:
+    """Register the reason for a teacher whose load is below the minimum, or change it (T5.5, D16).
+
+    Only a teacher below the minimum of their range takes a reason. One record per teacher and
+    year, written through the cell of any writable semester of the year (D96). The first time needs
+    no version; changing the text needs the version the user saw (D54) and sends the case back to
+    the Executive Board, because a review belongs to one version of the text (D97).
+
+    Args:
+        actor: the user acting.
+        teacher: the teacher.
+        dsd: the DSD.
+        text: why the load is below the minimum.
+        seen_version: the version of the existing record the user saw.
+
+    Returns:
+        The record as saved.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination of the teacher.
+        ValidationError: if no cell of the year is writable, the teacher is inactive, moved or
+            not below the minimum, the text is empty or the version is stale.
+    """
+    with _year_write(actor, dsd, teacher.coordination_id) as semester:
+        try:
+            current = Teacher.objects.select_for_update().get(pk=teacher.pk)
+        except Teacher.DoesNotExist:
+            raise _stale_message() from None
+        if current.coordination_id != teacher.coordination_id:
+            raise _stale_message()
+        if not current.is_active:
+            raise ValidationError(_("O docente tem de estar ativo."))
+        text = text.strip()
+        if not text:
+            raise ValidationError({"text": _("O motivo é obrigatório.")})
+        status = teacher_loads(dsd, [current])[current.pk].assessment.status
+        if status != LoadStatus.BELOW_MINIMUM:
+            raise ValidationError(_("O docente não está abaixo da carga mínima."))
+        record = (
+            BelowMinimumReason.objects.select_for_update().filter(dsd=dsd, teacher=current).first()
+        )
+        if record is None:
+            record = BelowMinimumReason(
+                dsd=dsd,
+                teacher=current,
+                dsd_semester=semester,
+                coordination_id=current.coordination_id,
+                text=text,
+            )
+            audited_save(record, actor, _("Motivo abaixo da mínima"))
+            return record
+        if seen_version is None or record.version != seen_version:
+            raise _stale_message()
+        record.text = text
+        record.dsd_semester = semester
+        record.coordination_id = current.coordination_id
+        audited_save(record, actor, _("Motivo abaixo da mínima alterado"))
+    return record
+
+
+def review_minimum_reason(
+    actor,
+    reason: BelowMinimumReason,
+    decision: str,
+    comment: str,
+    seen_version: int | None,
+) -> BelowMinimumReview:
+    """Accept or refuse the reason for a load below the minimum, as the Executive Board (T5.5).
+
+    The board of the Faculty of the teacher decides (``dsd.below_minimum.review``, D69). It
+    reviews data without changing any DSD cell, so a closed cell does not stop it (D97). The
+    decision is of the version of the text the board saw: if the coordinator changed it meanwhile
+    the review is stale (D54). A refusal needs a comment; deciding again replaces the decision,
+    both audited.
+
+    Args:
+        actor: the user acting.
+        reason: the reason.
+        decision: ``"accepted"`` or ``"refused"``.
+        comment: why it was refused (required then).
+        seen_version: the version of the text the user saw.
+
+    Returns:
+        The review as saved.
+
+    Raises:
+        PermissionDenied: if the actor is not the board of the Faculty of the teacher.
+        ValidationError: if the decision is not valid, a refusal has no comment or the version is
+            stale.
+    """
+    coordination_id = Teacher.objects.values_list("coordination_id", flat=True).get(
+        pk=reason.teacher_id
+    )
+    registry.require_on_coordination(actor, REVIEW_MINIMUM, coordination_id)
+    if decision not in DECISIONS:
+        raise ValidationError({"decision": _("Decisão inválida.")})
+    comment = comment.strip()
+    if decision == REFUSED and not comment:
+        raise ValidationError({"comment": _("Indique porque recusa o motivo.")})
+    with transaction.atomic():
+        try:
+            locked = BelowMinimumReason.objects.select_for_update().get(pk=reason.pk)
+        except BelowMinimumReason.DoesNotExist:
+            raise _stale_message() from None
+        if seen_version is None or locked.version != seen_version:
+            raise _stale_message()
+        review = BelowMinimumReview.objects.filter(reason=locked).first() or BelowMinimumReview(
+            reason=locked
+        )
+        review.reviewed_version = locked.version
+        review.decision = decision
+        review.comment = comment
+        review.reviewed_by = actor
+        audited_save(review, actor, comment or _("Motivo aceite"))
+    return review

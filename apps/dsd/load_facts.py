@@ -26,9 +26,17 @@ from apps.staff.models import Teacher
 from apps.staff.services import load_ranges_for
 
 from .annual_load import AnnualLoad, AnnualTeachingHours, annual_teaching_hours
+from .below_minimum import MinimumReasonState, minimum_reason_state
 from .extra_hours import ExtraAssessment, ExtraStatus, assess_extra
 from .load_status import LoadAssessment, LoadStatus, assess_load
-from .models import AcceptedExtraHours, Dsd, DsdSemester, OtherActivity, TeachingUnit
+from .models import (
+    AcceptedExtraHours,
+    BelowMinimumReason,
+    Dsd,
+    DsdSemester,
+    OtherActivity,
+    TeachingUnit,
+)
 from .other_activities import ActivityFact, general_total, other_hours_by_teacher
 from .preparation import preparation_by_teacher
 from .teaching_hours import (
@@ -52,6 +60,7 @@ class TeacherLoad:
         general_total: teaching + preparation + other activities; only the teaching hours are
             compared with the range (D95).
         extra: the extra hours against the hours the teacher accepted (T5.4, D13, D96).
+        minimum_reason: where the reason for a load below the minimum stands (T5.5, D16).
     """
 
     assessment: LoadAssessment
@@ -59,6 +68,7 @@ class TeacherLoad:
     other_hours: tuple[Decimal, Decimal]
     general_total: Decimal
     extra: ExtraAssessment
+    minimum_reason: MinimumReasonState
 
 
 def unit_facts(
@@ -160,6 +170,12 @@ def teacher_loads(
             "teacher_id", "hours"
         )
     )
+    reasons = {
+        teacher_id: (version, review_version, decision)
+        for teacher_id, version, review_version, decision in BelowMinimumReason.objects.filter(
+            dsd=dsd, teacher_id__in=ids
+        ).values_list("teacher_id", "version", "review__reviewed_version", "review__decision")
+    }
     other = other_hours_by_teacher(
         ActivityFact(teacher_id, number, hours)
         for teacher_id, number, hours in OtherActivity.objects.filter(
@@ -187,6 +203,10 @@ def teacher_loads(
             other_hours=other_hours,
             general_total=general_total(assessment.weekly_hours, prep, other_hours),
             extra=assess_extra(assessment.extra_hours, accepted.get(teacher.pk, ZERO)),
+            minimum_reason=minimum_reason_state(
+                assessment.status == LoadStatus.BELOW_MINIMUM,
+                *reasons.get(teacher.pk, (None, None, None)),
+            ),
         )
     return loads
 
@@ -272,5 +292,24 @@ def load_text(load: TeacherLoad) -> str:
         For example ``acima do máximo (+2.00 h) · por aceitar: 2.00 h``.
     """
     text = status_text(load.assessment)
-    extra = extra_text(load.extra)
-    return f"{text} · {extra}" if extra else text
+    parts = [text, extra_text(load.extra), minimum_reason_text(load.minimum_reason)]
+    return " · ".join(part for part in parts if part)
+
+
+def minimum_reason_text(state: MinimumReasonState) -> str:
+    """Return the state of the reason for a load below the minimum, or an empty text.
+
+    Args:
+        state: where the reason stands (D16, D97).
+
+    Returns:
+        ``motivo em falta``, ``motivo por avaliar``, ``motivo aceite`` or ``motivo recusado``;
+        empty when the load is not below the minimum.
+    """
+    texts = {
+        MinimumReasonState.MISSING: _("motivo em falta"),
+        MinimumReasonState.PENDING: _("motivo por avaliar"),
+        MinimumReasonState.ACCEPTED: _("motivo aceite"),
+        MinimumReasonState.REFUSED: _("motivo recusado"),
+    }
+    return str(texts.get(state, ""))

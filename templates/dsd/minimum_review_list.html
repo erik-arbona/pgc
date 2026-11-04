@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{{ dsd }}</p>
+  {% if rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>{% translate "Docente" %}</th>
+          <th>{% translate "Horas letivas anuais" %}</th>
+          <th>{% translate "Motivo" %}</th>
+          <th>{% translate "Estado" %}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td><a href="{% url 'dsd:teacher_sheet' dsd.pk row.teacher.pk %}">{{ row.teacher.name }}</a><br><small>{{ row.teacher.coordination }}</small></td>
+            <td>{{ row.hours }}</td>
+            <td>{% if row.reason %}{{ row.reason.text }}{% else %}—{% endif %}</td>
+            <td>{{ row.state }}</td>
+            <td>{% if row.reason %}<a href="{% url 'dsd:minimum_review' row.reason.pk %}">{% translate "Avaliar" %}</a>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% translate "Nenhum docente abaixo da carga mínima." %}</p>
+  {% endif %}
+{% endblock %}

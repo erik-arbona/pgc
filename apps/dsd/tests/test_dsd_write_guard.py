@@ -18,8 +18,11 @@ from apps.dsd.services import change_state, create_dsd
 
 pytestmark = pytest.mark.django_db
 
-# The models that hold the state itself are the only ones exempt from the guard.
-EXEMPT = {"Dsd", "DsdSemester", "CoordinationSemester"}
+# The models that hold the state itself are exempt from the guard, and so is the Executive
+# Board's review of a reason below the minimum: it is a decision about the coordinator's data,
+# not distribution data, and it must work in a closed cell (D97). Its service checks the scoped
+# action itself.
+EXEMPT = {"Dsd", "DsdSemester", "CoordinationSemester", "BelowMinimumReview"}
 
 
 @pytest.fixture

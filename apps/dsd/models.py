@@ -5,6 +5,7 @@ See D43: a single DSD per academic year for the whole University, created only b
 manager. The state of each semester per coordination (open, closed) comes with T2.2.
 """
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -612,3 +613,115 @@ class AcceptedExtraHours(GuardedDsdWrites, VersionedModel):
 
     def __str__(self) -> str:
         return f"{self.teacher} – {self.hours} h ({self.dsd})"
+
+
+class BelowMinimumReason(GuardedDsdWrites, VersionedModel):
+    """The reason a coordinator gives for a teacher whose load is below the minimum (T5.5, D16).
+
+    One record per teacher and DSD (the year), like ``AcceptedExtraHours``: it is written through
+    the cell of any writable semester of the year, which is stored here for the write guard.
+    Changing the text bumps ``version``; the Executive Board's review belongs to one version, so a
+    changed text goes back to pending (D97).
+    """
+
+    dsd = models.ForeignKey(
+        Dsd,
+        on_delete=models.PROTECT,  # a DSD with records cannot be removed
+        related_name="minimum_reasons",
+        verbose_name=_("DSD"),
+        help_text=_("The DSD (academic year) the reason is valid for."),
+    )
+    teacher = models.ForeignKey(
+        Teacher,
+        on_delete=models.PROTECT,  # a teacher with records cannot be deleted (T0.5)
+        related_name="minimum_reasons",
+        verbose_name=_("docente"),
+        help_text=_("The teacher whose load is below the minimum."),
+    )
+    dsd_semester = models.ForeignKey(
+        DsdSemester,
+        on_delete=models.PROTECT,  # the semester through which the record was written
+        related_name="minimum_reasons",
+        verbose_name=_("semestre do DSD"),
+        help_text=_("Semester whose cell was used for the last write; it is not a validity."),
+    )
+    coordination = models.ForeignKey(
+        Coordination,
+        on_delete=models.PROTECT,  # a coordination that wrote data cannot be removed
+        related_name="minimum_reasons",
+        verbose_name=_("coordenação"),
+        help_text=_("Coordination of the teacher at the last write; it owns the cell."),
+    )
+    text = models.TextField(
+        _("motivo"), help_text=_("Why the teacher's load is below the minimum of their range.")
+    )
+
+    class Meta:
+        verbose_name = _("motivo abaixo da mínima")
+        verbose_name_plural = _("motivos abaixo da mínima")
+        ordering = ["dsd", "teacher"]
+        constraints = [
+            # One reason per teacher and year; it is changed, not duplicated.
+            models.UniqueConstraint(fields=["dsd", "teacher"], name="one_minimum_reason_per_year"),
+        ]
+
+    # The cell a write goes through, set by the service for that call only (see D96).
+    _write_cell: tuple[int, int] | None = None
+
+    def dsd_cell(self) -> tuple[int, int]:
+        """Return the cell used to write the record: the one set for the call, or its own."""
+        return self._write_cell or (self.dsd_semester_id, self.coordination_id)
+
+    def __str__(self) -> str:
+        return f"{self.teacher} – {self.dsd}"
+
+
+class BelowMinimumReview(models.Model):
+    """The Executive Board's decision on a reason for a load below the minimum (T5.5, D16, D97).
+
+    One decision per reason, replaced when the board decides again (every decision is audited).
+    ``reviewed_version`` is the version of the text that was reviewed: a decision about an older
+    text does not count. It is not DSD cell data, so it is not written through ``dsd_write``.
+    """
+
+    class Decision(models.TextChoices):
+        """What the board decided."""
+
+        ACCEPTED = "accepted", _("Aceite")
+        REFUSED = "refused", _("Recusado")
+
+    reason = models.OneToOneField(
+        BelowMinimumReason,
+        on_delete=models.PROTECT,  # a reviewed reason is not erased
+        related_name="review",
+        verbose_name=_("motivo"),
+        help_text=_("The reason the decision is about."),
+    )
+    reviewed_version = models.PositiveIntegerField(
+        _("versão avaliada"), help_text=_("Version of the reason text that was reviewed.")
+    )
+    decision = models.CharField(
+        _("decisão"), max_length=10, choices=Decision.choices, help_text=_("Accepted or refused.")
+    )
+    comment = models.TextField(
+        _("comentário"),
+        blank=True,
+        help_text=_("Why it was refused (required then); optional when accepted."),
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,  # the author of a decision is never lost
+        related_name="minimum_reviews",
+        verbose_name=_("avaliado por"),
+        help_text=_("The Executive Board user who decided."),
+    )
+    reviewed_at = models.DateTimeField(
+        _("avaliado em"), auto_now=True, help_text=_("When the decision was last taken.")
+    )
+
+    class Meta:
+        verbose_name = _("avaliação do motivo")
+        verbose_name_plural = _("avaliações dos motivos")
+
+    def __str__(self) -> str:
+        return f"{self.reason} – {self.get_decision_display()}"
