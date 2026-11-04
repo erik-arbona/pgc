@@ -28,11 +28,26 @@ from .services import evaluate_selection
 
 
 class ClassTypeForm(ReasonModelForm):
-    """Create or edit a class type (D45). Unchecking ``is_active`` deactivates it."""
+    """Create or edit a class type (D45). Unchecking ``is_active`` deactivates it.
+
+    ``preparation_weight`` says how much each weekly hour of this type adds to the preparation
+    hours (D61); it is never negative.
+    """
+
+    preparation_weight = forms.DecimalField(
+        label=_("Peso na preparação"),
+        min_value=Decimal("0"),
+        max_digits=4,
+        decimal_places=2,
+        help_text=_(
+            "Horas de preparação por cada hora semanal deste tipo; 0 não conta. "
+            "Um tipo novo começa em 0."
+        ),
+    )
 
     class Meta:
         model = ClassType
-        fields = ["code", "name", "position", "is_active"]
+        fields = ["code", "name", "position", "is_active", "preparation_weight"]
 
 
 class FacultyForm(ReasonModelForm):

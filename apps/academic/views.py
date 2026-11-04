@@ -52,6 +52,7 @@ from .services import (
     create_class_group,
     delete_cross_course_group,
     evaluate_selection,
+    preparation_from_loads,
     save_cross_course_group,
     save_subject_with_loads,
 )
@@ -312,6 +313,7 @@ class SubjectListView(SubjectMixin, ScopedListView):
             super()
             .get_queryset()
             .select_related("study_plan__course", "coordination")
+            .prefetch_related("class_loads__class_type")
             .annotate(weekly_total=Sum("class_loads__weekly_hours"))
             .order_by("study_plan__course__name", "curricular_year", "semester", "code")
         )
@@ -327,6 +329,11 @@ class SubjectListView(SubjectMixin, ScopedListView):
         """Add the courses the manager can filter by and the active filters."""
         context = super().get_context_data(**kwargs)
         context["courses"] = Course.objects.filter(faculty__in=self.allowed_scope_ids())
+        subjects = list(context["object_list"])
+        for subject in subjects:
+            # Uses the prefetched rows, so there is no query per subject.
+            subject.preparation = preparation_from_loads(subject.class_loads.all())
+        context["object_list"] = subjects
         context["selected_course"] = self.request.GET.get("course", "")
         context["selected_semester"] = self.request.GET.get("semester", "")
         return context

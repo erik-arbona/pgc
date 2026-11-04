@@ -22,7 +22,13 @@ def edit_url(item):
 
 def edit_data(item, **overrides):
     """POST data that renames a class type, plus overrides."""
-    data = {"code": item.code, "name": "Renomeada", "position": item.position, "is_active": "on"}
+    data = {
+        "code": item.code,
+        "name": "Renomeada",
+        "position": item.position,
+        "is_active": "on",
+        "preparation_weight": "0",
+    }
     data.update(overrides)
     return data
 
@@ -94,7 +100,13 @@ def test_creating_needs_no_reason(manager_client):
     """A new record needs no reason (D40)."""
     manager_client.post(
         reverse("academic:classtype_create"),
-        {"code": "S", "name": "Seminário", "position": 60, "is_active": "on"},
+        {
+            "code": "S",
+            "name": "Seminário",
+            "position": 60,
+            "is_active": "on",
+            "preparation_weight": "0",
+        },
     )
     assert ClassType.objects.filter(code="S").exists()
 

@@ -37,6 +37,7 @@ from .models import (
     SubjectClassLoad,
 )
 from .plans import PlanFacts, plan_in_force
+from .preparation import preparation_hours
 
 
 def facts_for(subject: Subject) -> SubjectFacts:
@@ -323,3 +324,25 @@ def delete_cross_course_group(group: CrossCourseSubject, actor, reason: str) -> 
         for row in group.allowed_courses.all():
             audited_delete(row, actor, reason)
         audited_delete(group, actor, reason)
+
+
+def preparation_from_loads(loads: Iterable[SubjectClassLoad]) -> Decimal:
+    """Return the weekly preparation hours for weekly load rows (D61).
+
+    Pass rows whose ``class_type`` is already loaded (``select_related`` or ``prefetch_related``)
+    to avoid one query per row.
+
+    Args:
+        loads: the weekly hours rows of one subject.
+
+    Returns:
+        The preparation hours per week.
+    """
+    hours = {load.class_type.code: load.weekly_hours for load in loads}
+    weights = {load.class_type.code: load.class_type.preparation_weight for load in loads}
+    return preparation_hours(hours, weights)
+
+
+def preparation_for(subject: Subject) -> Decimal:
+    """Return the weekly preparation hours of a subject with the current weights (D61)."""
+    return preparation_from_loads(subject.class_loads.select_related("class_type"))

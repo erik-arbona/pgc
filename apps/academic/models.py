@@ -192,11 +192,27 @@ class ClassType(models.Model):
     position = models.PositiveSmallIntegerField(
         _("posição"), default=100, help_text=_("Display order; lower values come first.")
     )
+    preparation_weight = models.DecimalField(
+        _("peso na preparação"),
+        max_digits=4,
+        decimal_places=2,
+        default=0,
+        help_text=_(
+            "How many preparation hours each weekly hour of this type adds (D61); "
+            "0 means it does not count. A new type starts at 0."
+        ),
+    )
 
     class Meta:
         verbose_name = _("tipo de aula")
         verbose_name_plural = _("tipos de aula")
         ordering = ["position", "code"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(preparation_weight__gte=0),
+                name="class_type_preparation_weight_not_negative",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.code
