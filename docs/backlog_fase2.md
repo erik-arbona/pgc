@@ -68,6 +68,11 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [ ] T6.3 Ficha do docente; leitura pelo próprio docente (D09).
 - [ ] T6.4 Comparação com o Excel: exportação CSV da carga por docente, para a Porta 1.
 
+## 6b. Interface visual (D20, D50)
+As secções 0 a 6 construíram as regras e os ecrãs com um estilo mínimo (D50). Esta secção trata do aspeto e da navegação, que ainda não estão desenhados. ⚑ Q29
+- [ ] T6.5 Desenho: página inicial por perfil, menu, estilos comuns (cores, tipografia, tabelas, formulários, estados e mensagens) e acessibilidade; a partir de uma referência do utilizador.
+- [ ] T6.6 Aplicar o desenho aos ecrãs existentes (dados mestres, DSD, ofertas, ficha do docente, visão geral da coordenação) sem alterar regras nem permissões.
+
 ## 7. Calendário de exames (bloco 10)
 - [ ] T7.1 Épocas por semestre (datas) e faixas horárias, pelo gestor (D24). ⚑ Q15
 - [ ] T7.2 Exame: disciplina, época, turmas juntas (regras D22), responsável vindo do regente (alterável), júri da coordenação (D25). ⚑ Q16, Q17
@@ -124,6 +129,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - **Q26** (plano real): os planos têm uma só coluna «P/L» (práticas/laboratoriais), mas o sistema tem os tipos P e L separados. Que tipo se regista nas disciplinas com P/L? *Defeito proposto:* o tipo P (pesam o mesmo na preparação, D61), ou criar um tipo combinado «P/L».
 - **Q27** (plano real): a UCT do 8.º semestre (PFC, ETC, monografia) não tem horas semanais, só 45 ou 60 horas de contacto, e D60 exige carga semanal em toda a disciplina. Como se modela e como entra na carga? *Sem defeito.*
 - **Q28** (plano real): a «Opção Condicionada» do 7.º semestre é uma vaga com cinco disciplinas alternativas (Robótica e Automação, Tecnologias Avançadas de Redes, Processamento de Imagem e Biométrica, Economia e Gestão, Inglês Técnico). Como se modela? *Sem defeito.*
+- **Q29** (T6.5): que aspeto se espera da interface? Falta uma referência (exemplos de ecrãs de que gosta, cores e logótipo da Uni-CV, o ecrã que mais lhe interessa) e se o menu deve ser lateral ou superior. *Sem defeito:* não se desenha sem referência.
 
 ## Informação nova a incorporar (02/11/2026)
 - **Matrícula (D81, D82):** os Serviços Académicos introduzem o número por turma, primeiro estimado e depois atualizado; no futuro a estimada poderá calcular-se com dados históricos do SII e a real obter-se por consulta à base do SII. Sem trabalho agora.
