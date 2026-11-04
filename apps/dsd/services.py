@@ -15,7 +15,7 @@ from django.utils.translation import gettext as _
 
 from apps.academic.models import AcademicYear, ClassGroup, Coordination, Subject
 from apps.academic.services import subjects_for
-from apps.core.audit import audited_save
+from apps.core.audit import audited_delete, audited_save
 from apps.core.permissions import registry
 from apps.staff.models import Teacher
 
@@ -27,6 +27,7 @@ from .models import (
     DsdSemester,
     Offering,
     OfferingClassGroup,
+    SubGroup,
     TeachingUnit,
     TeachingUnitMember,
 )
@@ -34,6 +35,8 @@ from .models import (
 SEMESTER_NUMBERS = (1, 2)
 GENERATE = "dsd.offering.generate"
 LEAD_TEACHER = "dsd.offering.lead_teacher.edit"
+TEACHING_UNIT_EDIT = "dsd.teaching_unit.edit"
+MAX_GROUPS = 20
 
 
 def _existing_dsd(academic_year: AcademicYear) -> Dsd | None:
@@ -331,6 +334,11 @@ def _ensure_default_units(
         TeachingUnitMember.objects.filter(class_group_link__offering=offering).values_list(
             "class_group_link_id", "class_type_id"
         )
+    ) | set(
+        # A turma divided into groups for a class type has no whole-turma unit for it (T3.2).
+        SubGroup.objects.filter(class_group_link__offering=offering).values_list(
+            "class_group_link_id", "class_type_id"
+        )
     )
     for link in offering.class_group_links.all():
         for load in class_types:
@@ -369,7 +377,7 @@ def _stale_unit_ids(
             offering__dsd_semester=semester, offering__subject__coordination_id=coordination_id
         )
         .select_related("offering")
-        .prefetch_related("members__class_group_link")
+        .prefetch_related("members__class_group_link", "members__subgroup__class_group_link")
     )
     stale: set[int] = set()
     for unit in units:
@@ -379,7 +387,7 @@ def _stale_unit_ids(
             continue
         types, groups = entry
         if unit.class_type_id not in types or any(
-            member.class_group_link.class_group_id not in groups for member in unit.members.all()
+            member.turma_link.class_group_id not in groups for member in unit.members.all()
         ):
             stale.add(unit.pk)
     return stale
@@ -444,3 +452,118 @@ def set_lead_teacher(
         offering.lead_teacher = teacher
         audited_save(offering, actor, reason.strip() or _("Definição do regente"))
     return offering
+
+
+def _units_of(link: OfferingClassGroup, class_type) -> dict[int, int]:
+    """Return ``{unit id: version}`` of the units that serve a turma for a class type."""
+    whole = TeachingUnit.objects.filter(members__class_group_link=link, class_type=class_type)
+    grouped = TeachingUnit.objects.filter(
+        members__subgroup__class_group_link=link, class_type=class_type
+    )
+    return {unit.pk: unit.version for unit in whole.union(grouped)}
+
+
+def _drop_unit(actor, unit: TeachingUnit, reason: str) -> None:
+    """Delete a unit with its members and the groups they hold, each with an audit entry.
+
+    Raises:
+        ValidationError: if the unit holds more than one member (a merge): separate it first.
+    """
+    members = list(unit.members.select_related("subgroup"))
+    if len(members) > 1:
+        raise ValidationError(
+            _("A unidade está juntada com outras turmas ou grupos: separe-a primeiro.")
+        )
+    for member in members:
+        subgroup = member.subgroup
+        audited_delete(member, actor, reason)
+        if subgroup is not None:
+            audited_delete(unit, actor, reason)
+            audited_delete(subgroup, actor, reason)
+            return
+    audited_delete(unit, actor, reason)
+
+
+def _new_unit(actor, offering: Offering, class_type, reason: str, **audience) -> TeachingUnit:
+    """Create a unit of a class type with one member (a whole turma or a group)."""
+    unit = TeachingUnit(offering=offering, class_type=class_type)
+    audited_save(unit, actor, reason)
+    audited_save(TeachingUnitMember(unit=unit, class_type=class_type, **audience), actor, reason)
+    return unit
+
+
+def set_group_count(
+    actor,
+    link: OfferingClassGroup,
+    class_type,
+    n: int,
+    reason: str = "",
+    seen_versions: dict[int, int] | None = None,
+) -> None:
+    """Divide a turma into ``n`` groups for a class type, or change that number (T3.2, D90).
+
+    Each group is one teaching unit of its own, so ``n`` groups count ``n`` times (D70). With
+    ``n = 1`` the groups are deleted and the unit of the whole turma is recreated. Going down
+    deletes the highest-numbered groups with their units; going up adds the next numbers.
+    A turma whose whole-turma unit is merged with others cannot be divided: separate it first.
+    The write goes through ``dsd_write`` (D86), under a lock on the turma link. The first
+    division needs no reason; changing the number or merging back does (D40); a missing reason on
+    the first division is replaced by a default one so that the audit always has one.
+
+    Args:
+        actor: the user acting.
+        link: the turma of the offering.
+        class_type: the class type to divide the turma for.
+        n: the number of groups, 1 to 20.
+        reason: why; required to change or undo an existing division.
+        seen_versions: ``{unit id: version}`` the user saw, to refuse a stale change (D54).
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination.
+        ValidationError: if the cell is not writable, ``n`` is out of range, the version is
+            stale, the reason is missing, the turma is merged or the subject has no such type.
+    """
+    if not 1 <= n <= MAX_GROUPS:
+        raise ValidationError(
+            _("O número de grupos tem de estar entre 1 e %(max)s.") % {"max": MAX_GROUPS}
+        )
+    offering = link.offering
+    with dsd_write(
+        actor, TEACHING_UNIT_EDIT, offering.dsd_semester, offering.subject.coordination_id
+    ):
+        OfferingClassGroup.objects.select_for_update().get(pk=link.pk)
+        if seen_versions is not None and seen_versions != _units_of(link, class_type):
+            raise ValidationError(
+                _("Este registo foi alterado por outra pessoa. Recarregue a página.")
+            )
+        groups = list(SubGroup.objects.filter(class_group_link=link, class_type=class_type))
+        whole = (
+            TeachingUnitMember.objects.filter(class_group_link=link, class_type=class_type)
+            .select_related("unit")
+            .first()
+        )
+        current = len(groups) if groups else (1 if whole else 0)
+        if n == current:
+            return
+        if not offering.subject.class_loads.filter(class_type=class_type).exists():
+            raise ValidationError(_("A disciplina não tem este tipo de aula."))
+        changing = bool(groups)
+        if changing and not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        why = reason.strip() or _("Divisão em grupos")
+        if not groups and whole is not None:
+            _drop_unit(actor, whole.unit, why)
+        if n == 1:
+            for group in sorted(groups, key=lambda g: -g.number):
+                _drop_unit(actor, group.unit_memberships.get().unit, why)
+            _new_unit(actor, offering, class_type, why, class_group_link=link)
+            return
+        for group in sorted(groups, key=lambda g: -g.number):
+            if group.number > n:
+                _drop_unit(actor, group.unit_memberships.get().unit, why)
+        for number in range(1, n + 1):
+            if any(g.number == number for g in groups):
+                continue
+            group = SubGroup(class_group_link=link, class_type=class_type, number=number)
+            audited_save(group, actor, why)
+            _new_unit(actor, offering, class_type, why, subgroup=group)

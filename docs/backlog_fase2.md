@@ -35,7 +35,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T3.1 Unidade letiva = oferta × tipo de aula × público (turmas juntas ou um grupo); por defeito uma por turma; bloqueio otimista.
   - [x] T3.1a Modelos `TeachingUnit` e `TeachingUnitMember`; criação das unidades por defeito ao gerar as ofertas; obsoletas contadas (D89).
   - [x] T3.1b Página só de leitura de cada oferta com as suas unidades.
-- [ ] T3.2 Divisão em N grupos por tipo de aula (`SubGroup`). ⚑ Q6, Q7
+- [ ] T3.2 Divisão em N grupos por tipo de aula (`SubGroup`). ~~⚑ Q6, Q7~~ (D90)
+  - [x] T3.2a Modelo `SubGroup`, público da unidade com turmas ou grupos, operação «definir o número de grupos», gerador e obsoletas.
+  - [ ] T3.2b Formulário e botões na página da oferta.
 - [ ] T3.3 Junção de turmas do mesmo curso por tipo de aula (D23).
 - [ ] T3.4 Junção entre cursos: só transversais, só cursos indicados, mesmo semestre (bloqueia); aviso de carga diferente (D22, D47, D48). ⚑ Q8
 - [ ] T3.5 Tipo e capacidade de sala pedidos por turma ou grupo; aviso se nenhuma sala serve (`room_summary`, bloco 8, D64). ⚑ Q9
@@ -96,8 +98,8 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - ~~**Q3** (T1.1, T1.5): como se sabe a dimensão de cada turma A/B?~~ Resolvida: os Serviços Académicos introduzem o número **por turma** (D81).
 - **Q4** (T1.2, T1.4): que dados dá o SII, por que meio e quando (D66, em aberto). *Defeito:* só CSV.
 - ~~**Q5** (T2.1): um DSD por ano letivo para toda a Universidade ou um por Faculdade?~~ Resolvida: um por ano letivo, criado pelo gestor, aberto e fechado por coordenação (D43).
-- **Q6** (T3.2): mínimo e máximo de alunos por tipo de aula (questão em aberto 2). *Defeito:* sem regra; só se mostra a dimensão.
-- **Q7** (T3.2): um grupo pode misturar alunos de turmas juntas? *Defeito:* não, os grupos são por turma.
+- ~~**Q6** (T3.2): mínimo e máximo de alunos por tipo de aula~~ Resolvida por defeito: sem regra e sem guardar a dimensão do grupo (D90).
+- ~~**Q7** (T3.2): um grupo pode misturar alunos de turmas juntas?~~ Resolvida: sim, os grupos podem juntar-se entre turmas e cursos (transversais), em T3.3 e T3.4 (D90).
 - **Q8** (T3.4): numa junção entre cursos com horas diferentes ou coordenações diferentes, que horas contam e quem atribui? *Defeito:* bloquear junção entre coordenações.
 - **Q9** (T3.5): a sala pede-se por turma/grupo ou por unidade letiva? *Defeito:* por unidade letiva.
 - ~~**Q10** (T4.2): a preparação conta por repetição (N grupos) e pesa-se pela quota?~~ Resolvida: acompanha cada hora letiva, repetida por grupo e pela quota (D71); confirmar na Porta 1.

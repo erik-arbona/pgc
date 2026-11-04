@@ -31,7 +31,7 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Percurso (variante) | Divisão de um plano de estudos a partir de um ano curricular (EIC: TIC e PSI no 4.º ano; TM: Multimédia e Audiovisual). Cada percurso tem a sua turma; a disciplina é comum ou de um percurso (D75, D79) | `Track` |
 | Matrícula | Número de estudantes matriculados numa turma num ano letivo, estimado (quando se faz o DSD) e atualizado com o real (quando chega); só números, sem nomes (D66, D76, D81) | `Enrollment` |
 | Turma | Coorte de estudantes de um curso que entra num ano letivo e sobe um ano curricular por ano; hoje uma por entrada, o modelo admite várias (1.º A, 1.º B); mantém o plano de estudos com que entrou; pode terminar (último ano letivo) | `ClassGroup` |
-| Grupo | Divisão de uma turma (normalmente para P ou L) | `SubGroup` |
+| Grupo | Divisão de uma turma para um tipo de aula (normalmente P ou L), numerada a partir de 1; é uma unidade letiva própria e pode juntar-se a grupos de outras turmas (D90) | `SubGroup` |
 | Junção de turmas | Várias turmas numa só aula ou exame: turmas de cursos diferentes só em disciplinas transversais e entre os cursos indicados; turmas do mesmo curso por decisão do coordenador | `Merge` / relação |
 | Atribuição | Liga um docente a um tipo de aula de uma turma ou grupo; normalmente um docente, partilha opcional com percentagem | `Assignment` |
 | Quota (percentagem de partilha) | Parte de um tipo de aula partilhado que cabe a cada docente; as quotas somam 100% | `Assignment.share` |

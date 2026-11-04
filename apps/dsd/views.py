@@ -329,12 +329,23 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         units = (
             TeachingUnit.objects.filter(offering=offering)
             .select_related("class_type")
-            .prefetch_related("members__class_group_link__class_group")
+            .prefetch_related(
+                "members__class_group_link__class_group",
+                "members__subgroup__class_group_link__class_group",
+            )
         )
         rows = []
         for unit in units:
-            groups = [member.class_group_link.class_group for member in unit.members.all()]
-            counted = [sizes[group.pk] for group in groups if group.pk in sizes]
+            members = list(unit.members.all())
+            has_groups = any(member.subgroup_id for member in members)
+            groups = [
+                member.subgroup if member.subgroup_id else member.class_group_link.class_group
+                for member in members
+            ]
+            # The size of a group is not stored (D90): only whole turmas have a number.
+            counted = (
+                [] if has_groups else [sizes[group.pk] for group in groups if group.pk in sizes]
+            )
             rows.append(
                 {
                     "unit": unit,
@@ -343,6 +354,7 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                     "students": sum(size.students for size in counted) if counted else None,
                     "provisional": any(size.provisional for size in counted),
                     "stale": unit.pk in stale,
+                    "has_groups": has_groups,
                 }
             )
         context.update(
