@@ -18,4 +18,12 @@ urlpatterns = [
     path("positions/new/", views.PositionCreateView.as_view(), name="position_create"),
     path("positions/<int:pk>/edit/", views.PositionUpdateView.as_view(), name="position_update"),
     path("positions/<int:pk>/delete/", views.PositionDeleteView.as_view(), name="position_delete"),
+    path("teachers/", views.TeacherListView.as_view(), name="teacher_list"),
+    path("teachers/new/", views.TeacherCreateView.as_view(), name="teacher_create"),
+    path("teachers/<int:pk>/edit/", views.TeacherUpdateView.as_view(), name="teacher_update"),
+    path(
+        "teachers/<int:pk>/delete/",
+        views.TeacherDeleteView.as_view(),
+        name="teacher_delete",
+    ),
 ]

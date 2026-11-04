@@ -10,6 +10,8 @@
 
 **Screens (PGC manager area):** categories (`/staff/categories/`) and positions (`/staff/positions/`): list, create, edit/deactivate (reason required) and delete when unused, with the generic views of `core.generic` (D50).
 
+Teachers (`/staff/teachers/`): scoped to the manager's Faculties through the teacher's coordination (D51), filtered with HTMX by coordination, type and activity; deleting a teacher audits their position assignments first (`services.delete_teacher`).
+
 **Permissions:** `teacher.edit` (scoped to the Faculty of the teacher's coordination), `position.edit`, `category.edit`; PGC manager only. See D56.
 
 **Dependencies:** `core`, `academic` (coordination).
