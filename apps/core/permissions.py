@@ -360,6 +360,10 @@ registry.register("class_group.edit", {Profile.PGC_MANAGER}, write=True, scoped=
 # Faculties and academic years are not limited to a Faculty: any PGC manager (D50, to confirm).
 registry.register("faculty.edit", {Profile.PGC_MANAGER}, write=True)
 registry.register("academic_year.edit", {Profile.PGC_MANAGER}, write=True)
+# Only the PGC manager creates the DSD of an academic year, one for the whole University (D43).
+registry.register("dsd.create", {Profile.PGC_MANAGER}, write=True)
+# The manager and the coordinator read the DSDs; the coordinator reads everything (D69).
+registry.register("dsd.view", {Profile.PGC_MANAGER, Profile.COORDINATOR}, write=False)
 # Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
 registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
