@@ -17,6 +17,11 @@ urlpatterns = [
     path("<int:pk>/offerings/", views.OfferingListView.as_view(), name="offering_list"),
     path("offerings/<int:pk>/", views.OfferingDetailView.as_view(), name="offering_detail"),
     path(
+        "offerings/<int:pk>/groups/<int:link_pk>/<int:type_pk>/",
+        views.GroupCountView.as_view(),
+        name="offering_groups",
+    ),
+    path(
         "offerings/<int:pk>/lead-teacher/",
         views.OfferingLeadTeacherView.as_view(),
         name="offering_lead_teacher",

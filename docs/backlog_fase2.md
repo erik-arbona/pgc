@@ -35,9 +35,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T3.1 Unidade letiva = oferta × tipo de aula × público (turmas juntas ou um grupo); por defeito uma por turma; bloqueio otimista.
   - [x] T3.1a Modelos `TeachingUnit` e `TeachingUnitMember`; criação das unidades por defeito ao gerar as ofertas; obsoletas contadas (D89).
   - [x] T3.1b Página só de leitura de cada oferta com as suas unidades.
-- [ ] T3.2 Divisão em N grupos por tipo de aula (`SubGroup`). ~~⚑ Q6, Q7~~ (D90)
+- [x] T3.2 Divisão em N grupos por tipo de aula (`SubGroup`). ~~⚑ Q6, Q7~~ (D90)
   - [x] T3.2a Modelo `SubGroup`, público da unidade com turmas ou grupos, operação «definir o número de grupos», gerador e obsoletas.
-  - [ ] T3.2b Formulário e botões na página da oferta.
+  - [x] T3.2b Formulário e botões na página da oferta.
 - [ ] T3.3 Junção de turmas do mesmo curso por tipo de aula (D23).
 - [ ] T3.4 Junção entre cursos: só transversais, só cursos indicados, mesmo semestre (bloqueia); aviso de carga diferente (D22, D47, D48). ⚑ Q8
 - [ ] T3.5 Tipo e capacidade de sala pedidos por turma ou grupo; aviso se nenhuma sala serve (`room_summary`, bloco 8, D64). ⚑ Q9

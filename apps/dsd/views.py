@@ -13,7 +13,7 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView
 
-from apps.academic.models import Coordination
+from apps.academic.models import ClassType, Coordination
 from apps.academic.services import class_group_sizes
 from apps.core.generic import (
     ManagedCreateView,
@@ -24,16 +24,33 @@ from apps.core.generic import (
 )
 from apps.core.permissions import registry
 
-from .forms import DsdForm, GenerateOfferingsForm, LeadTeacherForm, StateChangeForm
-from .models import CoordinationSemester, Dsd, Offering, TeachingUnit
+from .forms import (
+    DsdForm,
+    GenerateOfferingsForm,
+    GroupCountForm,
+    LeadTeacherForm,
+    StateChangeForm,
+)
+from .lifecycle import cell_writable
+from .models import (
+    CoordinationSemester,
+    Dsd,
+    Offering,
+    OfferingClassGroup,
+    SubGroup,
+    TeachingUnit,
+)
 from .services import (
     GENERATE,
     LEAD_TEACHER,
+    TEACHING_UNIT_EDIT,
     change_state,
     create_dsd,
     generate_offerings,
+    set_group_count,
     set_lead_teacher,
     stale_unit_ids,
+    unit_versions,
 )
 
 
@@ -334,6 +351,12 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                 "members__subgroup__class_group_link__class_group",
             )
         )
+        can_edit = cell_writable(
+            self.request.user,
+            TEACHING_UNIT_EDIT,
+            offering.dsd_semester,
+            offering.subject.coordination_id,
+        )
         rows = []
         for unit in units:
             members = list(unit.members.all())
@@ -355,6 +378,7 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                     "provisional": any(size.provisional for size in counted),
                     "stale": unit.pk in stale,
                     "has_groups": has_groups,
+                    "action": self._action(offering, members, can_edit),
                 }
             )
         context.update(
@@ -365,3 +389,121 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             }
         )
         return context
+
+    @staticmethod
+    def _action(offering, members, can_edit):
+        """Return the button of a unit row, or ``None``.
+
+        A whole turma that is alone in its unit can be divided; the first group of a divided turma
+        carries the button to change the number of groups. Merged units have none (T3.3).
+        """
+        if not can_edit or len(members) != 1:
+            return None
+        member = members[0]
+        if member.subgroup_id:
+            if member.subgroup.number != 1:
+                return None
+            link, label = member.subgroup.class_group_link, _("Alterar n.º de grupos")
+        else:
+            link, label = member.class_group_link, _("Dividir em grupos")
+        url = reverse("dsd:offering_groups", args=[offering.pk, link.pk, member.class_type_id])
+        return {"url": url, "label": label}
+
+
+class GroupCountView(PageMixin, LoginRequiredMixin, FormView):
+    """Divide a turma of an offering into groups for a class type, or change the number (D90).
+
+    The coordinator of the coordination and the manager of its Faculty, with the cell rules of
+    D86 enforced by ``set_group_count``. The turma size shown is a guide only (Q6).
+    """
+
+    form_class = GroupCountForm
+    template_name = "dsd/group_count_form.html"
+    title = _("Dividir em grupos")
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who cover no coordination, then those who do not cover this one."""
+        if request.user.is_authenticated:
+            if not registry.coordination_ids(request.user, TEACHING_UNIT_EDIT):
+                raise PermissionDenied
+            registry.require_on_coordination(
+                request.user, TEACHING_UNIT_EDIT, self.offering.subject.coordination_id
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    @cached_property
+    def offering(self) -> Offering:
+        """The offering of the URL, read after the first permission check."""
+        return get_object_or_404(
+            Offering.objects.select_related(
+                "subject", "dsd_semester__dsd__academic_year", "subject__study_plan"
+            ),
+            pk=self.kwargs["pk"],
+        )
+
+    @cached_property
+    def link(self) -> OfferingClassGroup:
+        """The turma of the offering; it must belong to the offering in the URL."""
+        return get_object_or_404(
+            OfferingClassGroup.objects.select_related("class_group"),
+            pk=self.kwargs["link_pk"],
+            offering=self.offering,
+        )
+
+    @cached_property
+    def class_type(self) -> ClassType:
+        """The class type of the URL."""
+        return get_object_or_404(ClassType, pk=self.kwargs["type_pk"])
+
+    @cached_property
+    def current(self) -> int:
+        """The number of groups now: 1 for the whole turma."""
+        return (
+            SubGroup.objects.filter(class_group_link=self.link, class_type=self.class_type).count()
+            or 1
+        )
+
+    def get_form_kwargs(self):
+        """Require the reason when the turma is already divided; start from what is stored."""
+        kwargs = super().get_form_kwargs()
+        kwargs["changing"] = self.current > 1
+        if "data" not in kwargs:
+            seen = ",".join(
+                f"{pk}:{version}"
+                for pk, version in sorted(unit_versions(self.link, self.class_type).items())
+            )
+            kwargs["initial"] = {"groups": self.current, "seen": seen}
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Add the turma, the class type and its size (a guide only), and the way back."""
+        context = super().get_context_data(**kwargs)
+        sizes = class_group_sizes(self.offering.dsd_semester.dsd.academic_year)
+        context.update(
+            {
+                "offering": self.offering,
+                "link": self.link,
+                "class_type": self.class_type,
+                "size": sizes.get(self.link.class_group_id),
+                "cancel_url": reverse("dsd:offering_detail", args=[self.offering.pk]),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        """Apply the new number of groups, or show the error on the form."""
+        data = form.cleaned_data
+        try:
+            set_group_count(
+                self.request.user,
+                self.link,
+                self.class_type,
+                data["groups"],
+                data["reason"],
+                data["seen"] or None,
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Grupos guardados."))
+        return redirect("dsd:offering_detail", pk=self.offering.pk)
