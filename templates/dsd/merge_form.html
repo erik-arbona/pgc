@@ -14,6 +14,13 @@
   {% else %}
     <p>{% translate "Alunos no total" %}: {{ students }}.</p>
   {% endif %}
+  {% if load_differences %}
+    <p class="warning">
+      {% translate "A carga semanal deste tipo de aula é diferente entre as disciplinas:" %}
+      {% for code, hours in load_differences.items %}{{ code }}: {{ hours }} h{% if not forloop.last %}; {% endif %}{% endfor %}.
+      {% translate "As horas contam pela disciplina da unidade que fica." %}
+    </p>
+  {% endif %}
   {% if can_see_rooms and rooms is not None %}
     <h2>{% translate "Salas disponíveis" %}</h2>
     {% if rooms %}

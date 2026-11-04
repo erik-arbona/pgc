@@ -312,8 +312,8 @@ def test_a_unit_of_another_offering_in_the_request_is_not_found(client, world):
     assert client.get(url).status_code == 404
 
 
-def test_a_unit_of_another_offering_is_not_found(client, world):
-    """A real unit, but of another subject: this offering's page does not merge it."""
+def test_a_unit_of_another_offering_opens_but_is_refused_when_not_transversal(client, world):
+    """T3.4: units of other offerings can be put together, but only transversal subjects merge."""
     open_cell(world)
     other = Subject.objects.create(
         study_plan=world["offering"].subject.study_plan,
@@ -329,7 +329,11 @@ def test_a_unit_of_another_offering_is_not_found(client, world):
     generate_offerings(world["manager"], [world["semester"]])
     foreign = TeachingUnit.objects.filter(offering__subject=other).first()
     client.force_login(world["coordinator"])
-    assert client.get(merge_url(world, unit_of(world, "A"), foreign)).status_code == 404
+    units = [unit_of(world, "A"), foreign]
+    assert client.get(merge_url(world, *units)).status_code == 200
+    response = merge_post(client, world, units)
+    assert response.status_code == 200 and "transversais" in response.content.decode()
+    assert TeachingUnit.objects.get(pk=units[0].pk).members.count() == 1
 
 
 @pytest.mark.parametrize("who", ["other_coordinator", "teacher"])
