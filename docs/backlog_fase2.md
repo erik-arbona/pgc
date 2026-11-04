@@ -7,7 +7,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 **Fora desta fase (fase 3):** propostas de concurso e convite (bloco 5), fecho com versões, alteração depois do fecho, comparação e cópia do ano anterior (bloco 7), calendário do DSD, notificações e exportação para o SII (bloco 9). Do bloco 7 entra já só a abertura e o fecho do semestre (T2.2), porque sem isso o D43 não funciona.
 
 ## 0. Preparação (ajustes à fase 1)
-- [ ] T0.1 Corrigir o glossário e o bloco 7 de `03` ao D43 (fecha o gestor da PGC, não o CE); acrescentar ao glossário «unidade letiva» (`TeachingUnit`).
+- [x] T0.1 Corrigir o glossário e o bloco 7 de `03` ao D43 (fecha o gestor da PGC, não o CE); acrescentar ao glossário «unidade letiva» (`TeachingUnit`).
 - [ ] T0.2 Ligação curso → coordenação responsável, da mesma Faculdade (D10, D44). ⚑ Q2
 - [ ] T0.3 Referência opaca do SII em curso e disciplina, editável pelo gestor (D66).
 - [ ] T0.4 Verificação de âmbito por coordenação reutilizável: coordenador (própria), CE e gestor (Faculdade da coordenação), docente (o próprio) (D39, D51, D09).
@@ -21,7 +21,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [ ] T1.5 Dimensão de cada turma, consultável pelo coordenador (`02`).
 
 ## 2. DSD e ofertas (D43, `04`)
-- [ ] T2.1 DSD por ano letivo com os dois semestres, criado só pelo gestor; o coordenador não cria nem elimina (D43). ⚑ Q5
+- [ ] T2.1 DSD por ano letivo com os dois semestres, criado só pelo gestor; o coordenador não cria nem elimina (D43). Um só DSD por ano letivo, garantido na BD: se outro gestor tentar criar um segundo, é recusado com mensagem clara, mesmo em simultâneo.
 - [ ] T2.2 Abertura, fecho e reabertura por semestre e coordenação, para uma ou todas; estado imposto em todas as escritas (D43).
 - [ ] T2.3 Geração das ofertas do semestre a partir das turmas ativas e do plano de cada turma (D48, D49), com regente (`Offering.lead_teacher`).
 
@@ -87,7 +87,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - **Q2** (T0.2): preciso do vínculo curso → coordenação nesta fase? *Defeito:* sim.
 - **Q3** (T1.1, T1.5): as matrículas vêm por curso e ano curricular; como se sabe a dimensão de cada turma A/B? *Defeito:* os Serviços Académicos repartem à mão.
 - **Q4** (T1.2, T1.4): que dados dá o SII, por que meio e quando (D66, em aberto). *Defeito:* só CSV.
-- **Q5** (T2.1): um DSD por ano letivo para toda a Universidade ou um por Faculdade? *Defeito:* um por ano, aberto e fechado por coordenação.
+- ~~**Q5** (T2.1): um DSD por ano letivo para toda a Universidade ou um por Faculdade?~~ Resolvida: um por ano letivo, criado pelo gestor, aberto e fechado por coordenação (D43).
 - **Q6** (T3.2): mínimo e máximo de alunos por tipo de aula (questão em aberto 2). *Defeito:* sem regra; só se mostra a dimensão.
 - **Q7** (T3.2): um grupo pode misturar alunos de turmas juntas? *Defeito:* não, os grupos são por turma.
 - **Q8** (T3.4): numa junção entre cursos com horas diferentes ou coordenações diferentes, que horas contam e quem atribui? *Defeito:* bloquear junção entre coordenações.

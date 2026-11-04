@@ -6,7 +6,7 @@
 
 Propõe-se construir a **Plataforma de Gestão das Coordenações (PGC)**: uma aplicação web única, com base de dados central, onde as coordenações (grupos disciplinares) de toda a Universidade fazem, sobre os mesmos dados, o trabalho que hoje fazem em ficheiros soltos. A PGC entra em funcionamento com dois módulos:
 
-- **DSD (Distribuição de Serviço Docente):** cada coordenação atribui docentes às disciplinas da sua área; o sistema calcula a carga de cada docente, valida-a face ao seu intervalo de horas e acompanha as propostas de concurso até ao fecho pelo Conselho Executivo.
+- **DSD (Distribuição de Serviço Docente):** cada coordenação atribui docentes às disciplinas da sua área; o sistema calcula a carga de cada docente, valida-a face ao seu intervalo de horas e acompanha as propostas de concurso até ao fecho pelo gestor da PGC (D43).
 - **Calendário de exames:** as coordenações marcam, num calendário único e partilhado, os exames de 1.ª chamada, 2.ª chamada e recurso, sem conflitos de turma, sala ou júri.
 
 Hoje os dois processos fazem-se em ficheiros Excel e Word, um por coordenação. Os ficheiros multiplicam-se em cópias, os nomes e os totais deixam de coincidir, os pedidos e as confirmações entre coordenações fazem-se fora dos ficheiros, e uma alteração numa turma obriga a refazer trabalho em vários sítios.
@@ -56,7 +56,7 @@ Os dois processos têm problemas comuns a todas as coordenações:
 - Permitir a cada coordenação atribuir docentes às disciplinas da sua área, em todos os cursos, por tipo de aula, juntando ou dividindo turmas.
 - Calcular automaticamente a carga letiva anual de cada docente e o seu estado face ao intervalo de horas letivas que lhe corresponde.
 - Gerir as propostas de disciplinas a concurso, sempre justificadas, que o Conselho Executivo da Faculdade aprova ou recusa, com aviso por correio eletrónico, e registar o docente que daí resulta.
-- Detetar disciplinas sem docente, cargas fora do intervalo e dados inconsistentes antes de o Conselho Executivo fechar o DSD de cada coordenação.
+- Detetar disciplinas sem docente, cargas fora do intervalo e dados inconsistentes antes de o gestor da PGC fechar o semestre de cada coordenação (D43).
 - Dar a quem faz os horários a informação de que precisa e produzir os mapas e relatórios que hoje se fazem à mão, com exportação para Excel e PDF.
 
 **Objetivos específicos – módulo calendário de exames:**
@@ -79,7 +79,7 @@ O projeto constrói a PGC, com o núcleo partilhado e os módulos DSD e calendá
 - Turmas e grupos, com junção de turmas nas disciplinas transversais e divisão em grupos.
 - Atribuição de docentes a disciplinas, turmas e tipos de aula, um docente por tipo de aula e, quando necessário, com partilha, e outras atividades da componente não letiva.
 - Propostas justificadas de disciplinas a concurso, decisão do Conselho Executivo e registo do docente contratado ou selecionado.
-- Calendário do DSD (abertura, prazos e fecho), cálculo de cargas e validações, relatórios, fecho pelo Conselho Executivo, alterações posteriores ao fecho e cópia a partir de um ano anterior.
+- Calendário do DSD (abertura, prazos e fecho), cálculo de cargas e validações, relatórios, fecho pelo gestor da PGC (D43), alterações posteriores ao fecho e cópia a partir de um ano anterior.
 - Consulta para quem faz os horários e, para cada docente, da sua própria distribuição.
 
 **Incluído – módulo calendário de exames**
