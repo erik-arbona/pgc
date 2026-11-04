@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ teacher.name }}</h1>
+  <p>{{ dsd }} · {{ teacher.coordination }}</p>
+  <p>{% translate "Horas letivas por ano" %}: {{ load.assessment.weekly_hours }} h ({{ status }}). {% translate "Só as horas letivas contam para o intervalo; a preparação e as outras atividades somam-se ao total geral." %}</p>
+  <p><strong>{% translate "Total geral" %}: {{ load.general_total }} h</strong></p>
+  {% for block in blocks %}
+    <h2>{% blocktranslate with number=block.semester.number %}Semestre {{ number }}{% endblocktranslate %}</h2>
+    <p>{% translate "Horas letivas" %}: {{ block.teaching }} h · {% translate "Preparação" %}: {{ block.preparation }} h · {% translate "Outras atividades" %}: {{ block.other }} h</p>
+    {% if block.activities %}
+      <table>
+        <thead>
+          <tr>
+            <th>{% translate "Tipo" %}</th>
+            <th>{% translate "Descrição" %}</th>
+            <th>{% translate "Horas semanais" %}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for activity in block.activities %}
+            <tr>
+              <td>{{ activity.get_kind_display }}</td>
+              <td>{{ activity.description }}</td>
+              <td>{{ activity.weekly_hours }}</td>
+              <td>
+                {% if activity.can_edit %}
+                  <a href="{% url 'dsd:activity_edit' activity.pk %}">{% translate "Alterar" %}</a>
+                  <a href="{% url 'dsd:activity_remove' activity.pk %}">{% translate "Remover" %}</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>{% translate "Sem outras atividades." %}</p>
+    {% endif %}
+    {% if block.can_edit %}
+      <p><a href="{% url 'dsd:activity_add' dsd.pk teacher.pk block.semester.number %}">{% translate "Adicionar atividade" %}</a></p>
+    {% endif %}
+  {% endfor %}
+{% endblock %}

@@ -37,6 +37,7 @@ from .models import (
     DsdSemester,
     Offering,
     OfferingClassGroup,
+    OtherActivity,
     SubGroup,
     TeachingUnit,
     TeachingUnitMember,
@@ -1206,3 +1207,155 @@ def unassign_teacher(
             missing.
     """
     return _set_teacher(actor, unit, None, reason, seen_version)
+
+
+def _locked_activity(activity: OtherActivity, seen_version: int | None) -> OtherActivity:
+    """Lock an activity and check that the user saw its current version (D54).
+
+    Raises:
+        ValidationError: if the activity is gone or someone saved it after the user loaded it.
+    """
+    try:
+        locked = OtherActivity.objects.select_for_update().get(pk=activity.pk)
+    except OtherActivity.DoesNotExist:
+        raise _stale_message() from None
+    if seen_version is not None and locked.version != seen_version:
+        raise _stale_message()
+    return locked
+
+
+def _check_activity_values(description: str, weekly_hours: Decimal | None) -> str:
+    """Validate the description and the hours of an activity; return the clean description."""
+    errors = {}
+    description = description.strip()
+    if not description:
+        errors["description"] = _("A descrição é obrigatória.")
+    if weekly_hours is None or weekly_hours <= 0:
+        errors["weekly_hours"] = _("As horas têm de ser maiores que zero.")
+    if errors:
+        raise ValidationError(errors)
+    return description
+
+
+def add_activity(
+    actor,
+    teacher: Teacher,
+    dsd_semester: DsdSemester,
+    kind: str,
+    description: str,
+    weekly_hours: Decimal,
+) -> OtherActivity:
+    """Enter an activity of the non-teaching component of a teacher (T5.3, D15, D95).
+
+    The coordinator enters it case by case. The teacher must be active; the write goes through
+    ``dsd_write`` for the coordination of the teacher with the action ``dsd.assignment.edit``
+    (D69, D86). The hours do not count towards the annual range (D95).
+
+    Args:
+        actor: the user acting.
+        teacher: the teacher.
+        dsd_semester: the semester of the DSD.
+        kind: one of ``OtherActivity.Kind``.
+        description: what the activity is.
+        weekly_hours: the weekly hours, greater than zero.
+
+    Returns:
+        The saved activity.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination of the teacher.
+        ValidationError: if the cell is not writable, the teacher is inactive, the kind is not
+            valid, or the description or the hours are not valid.
+    """
+    with dsd_write(actor, ASSIGNMENT_EDIT, dsd_semester, teacher.coordination_id):
+        # The caller's copy may be old: read the teacher again under a lock, so that a teacher who
+        # moved or was deactivated meanwhile cannot get an activity in the cell of the old
+        # coordination (the cell above was chosen from the copy).
+        try:
+            current = Teacher.objects.select_for_update().get(pk=teacher.pk)
+        except Teacher.DoesNotExist:
+            raise _stale_message() from None
+        if current.coordination_id != teacher.coordination_id:
+            raise _stale_message()
+        if not current.is_active:
+            raise ValidationError(_("O docente tem de estar ativo."))
+        if kind not in OtherActivity.Kind.values:
+            raise ValidationError({"kind": _("Tipo de atividade inválido.")})
+        description = _check_activity_values(description, weekly_hours)
+        activity = OtherActivity(
+            dsd_semester=dsd_semester,
+            teacher=current,
+            coordination_id=current.coordination_id,
+            kind=kind,
+            description=description,
+            weekly_hours=weekly_hours,
+        )
+        audited_save(activity, actor, _("Nova atividade"))
+    return activity
+
+
+def edit_activity(
+    actor,
+    activity: OtherActivity,
+    kind: str,
+    description: str,
+    weekly_hours: Decimal,
+    reason: str,
+    seen_version: int | None = None,
+) -> OtherActivity:
+    """Change the type, the description or the hours of an activity (T5.3, D40, D54).
+
+    The cell is that of the activity (its stored coordination), so a teacher who changed
+    coordination keeps the activities where they were entered.
+
+    Args:
+        actor: the user acting.
+        activity: the activity.
+        kind: one of ``OtherActivity.Kind``.
+        description: what the activity is.
+        weekly_hours: the weekly hours, greater than zero.
+        reason: why; required.
+        seen_version: the version the user saw.
+
+    Returns:
+        The activity as saved.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination of the activity.
+        ValidationError: if the cell is not writable, the version is stale, the reason is
+            missing or a value is not valid.
+    """
+    with dsd_write(actor, ASSIGNMENT_EDIT, activity.dsd_semester, activity.coordination_id):
+        locked = _locked_activity(activity, seen_version)
+        if not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        if kind not in OtherActivity.Kind.values:
+            raise ValidationError({"kind": _("Tipo de atividade inválido.")})
+        locked.kind = kind
+        locked.description = _check_activity_values(description, weekly_hours)
+        locked.weekly_hours = weekly_hours
+        audited_save(locked, actor, reason.strip())
+    return locked
+
+
+def remove_activity(
+    actor, activity: OtherActivity, reason: str, seen_version: int | None = None
+) -> None:
+    """Remove an activity, with a reason, leaving the deletion in the audit (T5.3, D40).
+
+    Args:
+        actor: the user acting.
+        activity: the activity.
+        reason: why; required.
+        seen_version: the version the user saw.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination of the activity.
+        ValidationError: if the cell is not writable, the version is stale or the reason is
+            missing.
+    """
+    with dsd_write(actor, ASSIGNMENT_EDIT, activity.dsd_semester, activity.coordination_id):
+        locked = _locked_activity(activity, seen_version)
+        if not reason.strip():
+            raise ValidationError({"reason": _("O motivo é obrigatório.")})
+        audited_delete(locked, actor, reason.strip())

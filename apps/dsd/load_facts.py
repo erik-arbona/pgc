@@ -27,7 +27,8 @@ from apps.staff.services import load_ranges_for
 
 from .annual_load import AnnualLoad, AnnualTeachingHours, annual_teaching_hours
 from .load_status import LoadAssessment, LoadStatus, assess_load
-from .models import Dsd, DsdSemester, TeachingUnit
+from .models import Dsd, DsdSemester, OtherActivity, TeachingUnit
+from .other_activities import ActivityFact, general_total, other_hours_by_teacher
 from .preparation import preparation_by_teacher
 from .teaching_hours import (
     AssignmentFact,
@@ -46,10 +47,15 @@ class TeacherLoad:
     Attributes:
         assessment: annual hours, range, state and extra hours (D72-D74).
         preparation: weekly preparation hours in the first and in the second semester (D71).
+        other_hours: weekly hours of the other activities in each semester (T5.3, D95).
+        general_total: teaching + preparation + other activities; only the teaching hours are
+            compared with the range (D95).
     """
 
     assessment: LoadAssessment
     preparation: tuple[Decimal, Decimal]
+    other_hours: tuple[Decimal, Decimal]
+    general_total: Decimal
 
 
 def unit_facts(
@@ -146,6 +152,12 @@ def teacher_loads(
         results.append(result)
         preparation.append(preparation_by_teacher(result, weights))
     annual = {hours.teacher_id: hours for hours in annual_teaching_hours(*results)}
+    other = other_hours_by_teacher(
+        ActivityFact(teacher_id, number, hours)
+        for teacher_id, number, hours in OtherActivity.objects.filter(
+            dsd_semester__dsd=dsd, teacher_id__in=ids
+        ).values_list("teacher_id", "dsd_semester__number", "weekly_hours")
+    )
     ranges = load_ranges_for(people, as_of)
     loads: dict[int, TeacherLoad] = {}
     for teacher in people:
@@ -159,12 +171,13 @@ def teacher_loads(
                 as_of=as_of,
             )
         )
+        prep = (preparation[0].get(teacher.pk, ZERO), preparation[1].get(teacher.pk, ZERO))
+        other_hours = other.get(teacher.pk, (ZERO, ZERO))
         loads[teacher.pk] = TeacherLoad(
             assessment=assessment,
-            preparation=(
-                preparation[0].get(teacher.pk, ZERO),
-                preparation[1].get(teacher.pk, ZERO),
-            ),
+            preparation=prep,
+            other_hours=other_hours,
+            general_total=general_total(assessment.weekly_hours, prep, other_hours),
         )
     return loads
 

@@ -38,6 +38,18 @@ urlpatterns = [
         name="unit_teacher",
     ),
     path(
+        "<int:pk>/teachers/<int:teacher_pk>/",
+        views.TeacherSheetView.as_view(),
+        name="teacher_sheet",
+    ),
+    path(
+        "<int:pk>/teachers/<int:teacher_pk>/activities/new/<int:number>/",
+        views.ActivityAddView.as_view(),
+        name="activity_add",
+    ),
+    path("activities/<int:pk>/edit/", views.ActivityEditView.as_view(), name="activity_edit"),
+    path("activities/<int:pk>/remove/", views.ActivityRemoveView.as_view(), name="activity_remove"),
+    path(
         "offerings/<int:pk>/lead-teacher/",
         views.OfferingLeadTeacherView.as_view(),
         name="offering_lead_teacher",

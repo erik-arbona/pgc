@@ -463,3 +463,82 @@ class TeachingUnitMember(GuardedDsdWrites, models.Model):
 
     def __str__(self) -> str:
         return f"{self.unit} – {self.subgroup or self.class_group_link.class_group}"
+
+
+class OtherActivity(GuardedDsdWrites, VersionedModel):
+    """An activity of the non-teaching component of a teacher in a semester (T5.3, D15, D95).
+
+    The coordinator enters, case by case, the type (teaching complements, research, management
+    and services), a description and the weekly hours. The hours add to the general total of the
+    teacher and never count towards the annual range, which validates the teaching hours only.
+    The coordination is that of the teacher when the activity was entered and defines the cell
+    (semester x coordination) whose state decides who may write it (D86).
+    """
+
+    class Kind(models.TextChoices):
+        """The three kinds of non-teaching activity of the DSD."""
+
+        TEACHING_COMPLEMENTS = "teaching_complements", _("Complementos de ensino")
+        RESEARCH = "research", _("Investigação")
+        MANAGEMENT = "management", _("Gestão e serviços")
+
+    dsd_semester = models.ForeignKey(
+        DsdSemester,
+        on_delete=models.PROTECT,  # a semester with activities cannot be removed
+        related_name="other_activities",
+        verbose_name=_("semestre do DSD"),
+        help_text=_("Semester of the DSD the activity is carried out in."),
+    )
+    teacher = models.ForeignKey(
+        Teacher,
+        on_delete=models.PROTECT,  # a teacher with activities cannot be deleted (T0.5)
+        related_name="other_activities",
+        verbose_name=_("docente"),
+        help_text=_("The teacher who carries out the activity."),
+    )
+    coordination = models.ForeignKey(
+        Coordination,
+        on_delete=models.PROTECT,  # a coordination that wrote data cannot be removed
+        related_name="other_activities",
+        verbose_name=_("coordenação"),
+        help_text=_("Coordination of the teacher when the activity was entered; it owns the cell."),
+    )
+    kind = models.CharField(
+        _("tipo"),
+        max_length=30,
+        choices=Kind.choices,
+        help_text=_("Teaching complements, research, or management and services."),
+    )
+    description = models.CharField(
+        _("descrição"),
+        max_length=300,
+        help_text=_("What the activity is (for example the research project or the body)."),
+    )
+    weekly_hours = models.DecimalField(
+        _("horas semanais"),
+        max_digits=5,
+        decimal_places=2,
+        help_text=_("Weekly hours of the activity in the semester, like the teaching hours."),
+    )
+
+    class Meta:
+        verbose_name = _("outra atividade")
+        verbose_name_plural = _("outras atividades")
+        ordering = ["dsd_semester", "teacher", "kind", "pk"]
+        constraints = [
+            # An activity with no hours would count for nothing.
+            models.CheckConstraint(
+                condition=models.Q(weekly_hours__gt=0), name="other_activity_hours_positive"
+            ),
+        ]
+        indexes = [
+            # The load of a semester reads every activity of the semester at once.
+            models.Index(fields=["dsd_semester", "teacher"], name="other_activity_sem_teacher"),
+        ]
+
+    def dsd_cell(self) -> tuple[int, int]:
+        """Return the cell: the semester and the coordination stored with the activity."""
+        return (self.dsd_semester_id, self.coordination_id)
+
+    def __str__(self) -> str:
+        return f"{self.teacher} – {self.get_kind_display()}: {self.description}"

@@ -3,6 +3,8 @@
 Implements: docs/backlog_fase2.md T2.1 to T2.3.
 """
 
+from decimal import Decimal
+
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
@@ -12,7 +14,7 @@ from apps.rooms.models import RoomType
 from apps.staff.models import Teacher
 
 from .lifecycle_rules import ACTION_CLOSE, ACTION_OPEN, ACTION_REOPEN, ACTIONS, needs_reason
-from .models import Dsd, Offering
+from .models import Dsd, Offering, OtherActivity
 
 
 def parse_seen(text: str) -> dict[int, int]:
@@ -308,3 +310,38 @@ class TeacherAssignForm(ReasonFieldsMixin, forms.Form):
         """Require the reason when the unit already has a teacher."""
         self.reason_required = self._changing
         return super().clean()
+
+
+class ActivityForm(forms.Form):
+    """Type, description and weekly hours of an activity of the non-teaching component (T5.3).
+
+    The semester and the teacher come from the page, not from the form (D15, D95).
+    """
+
+    kind = forms.ChoiceField(label=_("Tipo"), choices=OtherActivity.Kind.choices)
+    description = forms.CharField(label=_("Descrição"), max_length=300)
+    weekly_hours = forms.DecimalField(
+        label=_("Horas semanais"), min_value=Decimal("0.01"), max_digits=5, decimal_places=2
+    )
+
+
+class ActivityEditForm(ReasonFieldsMixin, ActivityForm):
+    """Change an activity: the same fields, the version the user saw and a required reason."""
+
+    seen = forms.IntegerField(widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._setup_reason(required=True)
+
+
+class ActivityRemoveForm(ReasonFieldsMixin, forms.Form):
+    """Remove an activity: the version the user saw and a required reason (D40, D54)."""
+
+    seen = forms.IntegerField(widget=forms.HiddenInput)
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._setup_reason(required=True)
