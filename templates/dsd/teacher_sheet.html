@@ -26,7 +26,7 @@
               <td>{{ activity.description }}</td>
               <td>{{ activity.weekly_hours }}</td>
               <td>
-                {% if block.can_edit %}
+                {% if activity.can_edit %}
                   <a href="{% url 'dsd:activity_edit' activity.pk %}">{% translate "Alterar" %}</a>
                   <a href="{% url 'dsd:activity_remove' activity.pk %}">{% translate "Remover" %}</a>
                 {% endif %}

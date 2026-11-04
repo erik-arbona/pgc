@@ -160,3 +160,21 @@ def test_the_buttons_show_only_when_the_cell_is_writable(world, client):
 def test_the_sheet_requires_a_session(world, client):
     """Anonymous users go to the login."""
     assert client.get(sheet_url(world)).status_code == 302
+
+
+def test_after_a_transfer_the_buttons_follow_the_cell_of_each_activity(world, client):
+    """The activity stays in the coordination where it was entered (review T5.3).
+
+    The coordinator who owns the activity sees its change and remove links; the new coordinator
+    of the teacher does not, because the screens would refuse them.
+    """
+    open_cell(world)
+    change_state(world["manager"], "open", [world["semester"]], [world["foreign"].coordination])
+    make(world)
+    type(world["mine"]).objects.filter(pk=world["mine"].pk).update(
+        coordination=world["foreign"].coordination
+    )
+    client.force_login(world["coordinator"])
+    assert "/edit/" in client.get(sheet_url(world)).content.decode()
+    client.force_login(world["other_coordinator"])
+    assert "/edit/" not in client.get(sheet_url(world)).content.decode()

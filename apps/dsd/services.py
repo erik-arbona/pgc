@@ -1268,15 +1268,24 @@ def add_activity(
             valid, or the description or the hours are not valid.
     """
     with dsd_write(actor, ASSIGNMENT_EDIT, dsd_semester, teacher.coordination_id):
-        if not teacher.is_active:
+        # The caller's copy may be old: read the teacher again under a lock, so that a teacher who
+        # moved or was deactivated meanwhile cannot get an activity in the cell of the old
+        # coordination (the cell above was chosen from the copy).
+        try:
+            current = Teacher.objects.select_for_update().get(pk=teacher.pk)
+        except Teacher.DoesNotExist:
+            raise _stale_message() from None
+        if current.coordination_id != teacher.coordination_id:
+            raise _stale_message()
+        if not current.is_active:
             raise ValidationError(_("O docente tem de estar ativo."))
         if kind not in OtherActivity.Kind.values:
             raise ValidationError({"kind": _("Tipo de atividade inválido.")})
         description = _check_activity_values(description, weekly_hours)
         activity = OtherActivity(
             dsd_semester=dsd_semester,
-            teacher=teacher,
-            coordination_id=teacher.coordination_id,
+            teacher=current,
+            coordination_id=current.coordination_id,
             kind=kind,
             description=description,
             weekly_hours=weekly_hours,

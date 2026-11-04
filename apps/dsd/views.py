@@ -1024,6 +1024,19 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
             Teacher.objects.select_related("coordination"), pk=self.kwargs["teacher_pk"]
         )
 
+    def _activities_of(self, semester, activities) -> list[OtherActivity]:
+        """The activities of a semester, each marked with whether the user may change it.
+
+        The cell of an activity is the coordination stored with it, which can differ from the
+        teacher's current one after a transfer; the change and remove screens use that cell.
+        """
+        mine = [a for a in activities if a.dsd_semester_id == semester.pk]
+        for activity in mine:
+            activity.can_edit = cell_writable(
+                self.request.user, ASSIGNMENT_EDIT, semester, activity.coordination_id
+            )
+        return mine
+
     def get_context_data(self, **kwargs):
         """Build the load and one block per semester with its activities."""
         context = super().get_context_data(**kwargs)
@@ -1039,7 +1052,7 @@ class TeacherSheetView(ManagedViewMixin, TemplateView):
                     "teaching": load.assessment.semester_weekly_hours[index],
                     "preparation": load.preparation[index],
                     "other": load.other_hours[index],
-                    "activities": [a for a in activities if a.dsd_semester_id == semester.pk],
+                    "activities": self._activities_of(semester, activities),
                     "can_edit": cell_writable(
                         self.request.user, ASSIGNMENT_EDIT, semester, self.teacher.coordination_id
                     ),

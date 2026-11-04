@@ -246,3 +246,18 @@ def test_a_teacher_with_activities_cannot_be_deleted(world):
     add(world)
     with pytest.raises(ProtectedError):
         world["mine"].delete()
+
+
+def test_a_stale_teacher_object_cannot_put_an_activity_in_the_old_cell(world):
+    """The teacher moved or was deactivated after the caller loaded them: refused (review T5.3)."""
+    open_cell(world)
+    stale = world["mine"]
+    type(stale).objects.filter(pk=stale.pk).update(coordination=world["foreign"].coordination)
+    with pytest.raises(ValidationError):
+        add(world, teacher=stale)
+    type(stale).objects.filter(pk=stale.pk).update(
+        coordination=world["coordination"], is_active=False
+    )
+    with pytest.raises(ValidationError):
+        add(world, teacher=stale)
+    assert OtherActivity.objects.count() == 0
