@@ -17,6 +17,7 @@ from apps.academic.models import (
     Subject,
 )
 from apps.core.models import VersionedModel
+from apps.rooms.models import RoomType
 from apps.staff.models import Teacher
 
 from .guard import GuardedDsdWrites
@@ -265,11 +266,33 @@ class TeachingUnit(GuardedDsdWrites, VersionedModel):
         verbose_name=_("tipo de aula"),
         help_text=_("Type of class taught in this unit."),
     )
+    room_type = models.ForeignKey(
+        RoomType,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # a room type in use cannot be removed
+        related_name="requesting_units",
+        verbose_name=_("tipo de sala pedido"),
+        help_text=_("Type of room the coordinator asks for; empty means any (D91)."),
+    )
+    room_capacity = models.PositiveSmallIntegerField(
+        _("capacidade de sala pedida"),
+        null=True,
+        blank=True,
+        help_text=_("Places of the room the coordinator asks for. It is a request, not a booking."),
+    )
 
     class Meta:
         verbose_name = _("unidade letiva")
         verbose_name_plural = _("unidades letivas")
         ordering = ["offering", "class_type__position", "pk"]
+        constraints = [
+            # A room request has a positive number of places, or none.
+            models.CheckConstraint(
+                condition=models.Q(room_capacity__isnull=True) | models.Q(room_capacity__gt=0),
+                name="unit_room_capacity_positive",
+            ),
+        ]
 
     def dsd_cell(self) -> tuple[int, int]:
         """Return the cell of the offering the unit belongs to."""

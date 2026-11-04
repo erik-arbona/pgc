@@ -1,6 +1,6 @@
 """Use cases of the DSD: create it, change its states and generate the offerings (T2.1-T2.3).
 
-Implements: docs/backlog_fase2.md T2.1 to T3.1; D43 (one DSD per academic year, created
+Implements: docs/backlog_fase2.md T2.1 to T3.3; D43 (one DSD per academic year, created
 by the manager, who also opens, closes and reopens the semesters by coordination), D87.
 """
 
@@ -14,9 +14,11 @@ from django.db import IntegrityError, transaction
 from django.utils.translation import gettext as _
 
 from apps.academic.models import AcademicYear, ClassGroup, Coordination, Subject
-from apps.academic.services import subjects_for
+from apps.academic.services import class_group_sizes, subjects_for
 from apps.core.audit import audited_delete, audited_save
 from apps.core.permissions import registry
+from apps.rooms.models import RoomType
+from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
 from .lifecycle import CellNotWritable, dsd_write
@@ -31,6 +33,7 @@ from .models import (
     TeachingUnit,
     TeachingUnitMember,
 )
+from .sizes import group_students
 
 SEMESTER_NUMBERS = (1, 2)
 GENERATE = "dsd.offering.generate"
@@ -567,3 +570,205 @@ def set_group_count(
             group = SubGroup(class_group_link=link, class_type=class_type, number=number)
             audited_save(group, actor, why)
             _new_unit(actor, offering, class_type, why, subgroup=group)
+
+
+def _stale_message() -> ValidationError:
+    """The error for a change made on top of an older copy of the units (D54)."""
+    return ValidationError(_("Este registo foi alterado por outra pessoa. Recarregue a página."))
+
+
+def merged_students(members: list[TeachingUnitMember]) -> int:
+    """Return the students of what a set of members puts together (D90, T3.3).
+
+    A whole turma counts as its size (D81); a group counts as the turma size divided by the
+    number of groups of that turma and class type, rounded up.
+
+    Args:
+        members: the audience rows.
+
+    Returns:
+        The sum.
+
+    Raises:
+        ValidationError: if a turma has no enrollment number, so the sum cannot be known.
+    """
+    academic_year = members[0].unit.offering.dsd_semester.dsd.academic_year
+    sizes = class_group_sizes(academic_year)
+    total = 0
+    for member in members:
+        link = member.turma_link
+        size = sizes.get(link.class_group_id)
+        if size is None:
+            raise ValidationError(
+                _("Falta a matrícula da turma %(turma)s: sem ela não se sabe a dimensão.")
+                % {"turma": link.class_group}
+            )
+        if member.subgroup_id:
+            groups = SubGroup.objects.filter(
+                class_group_link=link, class_type_id=member.class_type_id
+            ).count()
+            total += group_students(size.students, groups)
+        else:
+            total += size.students
+    return total
+
+
+def merge_units(
+    actor,
+    units: Iterable[TeachingUnit],
+    room_capacity: int,
+    room_type: RoomType | None = None,
+    reason: str = "",
+    seen_versions: dict[int, int] | None = None,
+    host: TeachingUnit | None = None,
+) -> TeachingUnit:
+    """Merge teaching units of the same offering and class type into one (T3.3, D23, D91).
+
+    The host keeps every member of the merge and the other units are deleted. The merge is only
+    allowed if some room of the campus holds the students: the coordinator states the capacity
+    (and, optionally, the type) of room asked, which must hold the sum of the students and exist
+    in the campus, checked with quantities only (D64); the request is saved on the host.
+    Everything is written inside ``dsd_write`` (D86) with the rows locked in a fixed order.
+
+    Args:
+        actor: the user acting.
+        units: two or more different units of one offering and one class type.
+        room_capacity: places of the room asked.
+        room_type: type of room asked, or ``None`` for any.
+        reason: optional; a default one is recorded (D40).
+        seen_versions: ``{unit id: version}`` the user saw, to refuse a stale merge (D54).
+        host: the unit that keeps the merge; the first one by default.
+
+    Returns:
+        The host unit.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination.
+        ValidationError: if the units cannot be merged (different offering or class type, an
+            obsolete unit, two groups of one turma, a missing enrollment), the cell is not
+            writable, the version is stale, or no room of the campus fits.
+    """
+    unique = list({unit.pk: unit for unit in units}.values())
+    if len(unique) < 2:
+        raise ValidationError(_("Escolha duas ou mais unidades diferentes para juntar."))
+    if len({unit.offering_id for unit in unique}) != 1:
+        raise ValidationError(_("Só se juntam unidades da mesma disciplina."))
+    if len({unit.class_type_id for unit in unique}) != 1:
+        raise ValidationError(_("Só se juntam unidades do mesmo tipo de aula."))
+    host_pk = (host or unique[0]).pk
+    if host_pk not in {unit.pk for unit in unique}:
+        raise ValidationError(_("A unidade que fica tem de ser uma das que se juntam."))
+    offering = unique[0].offering
+    coordination_id = offering.subject.coordination_id
+    with dsd_write(actor, TEACHING_UNIT_EDIT, offering.dsd_semester, coordination_id):
+        pks = sorted(unit.pk for unit in unique)
+        members = list(
+            TeachingUnitMember.objects.filter(unit_id__in=pks).select_related(
+                "unit__offering__dsd_semester__dsd__academic_year",
+                "class_group_link__class_group",
+                "subgroup__class_group_link__class_group",
+            )
+        )
+        # Lock the turma links first and the units after, always by id, like set_group_count.
+        list(
+            OfferingClassGroup.objects.select_for_update()
+            .filter(pk__in={member.turma_link.pk for member in members})
+            .order_by("pk")
+        )
+        locked = {
+            unit.pk: unit
+            for unit in TeachingUnit.objects.select_for_update().filter(pk__in=pks).order_by("pk")
+        }
+        if len(locked) != len(pks) or (
+            seen_versions is not None
+            and any(seen_versions.get(pk) != unit.version for pk, unit in locked.items())
+        ):
+            raise _stale_message()
+        if set(pks) & stale_unit_ids(offering.dsd_semester, coordination_id):
+            raise ValidationError(
+                _("Uma das unidades está obsoleta: já não é pedida pelo plano nem pelas turmas.")
+            )
+        links = [member.turma_link.pk for member in members if member.subgroup_id]
+        if len(links) != len(set(links)):
+            raise ValidationError(
+                _("Dois grupos da mesma turma não se juntam: altere o número de grupos.")
+            )
+        students = merged_students(members)
+        if room_capacity < students:
+            raise ValidationError(
+                _("A sala pedida tem de ter lugar para os %(students)s alunos.")
+                % {"students": students}
+            )
+        if not room_summary(room_type.pk if room_type else None, room_capacity):
+            raise ValidationError(
+                _("Nenhuma sala do campus tem %(capacity)s lugares ou mais: não se pode juntar.")
+                % {"capacity": room_capacity}
+            )
+        why = reason.strip() or _("Junção de turmas")
+        target = locked[host_pk]
+        for member in members:
+            if member.unit_id != target.pk:
+                member.unit = target
+                audited_save(member, actor, why)
+        target.room_capacity = room_capacity
+        target.room_type = room_type
+        audited_save(target, actor, why)
+        for unit in locked.values():
+            if unit.pk != target.pk:
+                audited_delete(unit, actor, why)
+    return target
+
+
+def separate_member(
+    actor,
+    unit: TeachingUnit,
+    member: TeachingUnitMember,
+    reason: str,
+    seen_version: int | None = None,
+) -> TeachingUnit:
+    """Take one turma or group out of a merge, into a unit of its own (T3.3, D91).
+
+    The new unit starts without room request; the unit it leaves keeps its own. The last member
+    of a unit cannot be separated. Undoing a merge needs a reason (D40).
+
+    Args:
+        actor: the user acting.
+        unit: the merged unit, as the user saw it.
+        member: the member to separate; it must belong to ``unit``.
+        reason: why; required.
+        seen_version: the version of ``unit`` the user saw (D54).
+
+    Returns:
+        The new unit.
+
+    Raises:
+        PermissionDenied: if the actor does not cover the coordination.
+        ValidationError: if the cell is not writable, the reason is missing, the version is
+            stale, the member is not in the unit, or it is the last one.
+    """
+    if not reason.strip():
+        raise ValidationError({"reason": _("O motivo é obrigatório.")})
+    offering = unit.offering
+    coordination_id = offering.subject.coordination_id
+    with dsd_write(actor, TEACHING_UNIT_EDIT, offering.dsd_semester, coordination_id):
+        link = member.turma_link
+        OfferingClassGroup.objects.select_for_update().get(pk=link.pk)
+        try:
+            locked = TeachingUnit.objects.select_for_update().get(pk=unit.pk)
+        except TeachingUnit.DoesNotExist:
+            raise _stale_message() from None
+        if seen_version is not None and locked.version != seen_version:
+            raise _stale_message()
+        current = TeachingUnitMember.objects.filter(unit=locked)
+        if not current.filter(pk=member.pk).exists():
+            raise ValidationError(_("Este membro já não pertence a esta unidade."))
+        if current.count() < 2:
+            raise ValidationError(_("A unidade só tem um membro: não há nada a separar."))
+        why = reason.strip()
+        new = TeachingUnit(offering=locked.offering, class_type=locked.class_type)
+        audited_save(new, actor, why)
+        moved = current.get(pk=member.pk)
+        moved.unit = new
+        audited_save(moved, actor, why)
+        audited_save(locked, actor, why)  # bumps the version of the unit the member left
+    return new
