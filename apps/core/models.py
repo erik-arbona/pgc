@@ -216,3 +216,36 @@ class RoleAssignment(models.Model):
         """
         if not scope_kind_allowed(self.profile, self.scope_kind):
             raise ValidationError({"scope_kind": _("Este perfil não admite este tipo de âmbito.")})
+
+
+class Parameter(models.Model):
+    """A system parameter whose value the PGC manager can change (CLAUDE.md rule 6).
+
+    Parameters are defined by the system (a data migration creates them) and only their value
+    is edited. Every change is audited with a reason. See D60.
+    """
+
+    code = models.SlugField(
+        _("código"),
+        max_length=50,
+        unique=True,  # code refers to the parameter from the domain rules
+        help_text=_("Stable identifier used by the code, e.g. 'semester_weeks'."),
+    )
+    name = models.CharField(_("nome"), max_length=200, help_text=_("Name shown to the user."))
+    value = models.DecimalField(
+        _("valor"), max_digits=8, decimal_places=2, help_text=_("Current value of the parameter.")
+    )
+
+    class Meta:
+        verbose_name = _("parâmetro")
+        verbose_name_plural = _("parâmetros")
+        ordering = ["name"]
+        constraints = [
+            # Every parameter is a positive quantity (weeks, factors).
+            models.CheckConstraint(
+                condition=models.Q(value__gt=0), name="parameter_value_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name}: {self.value}"
