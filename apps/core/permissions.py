@@ -171,6 +171,8 @@ registry.register("cross_course_subject.edit", {Profile.PGC_MANAGER}, write=True
 registry.register("teacher.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("position.edit", {Profile.PGC_MANAGER}, write=True)
 registry.register("category.edit", {Profile.PGC_MANAGER}, write=True)
+# Hours ranges are the same for the whole University, so the action has no scope (D58).
+registry.register("load_range.edit", {Profile.PGC_MANAGER}, write=True)
 # The PGC manager creates the turmas, only in the Faculties assigned to them (D49, D54).
 registry.register("class_group.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 # Faculties and academic years are not limited to a Faculty: any PGC manager (D50, to confirm).
