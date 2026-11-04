@@ -14,6 +14,18 @@
       {% if extra_record %}<a href="{% url 'dsd:extra_clear' extra_record.pk %}">{% translate "Remover" %}</a>{% endif %}
     {% endif %}
   </p>
+  {% if minimum_record or can_edit_minimum %}
+    <p>
+      {% translate "Motivo abaixo da mínima" %}:
+      {% if minimum_record %}{{ minimum_record.text }}{% else %}—{% endif %}
+      {% if minimum_record.review and minimum_record.review.reviewed_version == minimum_record.version and minimum_record.review.decision == "refused" %}
+        <br><strong>{% translate "Recusado pelo Conselho Executivo" %}:</strong> {{ minimum_record.review.comment }}
+      {% endif %}
+      {% if can_edit_minimum %}
+        <a href="{% url 'dsd:minimum_reason' dsd.pk teacher.pk %}">{% if minimum_record %}{% translate "Alterar" %}{% else %}{% translate "Registar" %}{% endif %}</a>
+      {% endif %}
+    </p>
+  {% endif %}
   {% for block in blocks %}
     <h2>{% blocktranslate with number=block.semester.number %}Semestre {{ number }}{% endblocktranslate %}</h2>
     <p>{% translate "Horas letivas" %}: {{ block.teaching }} h · {% translate "Preparação" %}: {{ block.preparation }} h · {% translate "Outras atividades" %}: {{ block.other }} h</p>

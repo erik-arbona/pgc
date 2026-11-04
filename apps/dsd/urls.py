@@ -53,6 +53,21 @@ urlpatterns = [
         name="extra_accept",
     ),
     path("extra/<int:pk>/clear/", views.ExtraClearView.as_view(), name="extra_clear"),
+    path(
+        "<int:pk>/teachers/<int:teacher_pk>/below-minimum/",
+        views.MinimumReasonView.as_view(),
+        name="minimum_reason",
+    ),
+    path(
+        "<int:pk>/below-minimum/",
+        views.MinimumReviewListView.as_view(),
+        name="minimum_review_list",
+    ),
+    path(
+        "below-minimum/<int:pk>/review/",
+        views.MinimumReviewView.as_view(),
+        name="minimum_review",
+    ),
     path("activities/<int:pk>/edit/", views.ActivityEditView.as_view(), name="activity_edit"),
     path("activities/<int:pk>/remove/", views.ActivityRemoveView.as_view(), name="activity_remove"),
     path(

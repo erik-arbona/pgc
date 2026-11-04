@@ -368,3 +368,37 @@ class ExtraAcceptForm(ReasonFieldsMixin, forms.Form):
         self._existing = existing
         self.fields["seen"].required = existing
         self._setup_reason(required=existing)
+
+
+class MinimumReasonForm(forms.Form):
+    """The reason for a teacher whose load is below the minimum (T5.5, D16).
+
+    When a reason already exists the form carries its version, which is then required (D54).
+    """
+
+    text = forms.CharField(label=_("Motivo"), widget=forms.Textarea(attrs={"rows": 4}))
+    seen = forms.IntegerField(required=False, widget=forms.HiddenInput)
+
+    def __init__(self, *args, existing: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["seen"].required = existing
+
+
+class MinimumReviewForm(forms.Form):
+    """The decision of the Executive Board on a reason (T5.5, D16, D97).
+
+    A refusal needs a comment; the form carries the version of the text the board is seeing.
+    """
+
+    decision = forms.ChoiceField(
+        label=_("Decisão"),
+        choices=[("accepted", _("Aceitar")), ("refused", _("Recusar"))],
+        widget=forms.RadioSelect,
+    )
+    comment = forms.CharField(
+        label=_("Comentário"),
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3}),
+        help_text=_("Obrigatório ao recusar: diz ao coordenador o que falta."),
+    )
+    seen = forms.IntegerField(widget=forms.HiddenInput)

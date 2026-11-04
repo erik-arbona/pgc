@@ -395,6 +395,9 @@ registry.register(
     write=True,
     scoped=True,
 )
+# The Executive Board accepts or refuses the reason a coordinator gives for a teacher whose
+# load is below the minimum, for the teachers of its own Faculty (D16, D97).
+registry.register("dsd.below_minimum.review", {Profile.EXECUTIVE_BOARD}, write=True, scoped=True)
 # Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
 registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)

@@ -60,7 +60,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - ~~T5.2 Partilha com quota~~ **Cancelada** (D94): uma unidade tem um só docente e não há quotas.
 - [x] T5.3 Componente não letiva por docente e semestre: tipo, descrição e horas (D15).
 - [x] T5.4 Horas extra aceites, registadas pelo coordenador (D13). ⚑ Q13
-- [ ] T5.5 Motivo abaixo da mínima (coordenador); aceitação ou recusa pelo CE, que devolve o caso (D16, bloco 6). ⚑ Q14
+- [x] T5.5 Motivo abaixo da mínima (coordenador); aceitação ou recusa pelo CE, que devolve o caso (D16, bloco 6). ⚑ Q14
 
 ## 6. Vistas (D20, `07`)
 - [ ] T6.1 Visão geral da coordenação: pendentes e barra de carga com estado em cor e texto.
