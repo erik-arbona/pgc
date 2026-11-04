@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p><a href="{% url 'academic:studyplan_create' %}">{% translate "Novo plano de estudos" %}</a></p>
+  <table>
+    <thead><tr><th>{% translate "Curso" %}</th><th>{% translate "Entra em vigor em" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.course }}</td><td>{{ item.academic_year }}</td>
+        <td>
+          <a href="{% url 'academic:subject_list' %}?course={{ item.course_id }}">{% translate "Disciplinas" %}</a>
+          <a href="{% url 'academic:studyplan_update' item.pk %}">{% translate "Editar" %}</a>
+          <a href="{% url 'academic:studyplan_delete' item.pk %}">{% translate "Eliminar" %}</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+{% endblock %}

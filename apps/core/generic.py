@@ -11,6 +11,8 @@ a scope (for example a Faculty), which only show and accept what the user manage
 
 from __future__ import annotations
 
+from operator import attrgetter
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -48,16 +50,19 @@ class ReasonModelForm(forms.ModelForm):
 class ScopedModelForm(ReasonModelForm):
     """Reason form whose ``scope_field`` choices are limited to the user's scopes (D51).
 
-    Set ``scope_field`` (default ``"faculty"``). The view passes ``allowed_scope_ids``.
+    Set ``scope_field`` (default ``"faculty"``) and, when the field is not the scope itself,
+    ``scope_filter`` (for example ``"faculty_id__in"`` for a course field). The view passes
+    ``allowed_scope_ids``.
     """
 
     scope_field = "faculty"
+    scope_filter = "pk__in"  # how to filter the field queryset by the allowed ids
 
     def __init__(self, *args, allowed_scope_ids=None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         if allowed_scope_ids is not None:
             field = self.fields[self.scope_field]
-            field.queryset = field.queryset.filter(pk__in=allowed_scope_ids)
+            field.queryset = field.queryset.filter(**{self.scope_filter: allowed_scope_ids})
 
 
 class DeleteReasonForm(forms.Form):
@@ -78,6 +83,11 @@ class PageMixin:
         context = super().get_context_data(**kwargs)
         context["title"] = self.title
         context["cancel_url"] = getattr(self, "success_url", None) or "/"
+        # Keep the active filters in the pagination links.
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        encoded = params.urlencode()
+        context["query_string"] = f"&{encoded}" if encoded else ""
         return context
 
 
@@ -171,7 +181,7 @@ class ScopedViewMixin(PageMixin, LoginRequiredMixin):
 
     permission_action: str = ""
     scope_kind: str = ScopeKind.FACULTY
-    scope_field: str = "faculty_id"
+    scope_field: str = "faculty_id"  # dotted path allowed, e.g. "course.faculty_id"
     scope_lookup: str = "faculty__in"
 
     def allowed_scope_ids(self) -> set[int]:
@@ -184,7 +194,7 @@ class ScopedViewMixin(PageMixin, LoginRequiredMixin):
             self.request.user,
             self.permission_action,
             self.scope_kind,
-            getattr(obj, self.scope_field),
+            attrgetter(self.scope_field)(obj),
         )
 
     def dispatch(self, request, *args, **kwargs):

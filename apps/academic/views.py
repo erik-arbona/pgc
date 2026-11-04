@@ -18,8 +18,16 @@ from apps.core.generic import (
     ScopedUpdateView,
 )
 
-from .forms import AcademicYearForm, ClassTypeForm, CoordinationForm, CourseForm, FacultyForm
-from .models import AcademicYear, ClassType, Coordination, Course, Faculty
+from .forms import (
+    AcademicYearForm,
+    ClassTypeForm,
+    CoordinationForm,
+    CourseForm,
+    FacultyForm,
+    StudyPlanForm,
+    SubjectForm,
+)
+from .models import AcademicYear, ClassType, Coordination, Course, Faculty, StudyPlan, Subject
 
 
 class ClassTypeMixin:
@@ -203,3 +211,109 @@ class CourseDeleteView(CourseMixin, ScopedDeleteView):
     """Delete a course that nothing uses."""
 
     title = _("Eliminar curso")
+
+
+class StudyPlanMixin:
+    """Settings shared by the study plan screens (limited to the manager's Faculties, D51)."""
+
+    model = StudyPlan
+    permission_action = "study_plan.edit"
+    scope_field = "course.faculty_id"
+    scope_lookup = "course__faculty__in"
+    success_url = reverse_lazy("academic:studyplan_list")
+
+
+class StudyPlanListView(StudyPlanMixin, ScopedListView):
+    """List the plan versions of the manager's courses."""
+
+    template_name = "academic/studyplan_list.html"
+    title = _("Planos de estudos")
+
+    def get_queryset(self):
+        """Load the course and year with each row."""
+        return super().get_queryset().select_related("course", "academic_year")
+
+
+class StudyPlanCreateView(StudyPlanMixin, ScopedCreateView):
+    """Add a plan version to one of the manager's courses."""
+
+    form_class = StudyPlanForm
+    title = _("Novo plano de estudos")
+
+
+class StudyPlanUpdateView(StudyPlanMixin, ScopedUpdateView):
+    """Edit a plan version (needs a reason)."""
+
+    form_class = StudyPlanForm
+    title = _("Editar plano de estudos")
+
+
+class StudyPlanDeleteView(StudyPlanMixin, ScopedDeleteView):
+    """Delete a plan version that has no subjects or turmas."""
+
+    title = _("Eliminar plano de estudos")
+
+
+class SubjectMixin:
+    """Settings shared by the subject screens (limited to the manager's Faculties, D51)."""
+
+    model = Subject
+    permission_action = "subject.edit"
+    scope_field = "study_plan.course.faculty_id"
+    scope_lookup = "study_plan__course__faculty__in"
+    success_url = reverse_lazy("academic:subject_list")
+
+
+class SubjectListView(SubjectMixin, ScopedListView):
+    """List subjects with filters by course and semester.
+
+    A request made by HTMX (``HX-Request`` header) gets only the results fragment; a normal
+    request gets the whole page, so the screen also works without JavaScript (D50).
+    """
+
+    title = _("Disciplinas")
+
+    def get_template_names(self) -> list[str]:
+        """Return the fragment for HTMX requests and the full page otherwise."""
+        if self.request.headers.get("HX-Request"):
+            return ["academic/_subject_results.html"]
+        return ["academic/subject_list.html"]
+
+    def get_queryset(self):
+        """Apply the ``course`` and ``semester`` filters; ignore invalid values."""
+        queryset = super().get_queryset().select_related("study_plan__course", "coordination")
+        course = self.request.GET.get("course", "")
+        if course.isdigit():
+            queryset = queryset.filter(study_plan__course_id=int(course))
+        semester = self.request.GET.get("semester", "")
+        if semester in {"1", "2"}:
+            queryset = queryset.filter(semester=int(semester))
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        """Add the courses the manager can filter by and the active filters."""
+        context = super().get_context_data(**kwargs)
+        context["courses"] = Course.objects.filter(faculty__in=self.allowed_scope_ids())
+        context["selected_course"] = self.request.GET.get("course", "")
+        context["selected_semester"] = self.request.GET.get("semester", "")
+        return context
+
+
+class SubjectCreateView(SubjectMixin, ScopedCreateView):
+    """Add a subject to a plan of the manager's courses."""
+
+    form_class = SubjectForm
+    title = _("Nova disciplina")
+
+
+class SubjectUpdateView(SubjectMixin, ScopedUpdateView):
+    """Edit a subject (needs a reason)."""
+
+    form_class = SubjectForm
+    title = _("Editar disciplina")
+
+
+class SubjectDeleteView(SubjectMixin, ScopedDeleteView):
+    """Delete a subject that has no weekly hours rows or group membership."""
+
+    title = _("Eliminar disciplina")

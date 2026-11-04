@@ -19,6 +19,10 @@
       {% has_scope "coordination.edit" "faculty" as can_scoped %}
       {% if can_scoped %}<a href="{% url 'academic:coordination_list' %}">{% translate "Coordenações" %}</a>
       <a href="{% url 'academic:course_list' %}">{% translate "Cursos" %}</a>{% endif %}
+      {% has_scope "study_plan.edit" "faculty" as can_plans %}
+      {% if can_plans %}<a href="{% url 'academic:studyplan_list' %}">{% translate "Planos de estudos" %}</a>{% endif %}
+      {% has_scope "subject.edit" "faculty" as can_subjects %}
+      {% if can_subjects %}<a href="{% url 'academic:subject_list' %}">{% translate "Disciplinas" %}</a>{% endif %}
       {% if can_class_types %}<a href="{% url 'academic:classtype_list' %}">{% translate "Tipos de aula" %}</a>{% endif %}
     </nav>
     <form method="post" action="{% url 'logout' %}" class="logout">
@@ -36,5 +40,6 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

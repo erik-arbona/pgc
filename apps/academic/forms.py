@@ -6,7 +6,7 @@ PGC manager. Every form that edits an existing record asks for a reason (D40).
 
 from apps.core.generic import ReasonModelForm, ScopedModelForm
 
-from .models import AcademicYear, ClassType, Coordination, Course, Faculty
+from .models import AcademicYear, ClassType, Coordination, Course, Faculty, StudyPlan, Subject
 
 
 class ClassTypeForm(ReasonModelForm):
@@ -47,3 +47,39 @@ class CourseForm(ScopedModelForm):
     class Meta:
         model = Course
         fields = ["faculty", "name", "level"]
+
+
+class StudyPlanForm(ScopedModelForm):
+    """Create or edit a study plan version; the courses offered are the manager's own (D51)."""
+
+    scope_field = "course"
+    scope_filter = "faculty_id__in"
+
+    class Meta:
+        model = StudyPlan
+        fields = ["course", "academic_year"]
+
+
+class SubjectForm(ScopedModelForm):
+    """Create or edit a subject; the plans offered are those of the manager's courses (D51).
+
+    The responsible coordination may belong to any Faculty: the specification sets no
+    same-Faculty rule between a course and the coordination that runs its subject (D44).
+    """
+
+    scope_field = "study_plan"
+    scope_filter = "course__faculty_id__in"
+
+    class Meta:
+        model = Subject
+        fields = [
+            "study_plan",
+            "code",
+            "name",
+            "ects",
+            "curricular_year",
+            "semester",
+            "coordination",
+            "semester_hours",
+            "programme",
+        ]

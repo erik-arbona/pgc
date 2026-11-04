@@ -54,4 +54,16 @@ urlpatterns = [
     path("courses/new/", views.CourseCreateView.as_view(), name="course_create"),
     path("courses/<int:pk>/edit/", views.CourseUpdateView.as_view(), name="course_update"),
     path("courses/<int:pk>/delete/", views.CourseDeleteView.as_view(), name="course_delete"),
+    path("study-plans/", views.StudyPlanListView.as_view(), name="studyplan_list"),
+    path("study-plans/new/", views.StudyPlanCreateView.as_view(), name="studyplan_create"),
+    path(
+        "study-plans/<int:pk>/edit/", views.StudyPlanUpdateView.as_view(), name="studyplan_update"
+    ),
+    path(
+        "study-plans/<int:pk>/delete/", views.StudyPlanDeleteView.as_view(), name="studyplan_delete"
+    ),
+    path("subjects/", views.SubjectListView.as_view(), name="subject_list"),
+    path("subjects/new/", views.SubjectCreateView.as_view(), name="subject_create"),
+    path("subjects/<int:pk>/edit/", views.SubjectUpdateView.as_view(), name="subject_update"),
+    path("subjects/<int:pk>/delete/", views.SubjectDeleteView.as_view(), name="subject_delete"),
 ]

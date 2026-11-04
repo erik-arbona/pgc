@@ -174,6 +174,8 @@ registry.register("academic_year.edit", {Profile.PGC_MANAGER}, write=True)
 # Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
 registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
+registry.register("study_plan.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
+registry.register("subject.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 
 
 def can(user, code: str, scope_kind: str | None = None, scope_id: int | None = None) -> bool:
