@@ -171,6 +171,8 @@ registry.register("cross_course_subject.edit", {Profile.PGC_MANAGER}, write=True
 registry.register("teacher.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("position.edit", {Profile.PGC_MANAGER}, write=True)
 registry.register("category.edit", {Profile.PGC_MANAGER}, write=True)
+# Accounts and roles: the manager acts only on the Faculties assigned to them (D62).
+registry.register("account.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 # System parameters (weeks per semester...) are University-wide: no scope (D60).
 registry.register("parameter.edit", {Profile.PGC_MANAGER}, write=True)
 # Hours ranges are the same for the whole University, so the action has no scope (D58).

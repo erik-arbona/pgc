@@ -13,6 +13,9 @@ from django.db import models
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.models import RoleAssignment
+from apps.core.roles import ScopeKind
+
 from .class_groups import curricular_year_in
 
 
@@ -37,6 +40,17 @@ class Faculty(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def delete(self, *args, **kwargs):
+        """Delete the Faculty unless a role still has it as its scope (D62).
+
+        Raises:
+            ProtectedError: if a role assignment of scope kind faculty points at this Faculty.
+        """
+        roles = RoleAssignment.objects.filter(scope_kind=ScopeKind.FACULTY, scope_id=self.pk)
+        if roles.exists():
+            raise models.ProtectedError("A Faculty with roles pointing at it.", set(roles))
+        return super().delete(*args, **kwargs)
 
 
 class Coordination(models.Model):
@@ -66,6 +80,17 @@ class Coordination(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def delete(self, *args, **kwargs):
+        """Delete the coordination unless a role still has it as its scope (D62).
+
+        Raises:
+            ProtectedError: if a role assignment of scope kind coordination points at it.
+        """
+        roles = RoleAssignment.objects.filter(scope_kind=ScopeKind.COORDINATION, scope_id=self.pk)
+        if roles.exists():
+            raise models.ProtectedError("A coordination with roles pointing at it.", set(roles))
+        return super().delete(*args, **kwargs)
 
 
 class Course(models.Model):
