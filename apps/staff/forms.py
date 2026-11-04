@@ -67,7 +67,7 @@ class TeacherForm(ScopedModelForm):
         self.fields["positions"].queryset = Position.objects.filter(
             is_active=True
         ) | Position.objects.filter(pk__in=held)
-        self.fields["reason"] = self.fields.pop("reason")
+        self.move_reason_last()
 
     def clean(self):
         """Refuse positions on a teacher that is not full-time."""

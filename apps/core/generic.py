@@ -32,19 +32,69 @@ PAGE_SIZE = 25
 REASON_LABEL = _("Motivo")
 
 
-class ReasonModelForm(forms.ModelForm):
-    """Model form with a ``reason`` field, required when the record already exists (D40)."""
+# Usual reasons offered as a one-click choice (D59). The audit entry stores the text.
+REASON_CHOICES = [
+    ("", "---------"),
+    ("correction", _("Correção de erro")),
+    ("data_update", _("Atualização de dados")),
+    ("plan_change", _("Alteração do plano de estudos")),
+    ("board_decision", _("Decisão do Conselho Executivo")),
+    ("created_by_mistake", _("Registo criado por engano")),
+]
 
-    reason = forms.CharField(
-        label=REASON_LABEL,
-        required=False,
-        widget=forms.Textarea(attrs={"rows": 2}),
-        help_text=_("Obrigatório ao alterar."),
-    )
+
+class ReasonFieldsMixin:
+    """Add the reason fields to a form: a list of usual reasons plus optional free text (D59).
+
+    The final reason, in ``cleaned_data["reason"]``, is the free text if only it is given, the
+    preset's text if only a preset is chosen, and ``"<preset>: <text>"`` if both are. When the
+    reason is required (editing or deleting, D40) at least one of them must be given.
+
+    Call ``_setup_reason(required)`` at the end of ``__init__``. Forms that add fields after
+    that call ``move_reason_last()`` to keep the two reason fields at the end.
+    """
+
+    reason_required = False
+
+    def _setup_reason(self, required: bool) -> None:
+        """Create the preset selector and relax the text field; the check is in ``clean``."""
+        self.reason_required = required
+        self.fields["reason_choice"] = forms.ChoiceField(
+            label=REASON_LABEL, required=False, choices=REASON_CHOICES
+        )
+        self.fields["reason"].required = False
+        self.fields["reason"].label = _("Detalhe do motivo")
+        self.fields["reason"].help_text = _(
+            "Obrigatório ao alterar ou eliminar: escolha um motivo ou escreva o detalhe."
+        )
+        self.move_reason_last()
+
+    def move_reason_last(self) -> None:
+        """Put the preset selector and the reason text at the end of the form."""
+        self.fields["reason_choice"] = self.fields.pop("reason_choice")
+        self.fields["reason"] = self.fields.pop("reason")
+
+    def clean(self):
+        """Combine the preset and the text into ``cleaned_data["reason"]`` and require one."""
+        cleaned = super().clean()
+        text = (cleaned.get("reason") or "").strip()
+        choice = cleaned.get("reason_choice")
+        preset = str(dict(REASON_CHOICES)[choice]) if choice else ""
+        final = f"{preset}: {text}" if preset and text else (text or preset)
+        cleaned["reason"] = final
+        if self.reason_required and not final and "reason_choice" not in self.errors:
+            self.add_error("reason", _("Indique o motivo: escolha um da lista ou escreva-o."))
+        return cleaned
+
+
+class ReasonModelForm(ReasonFieldsMixin, forms.ModelForm):
+    """Model form with the reason fields, required when the record already exists (D40, D59)."""
+
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.fields["reason"].required = self.instance.pk is not None
+        self._setup_reason(required=self.instance.pk is not None)
 
 
 class ScopedModelForm(ReasonModelForm):
@@ -65,12 +115,14 @@ class ScopedModelForm(ReasonModelForm):
             field.queryset = field.queryset.filter(**{self.scope_filter: allowed_scope_ids})
 
 
-class DeleteReasonForm(forms.Form):
-    """Confirmation form of a deletion: the reason is always required."""
+class DeleteReasonForm(ReasonFieldsMixin, forms.Form):
+    """Confirmation form of a deletion: a reason is always required (D40, D59)."""
 
-    reason = forms.CharField(
-        label=REASON_LABEL, widget=forms.Textarea(attrs={"rows": 2}), required=True
-    )
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._setup_reason(required=True)
 
 
 class PageMixin:
