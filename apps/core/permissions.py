@@ -135,6 +135,8 @@ registry = PermissionRegistry()
 # Rules stated unambiguously in docs/especificacao/02_perfis_e_dados.md.
 registry.register("room.edit", {Profile.FACILITIES}, write=True)  # Património enters rooms
 registry.register("enrollment.edit", {Profile.ACADEMIC_SERVICES}, write=True)  # enrollments
+# The PGC manager configures the class types (D45).
+registry.register("class_type.edit", {Profile.PGC_MANAGER}, write=True)
 
 
 def can(user, code: str, scope_kind: str | None = None, scope_id: int | None = None) -> bool:
