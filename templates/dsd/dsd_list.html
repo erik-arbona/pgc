@@ -10,7 +10,7 @@
     <tbody>
       {% for item in object_list %}
       <tr>
-        <td>{{ item.academic_year.label }}</td>
+        <td><a href="{% url 'dsd:dsd_detail' item.pk %}">{{ item.academic_year.label }}</a></td>
         <td>{% for semester in item.semesters.all %}{{ semester.number }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
       </tr>
       {% empty %}

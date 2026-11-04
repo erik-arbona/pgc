@@ -364,6 +364,9 @@ registry.register("academic_year.edit", {Profile.PGC_MANAGER}, write=True)
 registry.register("dsd.create", {Profile.PGC_MANAGER}, write=True)
 # The manager and the coordinator read the DSDs; the coordinator reads everything (D69).
 registry.register("dsd.view", {Profile.PGC_MANAGER, Profile.COORDINATOR}, write=False)
+# Any PGC manager opens, closes and reopens the semesters of any coordination: the state
+# belongs to the whole University, like the DSD itself (D86).
+registry.register("dsd.semester_state.edit", {Profile.PGC_MANAGER}, write=True)
 # Coordinations and courses: the manager acts only on the Faculties assigned to them (D51).
 registry.register("coordination.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
 registry.register("course.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)

@@ -8,7 +8,8 @@ manager. The state of each semester per coordination (open, closed) comes with T
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from apps.academic.models import AcademicYear
+from apps.academic.models import AcademicYear, Coordination
+from apps.core.models import VersionedModel
 
 
 class Dsd(models.Model):
@@ -68,3 +69,52 @@ class DsdSemester(models.Model):
 
     def __str__(self) -> str:
         return f"{self.dsd} – S{self.number}"
+
+
+class CoordinationSemester(VersionedModel):
+    """The state of one semester of the DSD for one coordination (T2.2, D43).
+
+    A missing row means "not opened yet": a coordination created later starts that way. The
+    allowed moves are in ``lifecycle_rules``; who, when and why come from the audit entries.
+    """
+
+    class Status(models.TextChoices):
+        """The two stored states; "not opened" is the absence of the row."""
+
+        OPEN = "open", _("aberto")
+        CLOSED = "closed", _("fechado")
+
+    dsd_semester = models.ForeignKey(
+        DsdSemester,
+        on_delete=models.PROTECT,  # never lose the state of a semester that has one
+        related_name="coordination_states",
+        verbose_name=_("semestre do DSD"),
+        help_text=_("Semester of the DSD the state refers to."),
+    )
+    coordination = models.ForeignKey(
+        Coordination,
+        on_delete=models.PROTECT,  # a coordination with a state cannot be deleted
+        related_name="semester_states",
+        verbose_name=_("coordenação"),
+        help_text=_("Coordination the state refers to."),
+    )
+    status = models.CharField(
+        _("estado"),
+        max_length=10,
+        choices=Status.choices,
+        help_text=_("Open: the coordination distributes; closed: read-only (D43)."),
+    )
+
+    class Meta:
+        verbose_name = _("estado do semestre por coordenação")
+        verbose_name_plural = _("estados dos semestres por coordenação")
+        ordering = ["dsd_semester", "coordination"]
+        constraints = [
+            # One state per semester and coordination, also when two managers open at once.
+            models.UniqueConstraint(
+                fields=["dsd_semester", "coordination"], name="unique_state_per_semester_cell"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.dsd_semester} – {self.coordination} – {self.status}"

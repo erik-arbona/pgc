@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load i18n pgc_permissions %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  {% can "dsd.semester_state.edit" as can_state %}
+  {% if can_state %}<p><a href="{% url 'dsd:dsd_state' object.pk %}">{% translate "Abrir ou fechar semestre" %}</a></p>{% endif %}
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Coordenação" %}</th>
+        {% for semester in semesters %}<th>{{ semester.number }}.º {% translate "semestre" %}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for coordination, states in rows %}
+      <tr>
+        <td>{{ coordination.name }} ({{ coordination.faculty.name }})</td>
+        {% for state in states %}<td>{{ state }}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{% url 'dsd:dsd_list' %}">{% translate "Voltar" %}</a></p>
+{% endblock %}
