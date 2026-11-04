@@ -228,15 +228,17 @@ class OfferingGenerateView(PageMixin, LoginRequiredMixin, FormView):
         messages.success(
             self.request,
             _(
-                "Ofertas criadas: %(offerings)s; turmas ligadas: %(links)s. "
+                "Ofertas criadas: %(offerings)s; turmas ligadas: %(links)s; "
+                "unidades letivas: %(units)s. "
                 "Fechadas: %(blocked)s; fora do âmbito: %(scope)s; obsoletas: %(stale)s."
             )
             % {
                 "offerings": result.created_offerings,
                 "links": result.created_links,
+                "units": result.created_units,
                 "blocked": len(result.blocked),
                 "scope": len(result.out_of_scope),
-                "stale": result.stale_offerings + result.stale_links,
+                "stale": result.stale_offerings + result.stale_links + result.stale_units,
             },
         )
         return redirect("dsd:offering_list", pk=self.dsd.pk)
