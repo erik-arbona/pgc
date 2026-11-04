@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "apps.staff",
     "apps.rooms",
     "apps.demo",
+    "apps.sii",
 ]
 
 MIDDLEWARE = [
@@ -106,6 +107,10 @@ LANGUAGE_CODE = "pt-pt"
 TIME_ZONE = "Atlantic/Cape_Verde"
 USE_I18N = True
 USE_TZ = True
+
+# SII integration (D66): the medium is still to be confirmed, so only a test CSV source exists.
+SII_SOURCE = os.environ.get("SII_SOURCE", "apps.sii.csv_source.CsvSiiSource")
+SII_CSV_DIR = os.environ.get("SII_CSV_DIR", "")
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
