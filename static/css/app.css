@@ -25,3 +25,7 @@ th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #d9dee
 .state-above_maximum .fill { background: #b00020; }
 .state-no_range .fill { background: #6b7785; }
 .attention { padding-left: 1.2rem; }
+
+/* Assignment by subject (T6.2): what still has no teacher stands out, in words as well. */
+tr.unassigned { background: #fff7e6; }
+.error { color: #b00020; }

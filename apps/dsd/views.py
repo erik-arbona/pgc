@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
@@ -50,10 +50,8 @@ from .forms import (
 )
 from .lifecycle import cell_writable
 from .load_facts import (
-    assessment_with_unit,
     load_text,
     minimum_reason_text,
-    status_text,
     teacher_loads,
 )
 from .models import (
@@ -101,6 +99,7 @@ from .services import (
     unit_students,
     unit_versions,
 )
+from .teacher_choices import candidate_teachers, describe_candidates
 
 
 class DsdListView(ManagedListView):
@@ -396,9 +395,7 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             self.request.user, TEACHING_UNIT_EDIT, offering.dsd_semester, coordination_id
         )
         units = list(self._units(offering))
-        teachers = {unit.teacher_id: unit.teacher for unit in units if unit.teacher_id}
-        loads = teacher_loads(offering.dsd_semester.dsd, teachers.values()) if teachers else {}
-        rows = [self._row(unit, offering, stale, sizes, can_edit, loads=loads) for unit in units]
+        rows = self._unit_rows(offering, units, stale, sizes, can_edit)
         partner_rows = []
         guest_rows = []
         if can_edit:
@@ -428,12 +425,49 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
                 "offering": offering,
                 "title": f"{offering.subject.code} – {offering.subject.name}",
                 "rows": rows,
+                "to_assign": sum(1 for row in rows if row["unassigned"]),
+                "current_units": sum(1 for row in rows if not row["stale"]),
                 "partner_rows": partner_rows,
                 "guest_rows": guest_rows,
                 "can_edit": can_edit,
             }
         )
         return context
+
+    def _unit_rows(self, offering, units, stale, sizes, can_edit):
+        """Build the rows of some units of an offering, with the teacher selector where it applies.
+
+        A current unit without a teacher is marked ``unassigned`` and, to who may write the cell,
+        gets the teachers it can be given to, each with the load they would have (T6.2). The
+        loads of the teachers of the units and of the candidates are read in one batch.
+        """
+        coordination_id = offering.subject.coordination_id
+        semester = offering.dsd_semester
+        can_assign = cell_writable(self.request.user, ASSIGNMENT_EDIT, semester, coordination_id)
+        needs_choice = can_assign and any(
+            unit.teacher_id is None and unit.pk not in stale for unit in units
+        )
+        candidates = candidate_teachers(coordination_id) if needs_choice else []
+        everyone = {teacher.pk: teacher for teacher in candidates}
+        everyone.update({unit.teacher_id: unit.teacher for unit in units if unit.teacher_id})
+        loads = teacher_loads(semester.dsd, everyone.values()) if everyone else {}
+        rows = []
+        for unit in units:
+            row = self._row(unit, offering, stale, sizes, can_edit, loads=loads)
+            row["unassigned"] = unit.teacher_id is None and unit.pk not in stale
+            row["choices"] = []
+            if can_assign and row["unassigned"]:
+                described = describe_candidates(
+                    candidates,
+                    loads,
+                    coordination_id,
+                    semester.number,
+                    row["weekly_hours"] or Decimal("0"),
+                    None,
+                )
+                row["choices"] = [(teacher, described[teacher.pk]) for teacher in candidates]
+            rows.append(row)
+        return rows
 
     @staticmethod
     def _units(offering):
@@ -924,20 +958,8 @@ class UnitTeacherView(_UnitEditMixin, FormView):
 
     @cached_property
     def candidates(self) -> list[Teacher]:
-        """The active teachers of the coordination of the subject, plus the current teacher.
-
-        The current teacher is always listed, even if deactivated or moved to another
-        coordination, so that the form never looks like "Sem docente" when there is one.
-        """
-        teachers = list(
-            Teacher.objects.filter(
-                coordination_id=self.offering.subject.coordination_id, is_active=True
-            ).order_by("name")
-        )
-        current = self.unit.teacher
-        if current is not None and all(teacher.pk != current.pk for teacher in teachers):
-            teachers.append(current)
-        return teachers
+        """The active teachers of the coordination of the subject, plus the current teacher."""
+        return candidate_teachers(self.offering.subject.coordination_id, self.unit.teacher)
 
     @cached_property
     def unit_weekly_hours(self) -> Decimal:
@@ -959,24 +981,14 @@ class UnitTeacherView(_UnitEditMixin, FormView):
         who is no longer eligible is marked.
         """
         loads = teacher_loads(self.offering.dsd_semester.dsd, self.candidates)
-        eligible = self.offering.subject.coordination_id
-        described = {}
-        for teacher in self.candidates:
-            load = loads[teacher.pk]
-            assessment = (
-                load.assessment
-                if teacher.pk == self.unit.teacher_id
-                else assessment_with_unit(
-                    load, self.offering.dsd_semester.number, self.unit_weekly_hours
-                )
-            )
-            text = f"{assessment.weekly_hours} h ({status_text(assessment)})"
-            if not teacher.is_active:
-                text += " – " + str(_("inativo"))
-            elif teacher.coordination_id != eligible:
-                text += " – " + str(_("de outra coordenação"))
-            described[teacher.pk] = text
-        return described
+        return describe_candidates(
+            self.candidates,
+            loads,
+            self.offering.subject.coordination_id,
+            self.offering.dsd_semester.number,
+            self.unit_weekly_hours,
+            self.unit.teacher_id,
+        )
 
     def get_form_kwargs(self):
         """Give the form the candidates with their load, and start from the current teacher."""
@@ -1617,3 +1629,83 @@ class CoordinationOverviewView(PageMixin, LoginRequiredMixin, TemplateView):
             }
         )
         return context
+
+
+class UnitTeacherInlineView(OfferingDetailView):
+    """Give a teacher to a unit without one from its row on the subject page (T6.2, D50, D94).
+
+    It takes only POST. With HTMX it answers with the updated row; without it, it saves and goes
+    back to the page, so the selector also works without JavaScript. It only gives a teacher to a
+    unit that has none: changing or removing one needs a reason (D40) and stays on the form page.
+    The write is ``assign_teacher``, which checks the permission, the cell and the version.
+    """
+
+    http_method_names = ["post"]
+    template_name = "dsd/_unit_row.html"
+
+    def post(self, request, *args, **kwargs):
+        """Assign the chosen teacher, then show the row (HTMX) or go back to the page."""
+        if not registry.coordination_ids(request.user, ASSIGNMENT_EDIT):
+            raise PermissionDenied
+        offering = get_object_or_404(
+            Offering.objects.select_related(
+                "subject__coordination",
+                "subject__study_plan__course",
+                "dsd_semester__dsd__academic_year",
+            ),
+            pk=self.kwargs["pk"],
+        )
+        registry.require_on_coordination(
+            request.user, ASSIGNMENT_EDIT, offering.subject.coordination_id
+        )
+        unit = get_object_or_404(TeachingUnit, pk=self.kwargs["unit_pk"], offering=offering)
+        error = self._assign(request, offering, unit)
+        if not request.headers.get("HX-Request"):
+            if error:
+                messages.error(request, error)
+            else:
+                messages.success(request, _("Docente guardado."))
+            return redirect("dsd:offering_detail", pk=offering.pk)
+        context = self._row_context(request, offering, unit, error)
+        if context is None:
+            # The unit is gone (its turma was divided or merged meanwhile): reload the page.
+            return HttpResponse(headers={"HX-Refresh": "true"})
+        return self.render_to_response(context)
+
+    def _assign(self, request, offering, unit) -> str:
+        """Give the unit the teacher of the request; return an error text, or an empty one."""
+        if unit.teacher_id is not None:
+            return str(_("A unidade já tem docente: use «Alterar» para mudar ou retirar."))
+        candidates = {
+            teacher.pk: teacher for teacher in candidate_teachers(offering.subject.coordination_id)
+        }
+        teacher_id = request.POST.get("teacher", "")
+        teacher = candidates.get(int(teacher_id)) if teacher_id.isdigit() else None
+        seen = request.POST.get("seen", "")
+        if teacher is None:
+            return str(_("Escolha um docente da lista."))
+        if not seen.isdigit():
+            return str(_("Dados do formulário inválidos."))
+        try:
+            assign_teacher(request.user, unit, teacher, "", int(seen))
+        except ValidationError as error:
+            return " ".join(error.messages)
+        return ""
+
+    def _row_context(self, request, offering, unit, error: str) -> dict | None:
+        """Build the context to draw the row of one unit again, with an error if there is one.
+
+        Returns ``None`` if the unit no longer exists.
+        """
+        unit = self._units(offering).filter(pk=unit.pk).first()
+        if unit is None:
+            return None
+        coordination_id = offering.subject.coordination_id
+        stale = stale_unit_ids(offering.dsd_semester, coordination_id)
+        sizes = class_group_sizes(offering.dsd_semester.dsd.academic_year)
+        can_edit = cell_writable(
+            request.user, TEACHING_UNIT_EDIT, offering.dsd_semester, coordination_id
+        )
+        row = self._unit_rows(offering, [unit], stale, sizes, can_edit)[0]
+        row["error"] = error
+        return {"row": row, "offering": offering, "can_edit": can_edit, "request": request}

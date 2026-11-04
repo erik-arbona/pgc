@@ -64,7 +64,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 
 ## 6. Vistas (D20, `07`)
 - [x] T6.1 Visão geral da coordenação: pendentes e barra de carga com estado em cor e texto.
-- [ ] T6.2 Atribuição por disciplina (HTMX, D50).
+- [x] T6.2 Atribuição por disciplina (HTMX, D50).
 - [ ] T6.3 Ficha do docente; leitura pelo próprio docente (D09).
 - [ ] T6.4 Comparação com o Excel: exportação CSV da carga por docente, para a Porta 1.
 

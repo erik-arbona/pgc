@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
   <h1>{{ title }}</h1>
@@ -8,7 +8,9 @@
     {{ offering.subject.study_plan.course.name }} · {{ offering.subject.coordination.name }}
   </p>
   <p>{% translate "Regente" %}: {{ offering.lead_teacher|default:"—" }}</p>
-  <form method="get" action="{% url 'dsd:offering_merge' offering.pk %}">
+  {% if current_units %}<p>{% if to_assign %}<strong>{{ to_assign }} {% translate "de" %} {{ current_units }} {% translate "aulas por atribuir" %}</strong>{% else %}{% translate "Todas as aulas têm docente." %}{% endif %}</p>{% endif %}
+  {% comment %}The merge form is empty and its fields point to it by id: the rows hold their own forms (the teacher selector), and a form cannot sit inside another one.{% endcomment %}
+  <form id="merge-form" method="get" action="{% url 'dsd:offering_merge' offering.pk %}"></form>
   <table>
     <thead>
       <tr>
@@ -20,19 +22,7 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr>
-        {% if can_edit %}<td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}">{% endif %}</td>{% endif %}
-        <td>{{ row.unit.class_type.code }}</td>
-        <td>{{ row.weekly_hours|default:"—" }}</td>
-        <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
-        <td>
-          {% if row.has_groups %}—{% elif row.students is not None %}{{ row.students }}{% if row.provisional %} ({% translate "provisório" %}){% endif %}{% else %}{% translate "sem matrícula" %}{% endif %}
-        </td>
-        <td>{% if row.unit.teacher %}<a href="{% url 'dsd:teacher_sheet' offering.dsd_semester.dsd_id row.unit.teacher_id %}">{{ row.unit.teacher.name }}</a>{% if row.teacher_status %}<br><small>{{ row.teacher_status }}</small>{% endif %}{% else %}—{% endif %}</td>
-        <td>{% if row.unit.room_capacity %}{{ row.unit.room_capacity }}{% if row.unit.room_type %} ({{ row.unit.room_type.name }}){% endif %}{% for warning in row.room_warnings %}<br><small class="warning">{{ warning }}</small>{% endfor %}{% else %}—{% endif %}</td>
-        <td>{% if row.stale %}{% translate "Obsoleta" %}{% endif %}</td>
-        <td>{% for action in row.actions %}<a href="{{ action.url }}">{{ action.label }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</td>
-      </tr>
+      {% include "dsd/_unit_row.html" %}
       {% empty %}
       <tr><td colspan="9">{% translate "Esta oferta ainda não tem unidades letivas." %}</td></tr>
       {% endfor %}
@@ -50,7 +40,7 @@
     <tbody>
       {% for row in partner_rows %}
       <tr>
-        <td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}">{% endif %}</td>
+        <td>{% if row.selectable %}<input type="checkbox" name="units" value="{{ row.unit.pk }}" form="merge-form">{% endif %}</td>
         <td>{{ row.unit.offering.subject.code }} – {{ row.unit.offering.subject.name }} ({{ row.unit.offering.subject.study_plan.course.name }})</td>
         <td>{{ row.unit.class_type.code }}</td>
         <td>{% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
@@ -62,8 +52,7 @@
     </tbody>
   </table>
   {% endif %}
-  {% if can_edit %}<p><button type="submit">{% translate "Juntar selecionadas" %}</button></p>{% endif %}
-  </form>
+  {% if can_edit %}<p><button type="submit" form="merge-form">{% translate "Juntar selecionadas" %}</button></p>{% endif %}
   {% if guest_rows %}
   <h2>{% translate "Juntada em" %}</h2>
   <ul>
@@ -78,3 +67,4 @@
   {% endif %}
   <p><a href="{% url 'dsd:offering_list' offering.dsd_semester.dsd_id %}">{% translate "Voltar" %}</a></p>
 {% endblock %}
+{% block scripts %}<script src="{% static 'vendor/htmx.min.js' %}"></script>{% endblock %}
