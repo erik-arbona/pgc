@@ -41,4 +41,10 @@ class StaffConfig(AppConfig):
         def teacher_label(scope_id: int) -> str:
             return str(Teacher.objects.filter(pk=scope_id).first() or "—")
 
-        register_scope(ScopeKind.TEACHER, teacher_scope, teachers_in, teacher_label)
+        def teacher_options(faculty_ids: set[int]) -> list[tuple[int, str]]:
+            found = Teacher.objects.filter(coordination__faculty_id__in=faculty_ids)
+            return [(t.pk, str(t)) for t in found]
+
+        register_scope(
+            ScopeKind.TEACHER, teacher_scope, teachers_in, teacher_label, teacher_options
+        )

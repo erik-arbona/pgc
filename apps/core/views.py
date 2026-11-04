@@ -8,19 +8,24 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
+from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
 
 from .accounts import (
+    assign_role,
     can_manage_account,
+    can_revoke_role,
     create_account,
+    grantable_scope_options,
+    revoke_role,
     set_active,
     update_account,
     visible_accounts,
 )
-from .forms import AccountCreateForm, AccountUpdateForm, ParameterForm
+from .forms import AccountCreateForm, AccountRoleForm, AccountUpdateForm, ParameterForm
 from .generic import (
     PAGE_SIZE,
     DeleteReasonForm,
@@ -29,7 +34,7 @@ from .generic import (
     ScopedViewMixin,
     add_validation_errors,
 )
-from .models import Parameter
+from .models import Parameter, RoleAssignment
 from .scopes import scope_label
 
 
@@ -144,7 +149,12 @@ class AccountObjectMixin:
         context = super().get_context_data(**kwargs)
         context["account"] = self.account
         context["roles"] = [
-            {"profile": r.get_profile_display(), "scope": scope_label(r.scope_kind, r.scope_id)}
+            {
+                "pk": r.pk,
+                "profile": r.get_profile_display(),
+                "scope": scope_label(r.scope_kind, r.scope_id),
+                "can_revoke": can_revoke_role(self.request.user, r),
+            }
             for r in self.account.role_assignments.all()
         ]
         return context
@@ -156,6 +166,12 @@ class AccountUpdateView(AccountMixin, ScopedViewMixin, AccountObjectMixin, FormV
     template_name = "core/account_form.html"
     form_class = AccountUpdateForm
     title = _("Editar conta")
+
+    def get_context_data(self, **kwargs):
+        """Add the form that adds a role, with the scopes the manager can grant."""
+        context = super().get_context_data(**kwargs)
+        context["role_form"] = AccountRoleForm(options=grantable_scope_options(self.request.user))
+        return context
 
     def get_initial(self):
         """Start from the account's current values."""
@@ -216,3 +232,95 @@ class AccountActivateView(AccountActiveView):
     """Reactivate an account."""
 
     active = True
+
+
+class AccountRoleAddView(AccountMixin, ScopedViewMixin, AccountObjectMixin, View):
+    """Add a role to an account (POST only); the service checks the manager's authority."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        """Create the role, or show why not.
+
+        A scope outside the manager's Faculties raises ``PermissionDenied`` (403); an invalid or
+        non-existing value only shows a message on the account page.
+        """
+        self.account = self._load_account()
+        back = redirect(reverse("core:account_update", kwargs={"pk": self.account.pk}))
+        form = AccountRoleForm(request.POST, options=grantable_scope_options(request.user))
+        if not form.is_valid():
+            messages.error(request, _("Escolha um perfil e um âmbito válidos."))
+            return back
+        kind, scope_id = form.cleaned_data["scope"]
+        try:
+            assign_role(
+                request.user,
+                self.account,
+                form.cleaned_data["profile"],
+                kind,
+                scope_id,
+                form.cleaned_data["reason"],
+            )
+        except ValidationError as error:
+            messages.error(request, " ".join(error.messages))
+            return back
+        messages.success(request, _("Perfil atribuído."))
+        return back
+
+
+class AccountRoleScopesView(AccountMixin, ScopedViewMixin, AccountObjectMixin, View):
+    """HTMX fragment: the scope options that fit a profile (D50)."""
+
+    http_method_names = ["get"]
+
+    def get(self, request, *args, **kwargs):
+        """Return the ``<option>`` list for the chosen profile."""
+        self.account = self._load_account()
+        options = grantable_scope_options(request.user, request.GET.get("profile") or None)
+        return render(request, "core/_scope_options.html", {"options": options})
+
+
+class AccountRoleRemoveView(AccountMixin, ScopedViewMixin, FormView):
+    """Confirm and remove a role, asking for a reason (D62)."""
+
+    template_name = "core/account_role_remove.html"
+    form_class = DeleteReasonForm
+    title = _("Retirar perfil")
+
+    def _load_role(self):
+        """Return the role, or raise ``PermissionDenied`` if the manager may not remove it."""
+        role = get_object_or_404(
+            RoleAssignment.objects.select_related("user"), pk=self.kwargs["pk"]
+        )
+        if not can_revoke_role(self.request.user, role):
+            raise PermissionDenied
+        return role
+
+    def get(self, request, *args, **kwargs):
+        """Show the confirmation page for a role the manager may remove."""
+        self.role = self._load_role()
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        """Remove the role after checking the authority again."""
+        self.role = self._load_role()
+        return super().post(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        """Add the role and where it belongs to the page."""
+        context = super().get_context_data(**kwargs)
+        context["role"] = self.role
+        context["scope"] = scope_label(self.role.scope_kind, self.role.scope_id)
+        context["cancel_url"] = reverse("core:account_update", kwargs={"pk": self.role.user_id})
+        return context
+
+    def form_valid(self, form):
+        """Remove the role through the audited service."""
+        holder_id = self.role.user_id
+        try:
+            revoke_role(self.request.user, self.role, form.cleaned_data["reason"])
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Perfil retirado."))
+        return redirect(reverse("core:account_update", kwargs={"pk": holder_id}))

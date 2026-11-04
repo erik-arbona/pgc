@@ -23,8 +23,8 @@ from django.utils.translation import gettext_lazy as _
 from .audit import audited_delete, audited_save
 from .models import RoleAssignment
 from .permissions import registry
-from .roles import Profile, ScopeKind, scope_kind_allowed
-from .scopes import ScopeNotFound, faculty_of_scope, scope_ids_in_faculties
+from .roles import REQUIRED_SCOPE_KIND, Profile, ScopeKind, scope_kind_allowed
+from .scopes import ScopeNotFound, faculty_of_scope, scope_ids_in_faculties, scope_options
 
 ACTION = "account.edit"
 
@@ -237,17 +237,65 @@ def assign_role(
     return role
 
 
+def can_revoke_role(actor, assignment: RoleAssignment) -> bool:
+    """Tell whether the actor may remove a role.
+
+    Args:
+        actor: the user acting.
+        assignment: the role.
+
+    Returns:
+        True only if the role is not the actor's own, does not belong to an administrator
+        account, and its scope belongs to a Faculty the actor manages. Roles without a Faculty
+        (viewer, facilities...) are operator-only.
+    """
+    holder = assignment.user
+    if holder.pk == actor.pk or holder.is_superuser or holder.is_staff:
+        return False
+    faculty_id = _faculty_of(assignment)
+    return faculty_id is not None and faculty_id in _managed_faculties(actor)
+
+
 def revoke_role(actor, assignment: RoleAssignment, reason: str) -> None:
     """Remove a role the actor manages.
 
     Raises:
-        PermissionDenied: for the actor's own role, or a role whose Faculty is not one of the
-            actor's (including roles that have no Faculty).
+        PermissionDenied: if ``can_revoke_role`` says no.
         ValidationError: if the reason is missing.
     """
-    if assignment.user_id == actor.pk:
-        raise PermissionDenied("Not allowed to change your own roles.")
-    faculty_id = _faculty_of(assignment)
-    if faculty_id is None or faculty_id not in _managed_faculties(actor):
+    if not can_revoke_role(actor, assignment):
         raise PermissionDenied("Not allowed to revoke this role.")
     audited_delete(assignment, actor, reason)
+
+
+def grantable_scope_options(actor, profile: str | None = None) -> list[tuple[str, str]]:
+    """Return the scopes the actor could grant, as ``("kind:id", label)`` pairs for a select.
+
+    Only scopes inside the actor's Faculties are offered. A teacher who already has an account
+    is left out. With a profile, only the scope kind that profile requires is listed (and
+    nothing for a profile managers may not grant). The server checks every grant again.
+
+    Args:
+        actor: the user acting.
+        profile: a profile value to filter by, or ``None`` for all grantable kinds.
+
+    Returns:
+        The options, grouped by kind in the order Faculty, coordination, teacher.
+    """
+    faculties = _managed_faculties(actor)
+    kinds = [ScopeKind.FACULTY, ScopeKind.COORDINATION, ScopeKind.TEACHER]
+    if profile is not None:
+        required = REQUIRED_SCOPE_KIND.get(profile)
+        kinds = [required] if profile in GRANTABLE_PROFILES and required in kinds else []
+    linked = set(
+        RoleAssignment.objects.filter(
+            profile=Profile.TEACHER, scope_kind=ScopeKind.TEACHER
+        ).values_list("scope_id", flat=True)
+    )
+    options: list[tuple[str, str]] = []
+    for kind in kinds:
+        for scope_id, label in scope_options(kind, faculties):
+            if kind == ScopeKind.TEACHER and scope_id in linked:
+                continue
+            options.append((f"{kind}:{scope_id}", f"{ScopeKind(kind).label}: {label}"))
+    return options

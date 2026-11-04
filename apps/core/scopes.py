@@ -20,6 +20,7 @@ class ScopeNotFound(LookupError):
 _RESOLVERS: dict[str, Callable[[int], int]] = {}
 _IN_FACULTIES: dict[str, Callable[[set[int]], set[int]]] = {}
 _LABELS: dict[str, Callable[[int], str]] = {}
+_OPTIONS: dict[str, Callable[[set[int]], list[tuple[int, str]]]] = {}
 
 
 def register_scope(
@@ -27,6 +28,7 @@ def register_scope(
     resolver: Callable[[int], int],
     in_faculties: Callable[[set[int]], set[int]],
     label: Callable[[int], str],
+    options: Callable[[set[int]], list[tuple[int, str]]],
 ) -> None:
     """Register how to work with a scope kind.
 
@@ -37,7 +39,10 @@ def register_scope(
         in_faculties: a function from a set of Faculty ids to the ids of this kind that belong
             to them (used to list the accounts a manager can see).
         label: a function from the scope id to a name for the interface.
+        options: a function from a set of Faculty ids to ``(id, name)`` pairs of this kind that
+            belong to them, for a select box.
     """
+    _OPTIONS[kind] = options
     _RESOLVERS[kind] = resolver
     _IN_FACULTIES[kind] = in_faculties
     _LABELS[kind] = label
@@ -47,6 +52,12 @@ def scope_ids_in_faculties(kind: str, faculty_ids: set[int]) -> set[int]:
     """Return the ids of a scope kind that belong to the given Faculties (empty if unknown)."""
     finder = _IN_FACULTIES.get(kind)
     return finder(faculty_ids) if finder else set()
+
+
+def scope_options(kind: str, faculty_ids: set[int]) -> list[tuple[int, str]]:
+    """Return ``(id, name)`` pairs of a scope kind inside the given Faculties (empty if unknown)."""
+    finder = _OPTIONS.get(kind)
+    return finder(faculty_ids) if finder else []
 
 
 def scope_label(kind: str, scope_id: int | None) -> str:

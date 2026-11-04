@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{% blocktranslate with user=role.user.username profile=role.get_profile_display %}Vai retirar o perfil «{{ profile }}» da conta {{ user }}.{% endblocktranslate %}
+     {{ scope }}</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Retirar perfil" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}
