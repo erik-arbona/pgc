@@ -10,6 +10,7 @@ from . import views
 app_name = "rooms"
 
 urlpatterns = [
+    path("summary/", views.RoomSummaryView.as_view(), name="summary"),
     path("rooms/", views.RoomListView.as_view(), name="room_list"),
     path("rooms/new/", views.RoomCreateView.as_view(), name="room_create"),
     path("rooms/<int:pk>/edit/", views.RoomUpdateView.as_view(), name="room_update"),

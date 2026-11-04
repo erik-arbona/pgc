@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{% translate "Quantas salas existem de cada tipo e capacidade." %}</p>
+  {# Works without JavaScript (submit button); with HTMX the results refresh in place. #}
+  <form method="get" hx-get="{% url 'rooms:summary' %}" hx-target="#summary-results"
+        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, keyup delay:300ms from:input">
+    <label>{% translate "Tipo" %}
+      <select name="room_type">
+        <option value="">{% translate "Todos" %}</option>
+        {% for item in room_types %}
+        <option value="{{ item.pk }}"{% if selected_type == item.pk|stringformat:"s" %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Capacidade mínima" %}
+      <input type="number" name="min_capacity" min="1" value="{{ selected_capacity }}">
+    </label>
+    <button type="submit">{% translate "Filtrar" %}</button>
+  </form>
+  {% include "rooms/_summary_results.html" %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/htmx.min.js' %}"></script>{% endblock %}
