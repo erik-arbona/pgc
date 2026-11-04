@@ -5,11 +5,13 @@ PGC manager. Every form that edits an existing record asks for a reason (D40).
 """
 
 from django import forms
+from django.forms.models import construct_instance
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.generic import ReasonModelForm, ScopedModelForm
 
-from .models import Category, Position, Teacher
+from .models import Category, LoadRange, Position, Teacher
 
 
 class CategoryForm(ReasonModelForm):
@@ -73,3 +75,53 @@ class TeacherForm(ScopedModelForm):
         if cleaned.get("positions") and cleaned.get("teacher_type") != Teacher.Type.FULL_TIME:
             self.add_error("positions", _("Só os docentes a tempo inteiro têm cargos."))
         return cleaned
+
+
+class LoadRangeForm(ReasonModelForm):
+    """Create or edit an hours range (D58).
+
+    The kind and the category, position or teacher type are fixed once the rule exists: to
+    change them, delete the rule (while it has not started) and add another. Inactive categories
+    and positions are not offered, except the one the rule already has. Consistency and overlap
+    are checked by ``services.save_load_range``, which gives the messages in Portuguese.
+    """
+
+    class Meta:
+        model = LoadRange
+        fields = [
+            "kind",
+            "category",
+            "position",
+            "teacher_type",
+            "minimum_hours",
+            "maximum_hours",
+            "valid_from",
+        ]
+        widgets = {"valid_from": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        keep_category = [self.instance.category_id] if self.instance.pk else []
+        keep_position = [self.instance.position_id] if self.instance.pk else []
+        categories, positions = self.fields["category"].queryset, self.fields["position"].queryset
+        self.fields["category"].queryset = categories.filter(is_active=True) | categories.filter(
+            pk__in=keep_category
+        )
+        self.fields["position"].queryset = positions.filter(is_active=True) | positions.filter(
+            pk__in=keep_position
+        )
+        if self.instance.pk:
+            for name in ("kind", "category", "position", "teacher_type"):
+                self.fields[name].disabled = True
+        else:
+            self.initial.setdefault("valid_from", timezone.localdate())
+
+    def _post_clean(self) -> None:
+        """Build the instance from the form but skip the model's own validation.
+
+        ``services.save_load_range`` checks the same rules (hours, overlap, subject) and gives
+        the messages in Portuguese; the model's generic constraint messages would be English.
+        """
+        self.instance = construct_instance(
+            self, self.instance, self._meta.fields, self._meta.exclude
+        )

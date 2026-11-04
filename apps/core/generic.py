@@ -151,6 +151,9 @@ class AuditedDeleteMixin:
         """Delete the record, or explain why it cannot be deleted."""
         try:
             self.delete_object(form)
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
         except ProtectedError:
             messages.error(self.request, _("Não é possível eliminar: o registo está em uso."))
             return redirect(self.get_success_url())

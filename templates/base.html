@@ -31,6 +31,8 @@
       {% if can_teachers %}<a href="{% url 'staff:teacher_list' %}">{% translate "Docentes" %}</a>{% endif %}
       {% can "category.edit" as can_categories %}
       {% if can_categories %}<a href="{% url 'staff:category_list' %}">{% translate "Categorias" %}</a>{% endif %}
+      {% can "load_range.edit" as can_ranges %}
+      {% if can_ranges %}<a href="{% url 'staff:loadrange_list' %}">{% translate "Intervalos de horas" %}</a>{% endif %}
       {% can "position.edit" as can_positions %}
       {% if can_positions %}<a href="{% url 'staff:position_list' %}">{% translate "Cargos" %}</a>{% endif %}
       {% if can_class_types %}<a href="{% url 'academic:classtype_list' %}">{% translate "Tipos de aula" %}</a>{% endif %}

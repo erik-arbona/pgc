@@ -1,0 +1,29 @@
+{% load i18n %}
+<div id="loadrange-results">
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Tipo de regra" %}</th><th>{% translate "Sujeito" %}</th>
+        <th>{% translate "Mínimo" %}</th><th>{% translate "Máximo" %}</th>
+        <th>{% translate "Vigora desde" %}</th><th>{% translate "Estado" %}</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in object_list %}
+      <tr>
+        <td>{{ item.get_kind_display }}</td>
+        <td>{% if item.category %}{{ item.category }}{% elif item.position %}{{ item.position }}{% else %}{{ item.get_teacher_type_display }}{% endif %}</td>
+        <td>{{ item.minimum_hours|default_if_none:"—" }}</td><td>{{ item.maximum_hours }}</td>
+        <td>{{ item.valid_from|date:"Y-m-d" }}</td><td>{{ item.status }}</td>
+        <td>
+          {% if item.editable %}
+          <a href="{% url 'staff:loadrange_update' item.pk %}">{% translate "Editar" %}</a>
+          <a href="{% url 'staff:loadrange_delete' item.pk %}">{% translate "Eliminar" %}</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "core/_pagination.html" %}
+</div>
