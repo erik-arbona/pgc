@@ -33,7 +33,9 @@ class AnnualTeachingHours:
     Attributes:
         teacher_id: the teacher.
         semester_weekly_hours: weekly hours in the first and in the second semester.
-        weekly_hours: their sum, the figure compared with the range (D12).
+        weekly_hours: the sum of the two semester totals, each already rounded to two decimals
+            (D73), so the annual total is what the two shown totals add up to; it is the figure
+            compared with the range (D12).
     """
 
     teacher_id: int

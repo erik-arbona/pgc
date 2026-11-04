@@ -138,3 +138,16 @@ def test_exhaustive_hours_groups_and_types_match_the_formula():
         assert prep(units) == groups * D(hours) * WEIGHTS[code]
         checked += 1
     assert checked == len(CODES) * len(HOURS) * len(GROUPS)
+
+
+def test_the_preparation_total_is_rounded_to_two_decimals_half_up():
+    """1 h of TP at a 33.33% share: 0.3333 lesson hours x 1.5 = 0.49995, shown as 0.50 (D73)."""
+    units = [unit(1, "TP", 1, [(1, "33.33"), (2, "66.67")])]
+    assert prep(units) == D("0.50")
+
+
+def test_the_preparation_weights_apply_to_the_exact_hours_not_the_rounded_total():
+    """0.5 h of TP at a 1% share is 0.005 lesson hours, so 0.0075 of preparation, shown as 0.01;
+    weighting the rounded lesson total 0.01 would give 0.015 and show 0.02 (D73)."""
+    units = [unit(1, "TP", 0.5, [(1, 1), (2, 99)])]
+    assert prep(units) == D("0.01")

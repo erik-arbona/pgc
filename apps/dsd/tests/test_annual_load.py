@@ -215,3 +215,13 @@ def test_exhaustive_pairs_of_semesters_add_up_exactly():
             assert teacher.weekly_hours == D(h1) + D(h2)
         checked += 1
     assert checked == len(HOURS_1) * len(HOURS_2)
+
+
+def test_the_annual_total_adds_the_two_rounded_semester_totals():
+    """Each semester shows 0.005 as 0.01, and the year is what the two shown totals add up to:
+    0.02, not the rounded exact sum 0.01 (D73)."""
+    first = semester(unit(1, "T", 0.5, [(1, 1), (2, 99)]))
+    second = semester(unit(2, "T", 0.5, [(1, 1), (2, 99)]))
+    by_id = {t.teacher_id: t for t in annual_teaching_hours(first, second)}
+    assert by_id[1].semester_weekly_hours == (D("0.01"), D("0.01"))
+    assert by_id[1].weekly_hours == D("0.02")

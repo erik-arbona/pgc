@@ -9,7 +9,7 @@ The expected numbers are written out by hand from those rules, never taken from 
 
 import itertools
 import random
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 import pytest
 
@@ -22,6 +22,7 @@ from apps.dsd.teaching_hours import (
 
 D = Decimal
 WEEKS = D("15")
+CENT = D("0.01")
 
 
 def unit(uid, class_type, hours, groups=(1,), assignments=(), offering=1, subgroup=None):
@@ -118,17 +119,42 @@ def test_a_teacher_with_several_subjects_adds_them_and_splits_by_class_type():
     assert dict(teacher.weekly_by_class_type) == {"T": D("3.8"), "TP": D("4")}
 
 
-def test_thirds_are_exact_and_add_back_to_the_unit_hours():
-    """3 hours at 33.33 / 33.33 / 33.34 are exact decimals that sum to exactly 3."""
+def test_lines_stay_exact_and_only_the_teacher_totals_are_rounded_to_two_decimals():
+    """3 hours at 33.33 / 33.33 / 33.34: the lines are exact (0.9999, 0.9999, 1.0002) and the
+    totals shown are rounded to 1.00 each (D73)."""
     result = semester_teaching_hours(
         [unit(1, "T", 3, assignments=[(1, "33.33"), (2, "33.33"), (3, "33.34")])], WEEKS
     )
-    assert (weekly(result, 1), weekly(result, 2), weekly(result, 3)) == (
-        D("0.9999"),
-        D("0.9999"),
-        D("1.0002"),
+    exact = [result.for_teacher(t).exact_weekly_hours for t in (1, 2, 3)]
+    assert exact == [D("0.9999"), D("0.9999"), D("1.0002")]
+    assert [result.for_teacher(t).lines[0].weekly_hours for t in (1, 2, 3)] == exact
+    assert [weekly(result, t) for t in (1, 2, 3)] == [D("1.00"), D("1.00"), D("1.00")]
+    assert sum(t.exact_weekly_hours for t in result.teachers) == D("3")
+
+
+def test_totals_are_rounded_half_up_to_two_decimals():
+    """0.5 h at a 1% share is 0.005: it rounds up to 0.01 (half up), not down to 0.00."""
+    result = semester_teaching_hours([unit(1, "T", 0.5, assignments=[(1, 1), (2, 99)])], WEEKS)
+    assert result.for_teacher(1).exact_weekly_hours == D("0.005")
+    assert weekly(result, 1) == D("0.01")
+    assert weekly(result, 2) == D("0.50")  # 0.495 rounds up as well
+
+
+def test_each_total_is_rounded_by_itself_so_they_may_not_add_up_to_the_unit():
+    """1 h in thirds: 0.3333 / 0.3333 / 0.3334 each show as 0.33; the totals add up to 0.99,
+    a known effect of rounding only the totals (D73)."""
+    result = semester_teaching_hours(
+        [unit(1, "T", 1, assignments=[(1, "33.33"), (2, "33.33"), (3, "33.34")])], WEEKS
     )
-    assert sum(t.weekly_hours for t in result.teachers) == D("3")
+    assert [weekly(result, t) for t in (1, 2, 3)] == [D("0.33")] * 3
+
+
+def test_the_semester_total_is_the_rounded_exact_weekly_total_times_the_weeks():
+    """Semester hours = round(exact weekly x weeks): 0.9999 x 15 = 14.9985 shows as 15.00."""
+    result = semester_teaching_hours(
+        [unit(1, "T", 3, assignments=[(1, "33.33"), (2, "66.67")])], WEEKS
+    )
+    assert result.for_teacher(1).semester_hours == D("15.00")
 
 
 def test_semester_hours_follow_the_semester_weeks_parameter():
@@ -220,8 +246,11 @@ def test_exhaustive_combinations_of_hours_groups_and_splits_match_the_formula():
         result = semester_teaching_hours(units, WEEKS)
         for teacher, share in enumerate(split, start=1):
             expected = groups * D(hours) * D(str(share)) / D(100)
-            assert weekly(result, teacher) == expected
-            assert result.for_teacher(teacher).semester_hours == expected * WEEKS
+            assert result.for_teacher(teacher).exact_weekly_hours == expected
+            assert weekly(result, teacher) == expected.quantize(CENT, ROUND_HALF_UP)
+            assert result.for_teacher(teacher).semester_hours == (expected * WEEKS).quantize(
+                CENT, ROUND_HALF_UP
+            )
         checked += 1
     assert checked == len(HOURS) * 5 * len(SPLITS)
 
@@ -271,7 +300,7 @@ def test_hours_are_distributed_without_loss_or_duplication(cases):
             assert totals.distributed_weekly_hours == fact.weekly_hours * share_total / 100
             if share_total == 100:
                 assert totals.distributed_weekly_hours == fact.weekly_hours
-        assert sum(t.weekly_hours for t in result.teachers) == sum(
+        assert sum(t.exact_weekly_hours for t in result.teachers) == sum(
             u.distributed_weekly_hours for u in result.units
         )
 
@@ -340,17 +369,22 @@ def test_n_identical_groups_multiply_the_hours_by_n(cases):
         for assignment in first.assignments:
             own = share_hours(first.weekly_hours, assignment.share)
             teacher = assignment.teacher_id
-            assert weekly(tripled, teacher) == weekly(base, teacher) + 2 * own
+            exact_before = base.for_teacher(teacher).exact_weekly_hours
+            assert tripled.for_teacher(teacher).exact_weekly_hours == exact_before + 2 * own
 
 
 def test_semester_hours_and_class_type_split_are_consistent(cases):
-    """For every teacher and line: semester = weekly x weeks, and the class type split adds
-    up to the weekly total."""
+    """For every teacher: the shown totals are the exact ones rounded to two decimals, and the
+    class type split and the lines add up to the exact weekly total; every line's semester
+    hours are its weekly hours x weeks, exact."""
     for units in cases:
         for teacher in semester_teaching_hours(units, WEEKS).teachers:
-            assert teacher.semester_hours == teacher.weekly_hours * WEEKS
-            assert sum(h for _t, h in teacher.weekly_by_class_type) == teacher.weekly_hours
-            assert sum(line.weekly_hours for line in teacher.lines) == teacher.weekly_hours
+            assert teacher.weekly_hours == teacher.exact_weekly_hours.quantize(CENT, ROUND_HALF_UP)
+            assert teacher.semester_hours == (teacher.exact_weekly_hours * WEEKS).quantize(
+                CENT, ROUND_HALF_UP
+            )
+            assert sum(h for _t, h in teacher.weekly_by_class_type) == teacher.exact_weekly_hours
+            assert sum(line.weekly_hours for line in teacher.lines) == teacher.exact_weekly_hours
             for line in teacher.lines:
                 assert line.semester_hours == line.weekly_hours * WEEKS
 
