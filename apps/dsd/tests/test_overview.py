@@ -150,3 +150,39 @@ def test_only_users_who_cover_the_coordination_see_it(board, client):
 def test_the_screen_needs_a_session(board, client):
     """Anonymous users go to the login."""
     assert client.get(url(board)).status_code == 302
+
+
+def test_the_board_gets_no_links_to_pages_it_cannot_open(board, client):
+    """The Executive Board reads the overview but not the teacher sheets or the offerings.
+
+    The links are only drawn for who can open them (review of T6.1).
+    """
+    client.force_login(board["ce"])
+    html = client.get(url(board)).content.decode()
+    assert "/teachers/" not in html
+    assert "/offerings/" not in html
+    client.force_login(board["manager"])
+    assert "/teachers/" in client.get(url(board)).content.decode()
+
+
+def test_a_teacher_of_another_coordination_is_marked_and_does_not_count_as_pending(board):
+    """A teacher who moved away but still has a unit here is shown, marked, and kept out of
+    the pending items, which this coordinator cannot act on (review of T6.1)."""
+    from apps.dsd.models import TeachingUnit
+
+    TeachingUnit.objects.filter(pk=unit_of(board, "A", "T").pk).update(teacher=board["foreign"])
+    result = overview(board)
+    rows = {row.teacher.identifier: row for row in result.rows}
+    assert rows["T3"].foreign is True
+    assert rows["T1"].foreign is False
+    assert item(result, AttentionKind.REASON_MISSING).count == 2
+    assert board["foreign"].pk not in item(result, AttentionKind.REASON_MISSING).teacher_ids
+
+
+def test_a_dsd_without_the_semester_is_a_404(board, client):
+    """No such semester: 404, not a server error."""
+    from apps.dsd.models import DsdSemester
+
+    DsdSemester.objects.filter(dsd=board["semester"].dsd, number=2).delete()
+    client.force_login(board["coordinator"])
+    assert client.get(url(board, 2)).status_code == 404

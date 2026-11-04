@@ -1594,7 +1594,10 @@ class CoordinationOverviewView(PageMixin, LoginRequiredMixin, TemplateView):
         number = self.request.GET.get("semester", "1")
         if number not in ("1", "2"):
             raise Http404
-        result = coordination_overview(dsd, int(number), coordination)
+        try:
+            result = coordination_overview(dsd, int(number), coordination)
+        except DsdSemester.DoesNotExist:
+            raise Http404 from None
         by_id = {row.teacher.pk: row.teacher for row in result.rows}
         context.update(
             {

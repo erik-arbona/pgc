@@ -34,6 +34,8 @@ class TeacherRow:
         status: the state of the load in words, with the reason and extra hours (never colour
             alone, D98).
         css_class: the class that colours the bar for the state.
+        foreign: the teacher belongs to another coordination and only appears because
+            they teach a unit of this one; their load is the full annual one (D94).
     """
 
     teacher: Teacher
@@ -41,6 +43,7 @@ class TeacherRow:
     bar: LoadBar
     status: str
     css_class: str
+    foreign: bool
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,8 @@ def coordination_overview(
         ).order_by("name")
     )
     loads = teacher_loads(dsd, teachers)
+    # What needs attention is what this coordinator can act on: a teacher of another
+    # coordination is shown, marked, but their reason and extra hours are not ours (D69).
     facts = [
         TeacherFacts(
             teacher.pk,
@@ -109,6 +114,7 @@ def coordination_overview(
             loads[teacher.pk].extra.status,
         )
         for teacher in teachers
+        if teacher.coordination_id == coordination.pk
     ]
     rows = []
     for teacher in teachers:
@@ -125,6 +131,7 @@ def coordination_overview(
                 ),
                 status=load_text(load),
                 css_class=f"state-{load.assessment.status.value}",
+                foreign=teacher.coordination_id != coordination.pk,
             )
         )
     return CoordinationOverview(
