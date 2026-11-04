@@ -75,11 +75,21 @@ class CoordinationForm(ScopedModelForm):
 
 
 class CourseForm(ScopedModelForm):
-    """Create or edit a course; the Faculty choices are the manager's own (D51)."""
+    """Create or edit a course; the Faculty choices are the manager's own (D51).
+
+    The responsible coordination is offered only from the manager's Faculties; the
+    same-Faculty rule is enforced by ``Course.clean`` (D67).
+    """
 
     class Meta:
         model = Course
-        fields = ["faculty", "name", "level"]
+        fields = ["faculty", "name", "level", "responsible_coordination"]
+
+    def __init__(self, *args, allowed_scope_ids=None, **kwargs) -> None:
+        super().__init__(*args, allowed_scope_ids=allowed_scope_ids, **kwargs)
+        if allowed_scope_ids is not None:
+            field = self.fields["responsible_coordination"]
+            field.queryset = field.queryset.filter(faculty_id__in=allowed_scope_ids)
 
 
 class StudyPlanForm(ScopedModelForm):

@@ -119,6 +119,12 @@ def test_three_bachelor_courses_and_one_master_with_two_year_plans(loaded):
         assert cells == {(1, 1), (1, 2), (2, 1), (2, 2)}
 
 
+def test_every_course_is_directed_by_a_coordination_of_its_faculty(loaded):
+    """The demo links each course to a coordination of the same Faculty (D67)."""
+    for course in Course.objects.all():
+        assert course.responsible_coordination.faculty_id == course.faculty_id
+
+
 def test_one_course_has_two_turmas_in_the_same_year_and_the_rest_one(loaded):
     """The future case is covered: 1.º A and 1.º B in one course."""
     per_course = {}

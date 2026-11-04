@@ -217,8 +217,8 @@ class CourseListView(CourseMixin, ScopedListView):
     title = _("Cursos")
 
     def get_queryset(self):
-        """Filter to the manager's Faculties and load the Faculty with each row."""
-        return super().get_queryset().select_related("faculty")
+        """Filter to the manager's Faculties and load the Faculty and director coordination."""
+        return super().get_queryset().select_related("faculty", "responsible_coordination")
 
 
 class CourseCreateView(CourseMixin, ScopedCreateView):

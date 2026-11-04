@@ -8,7 +8,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 
 ## 0. Preparação (ajustes à fase 1)
 - [x] T0.1 Corrigir o glossário e o bloco 7 de `03` ao D43 (fecha o gestor da PGC, não o CE); acrescentar ao glossário «unidade letiva» (`TeachingUnit`).
-- [ ] T0.2 Ligação curso → coordenação responsável, da mesma Faculdade (D10, D44). ⚑ Q2
+- [x] T0.2 Ligação curso → coordenação responsável, da mesma Faculdade (D10, D44). ⚑ Q2
 - [ ] T0.3 Referência opaca do SII em curso e disciplina, editável pelo gestor (D66).
 - [ ] T0.4 Verificação de âmbito por coordenação reutilizável: coordenador (própria), CE e gestor (Faculdade da coordenação), docente (o próprio) (D39, D51, D09).
 - [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições.

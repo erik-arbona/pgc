@@ -18,7 +18,8 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Categoria | Licenciado, mestre, doutor | `Teacher.category` |
 | Cargo | Função que altera o intervalo de horas (atribuída pelo gestor da PGC) | `Position` |
 | Intervalo de horas letivas | Mínimo e máximo anual (horas semanais somadas dos dois semestres) por categoria e por cargo; aplica-se o de máximo mais baixo | `LoadRange` (com vigência) |
-| Curso | Licenciatura, mestrado ou doutoramento, com plano de estudos | `Course` |
+| Curso | Licenciatura, mestrado ou doutoramento, com plano de estudos; tem, opcionalmente, uma coordenação responsável da mesma Faculdade | `Course` |
+| Coordenação responsável (do curso) | Coordenação que dirige o curso; o seu coordenador é o diretor de curso (D10, D67). Não é a coordenação de cada disciplina | `Course.responsible_coordination` |
 | Plano de estudos | Disciplinas por ano e semestre de um curso | `StudyPlan` |
 | Disciplina (UC) | Unidade do plano: código, ECTS, programa, coordenação, carga semestral e semanal por tipo de aula | `Subject` |
 | Tipo de aula | Teórica (T), teórico-prática (TP), prática (P), laboratorial (L), outra | `ClassType` |
