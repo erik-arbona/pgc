@@ -1,12 +1,15 @@
-"""Models of ``academic``: faculty, coordination, course and academic year.
+"""Models of ``academic``: academic structure, study plans and subjects.
 
-Implements: docs/especificacao/04_modelo_de_dados.md – Faculty, Coordination, Course;
-docs/glossario.md – AcademicYear. Study plans and subjects arrive with T2.2.
+Implements: docs/especificacao/04_modelo_de_dados.md – Faculty, Coordination, Course,
+study plan, subject; docs/glossario.md – AcademicYear, ClassType.
 All writes should go through ``apps.core.audit.audited_save`` (CLAUDE.md rule 7).
-See D42 for the assumptions behind these models.
+See D42 and D44 for the assumptions behind these models.
 """
 
+from decimal import Decimal
+
 from django.db import models
+from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 
 
@@ -126,3 +129,175 @@ class AcademicYear(models.Model):
 
     def __str__(self) -> str:
         return self.label
+
+
+class StudyPlan(models.Model):
+    """The study plan of a course, versioned by the academic year in which it starts.
+
+    A plan applies until the next plan of the same course starts (D44).
+    """
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.PROTECT,  # never remove a course that still has plans
+        related_name="study_plans",
+        verbose_name=_("curso"),
+        help_text=_("Course the plan belongs to."),
+    )
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.PROTECT,  # the year is part of the plan's identity
+        related_name="study_plans",
+        verbose_name=_("ano letivo de início"),
+        help_text=_("Academic year in which this version of the plan starts."),
+    )
+
+    class Meta:
+        verbose_name = _("plano de estudos")
+        verbose_name_plural = _("planos de estudos")
+        ordering = ["course", "-academic_year__start_year"]
+        constraints = [
+            # One version of a course's plan per starting year.
+            models.UniqueConstraint(
+                fields=["course", "academic_year"], name="unique_study_plan_per_year"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.course} – {self.academic_year}"
+
+
+class ClassType(models.Model):
+    """A type of class (T, TP, P, L, other).
+
+    Minimal table: seeding and management of the types belong to T2.3, which extends it.
+    """
+
+    code = models.CharField(
+        _("código"),
+        max_length=10,
+        unique=True,  # subjects refer to the type by this code
+        help_text=_("Short unique code, e.g. 'TP'."),
+    )
+    name = models.CharField(_("nome"), max_length=100, help_text=_("Name of the class type."))
+
+    class Meta:
+        verbose_name = _("tipo de aula")
+        verbose_name_plural = _("tipos de aula")
+        ordering = ["code"]
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class Subject(models.Model):
+    """A subject (UC) of a study plan.
+
+    The semester load is one total per subject; the weekly load is split by class type
+    in ``SubjectClassLoad`` (D44). The programme text arrives with T2.4.
+    """
+
+    study_plan = models.ForeignKey(
+        StudyPlan,
+        on_delete=models.PROTECT,  # never remove a plan that still has subjects
+        related_name="subjects",
+        verbose_name=_("plano de estudos"),
+        help_text=_("Study plan the subject belongs to."),
+    )
+    code = models.CharField(
+        _("código"), max_length=20, help_text=_("Subject code, unique within the plan.")
+    )
+    name = models.CharField(_("nome"), max_length=200, help_text=_("Name of the subject."))
+    ects = models.DecimalField(
+        _("ECTS"), max_digits=4, decimal_places=2, help_text=_("ECTS credits.")
+    )
+    curricular_year = models.PositiveSmallIntegerField(
+        _("ano curricular"), help_text=_("Year of the course in which the subject is taught.")
+    )
+    semester = models.PositiveSmallIntegerField(
+        _("semestre"), help_text=_("Semester of the curricular year: 1 or 2.")
+    )
+    coordination = models.ForeignKey(
+        Coordination,
+        on_delete=models.PROTECT,  # never remove a coordination that owns subjects
+        related_name="subjects",
+        verbose_name=_("coordenação responsável"),
+        help_text=_("Coordination responsible for the subject."),
+    )
+    semester_hours = models.DecimalField(
+        _("carga semestral"),
+        max_digits=6,
+        decimal_places=2,
+        help_text=_("Total contact hours in the semester."),
+    )
+
+    class Meta:
+        verbose_name = _("disciplina")
+        verbose_name_plural = _("disciplinas")
+        ordering = ["study_plan", "curricular_year", "semester", "code"]
+        constraints = [
+            # The code identifies the subject inside one plan version (D44).
+            models.UniqueConstraint(fields=["study_plan", "code"], name="unique_subject_code"),
+            models.CheckConstraint(condition=models.Q(ects__gt=0), name="subject_ects_positive"),
+            models.CheckConstraint(
+                condition=models.Q(curricular_year__gte=1), name="subject_year_at_least_one"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(semester__in=[1, 2]), name="subject_semester_one_or_two"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(semester_hours__gte=0),
+                name="subject_semester_hours_not_negative",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.code} – {self.name}"
+
+    @property
+    def weekly_hours_total(self) -> Decimal:
+        """Return the weekly hours summed over all class types (0 when there are none)."""
+        total = self.class_loads.aggregate(total=Sum("weekly_hours"))["total"]
+        return total if total is not None else Decimal("0")
+
+
+class SubjectClassLoad(models.Model):
+    """Weekly hours of one class type of a subject (e.g. 2 h of T per week)."""
+
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,  # delete loads explicitly so the audit log records them
+        related_name="class_loads",
+        verbose_name=_("disciplina"),
+        help_text=_("Subject the weekly hours belong to."),
+    )
+    class_type = models.ForeignKey(
+        ClassType,
+        on_delete=models.PROTECT,  # a class type in use cannot be removed
+        related_name="subject_loads",
+        verbose_name=_("tipo de aula"),
+        help_text=_("Type of class."),
+    )
+    weekly_hours = models.DecimalField(
+        _("horas semanais"),
+        max_digits=4,
+        decimal_places=2,
+        help_text=_("Weekly hours of this class type."),
+    )
+
+    class Meta:
+        verbose_name = _("carga semanal por tipo de aula")
+        verbose_name_plural = _("cargas semanais por tipo de aula")
+        ordering = ["subject", "class_type"]
+        constraints = [
+            # A subject lists each class type once; hours add up in the weekly total.
+            models.UniqueConstraint(
+                fields=["subject", "class_type"], name="unique_class_load_per_type"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(weekly_hours__gt=0), name="class_load_hours_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.subject.code} {self.class_type.code} {self.weekly_hours} h"
