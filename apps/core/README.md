@@ -8,6 +8,8 @@
 
 **Domain rules:** `roles.py` holds the profiles, scope kinds and which scope kind each profile admits (no dependency on views or models).
 
-**Planned:** permission checks (T1.2), audit entry (T1.3).
+**Permissions:** `permissions.py` is a registry of actions (`registry.register(code, profiles, write=...)`) with `can(user, action, scope_kind, scope_id)` and `require(...)` (raises `PermissionDenied`); `mixins.PermissionRequiredMixin` enforces it in views. Superuser flag gives no business access. See D39.
+
+**Planned:** audit entry (T1.3).
 
 **Dependencies:** none. Every other app may depend on `core`.
