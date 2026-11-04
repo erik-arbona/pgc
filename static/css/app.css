@@ -1,0 +1,16 @@
+/* Minimal styles shared by all screens (D50). */
+body { font-family: system-ui, sans-serif; margin: 0; color: #1d2733; }
+header { display: flex; gap: 1.5rem; align-items: center; padding: .75rem 1.5rem; background: #0b3b66; color: #fff; }
+header a { color: #fff; text-decoration: none; }
+header .brand { font-weight: 700; }
+header nav { display: flex; gap: 1rem; flex: 1; }
+header .logout { display: flex; gap: .5rem; align-items: center; }
+main { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #d9dee4; }
+.messages { list-style: none; padding: 0; }
+.messages li { padding: .5rem .75rem; margin-bottom: .5rem; border-radius: 4px; background: #e8f1fb; }
+.messages li.error { background: #fde8e8; }
+.messages li.success { background: #e6f4ea; }
+.errorlist { color: #b00020; padding-left: 1rem; }
+.pagination { display: flex; gap: 1rem; margin-top: 1rem; }

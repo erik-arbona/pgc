@@ -14,4 +14,6 @@
 
 **Authentication:** `identity.py` defines the `IdentityProvider` contract, the development-only `LocalIdentityProvider` and `IdentityProviderBackend` (the Django backend that delegates to the provider in `AUTH_IDENTITY_PROVIDER`). `checks.py` fails startup on an unknown provider (`core.E001`) or local login in production (`core.E002`). LDAP/SSO is an open question. See D41.
 
+**Screens:** `generic.py` has the shared list/create/edit/delete views (login, permission, audit, mandatory reason, 25 per page); `templatetags/pgc_permissions.py` provides `{% can "action" as ok %}` to hide links (the server still checks). `templates/base.html` is the layout. See D50.
+
 **Dependencies:** none. Every other app may depend on `core`.

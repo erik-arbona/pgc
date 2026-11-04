@@ -20,7 +20,7 @@ Fase 1 da especificação: **cadastros, salas, contas e ligação ao SII** (bloc
 - [x] T2.3 Tipos de aula configuráveis (T, TP, P, L, outra) — *questão em aberto: que outros tipos existem*.
 - [x] T2.4 Disciplinas transversais: declarar o mesmo programa em vários cursos e **indicar os cursos** em que é transversal; aviso quando carga ou semestre diferem (sem sugestões do sistema, D47).
 - [x] T2.5 Turmas por curso e ano curricular: **uma por defeito**, modelo preparado para várias (1.º A, 1.º B). *(A junção e os grupos ficam para a fase 2.)*
-- [ ] T2.6 Área do gestor da PGC para introduzir e editar estes dados.
+- [ ] T2.6 Área do gestor da PGC para introduzir e editar estes dados. *(em curso, 7 partes: 1 base da interface + tipos de aula; 2 faculdades e anos letivos; 3 coordenações e cursos; 4 planos e disciplinas; 5 horas por tipo de aula; 6 turmas; 7 grupos transversais)*
 
 ## 3. Docentes e contas (bloco 2)
 - [ ] T3.1 Docente (identificador único, categoria, coordenação) e cargos atribuídos pelo gestor.

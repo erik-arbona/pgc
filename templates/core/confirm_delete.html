@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Eliminar" %}{% endblock %}
+{% block content %}
+  <h1>{% translate "Eliminar" %}</h1>
+  <p>{% blocktranslate with name=object %}Vai eliminar «{{ name }}». Indique o motivo.{% endblocktranslate %}</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Eliminar" %}</button>
+    <a href="{{ cancel_url|default:'/' }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}

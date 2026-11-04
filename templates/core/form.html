@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Guardar" %}</button>
+    <a href="{{ cancel_url|default:'/' }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}
