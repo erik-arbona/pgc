@@ -50,6 +50,12 @@ def course(db):
     return Course.objects.create(faculty=faculty, name="Eng", level="bachelor")
 
 
+def make_group(*args, **kwargs):
+    """Create a turma through the audited service as a fixed test user."""
+    actor = get_user_model().objects.get_or_create(username="fixture")[0]
+    return create_class_group(*args, actor=actor, **kwargs)
+
+
 def year(start):
     """Get or create an academic year."""
     return AcademicYear.objects.get_or_create(start_year=start)[0]
@@ -64,8 +70,8 @@ def plan(course, start):
 def test_new_turma_gets_the_plan_in_force_for_the_first_year(course):
     """Intake 2027 uses the plan that starts in 2027; intake 2026 uses the older one."""
     old, new = plan(course, 2020), plan(course, 2027)
-    assert create_class_group(course, year(2027)).study_plan == new
-    assert create_class_group(course, year(2026)).study_plan == old
+    assert make_group(course, year(2027)).study_plan == new
+    assert make_group(course, year(2026)).study_plan == old
 
 
 @pytest.mark.django_db
@@ -73,14 +79,14 @@ def test_creating_a_turma_without_any_plan_in_force_fails(course):
     """No plan has reached the first year yet: the turma cannot be created."""
     plan(course, 2030)
     with pytest.raises(ValidationError):
-        create_class_group(course, year(2027))
+        make_group(course, year(2027))
 
 
 @pytest.mark.django_db
 def test_a_turma_keeps_its_plan_when_a_new_plan_appears(course):
     """A turma never changes plan (D48)."""
     old = plan(course, 2020)
-    group = create_class_group(course, year(2026))
+    group = make_group(course, year(2026))
     plan(course, 2027)
     group.refresh_from_db()
     assert group.study_plan == old
@@ -103,27 +109,27 @@ def test_study_plan_must_belong_to_the_same_course(course):
 def test_several_turmas_in_the_same_year_need_different_labels(course):
     """1.º A and 1.º B coexist; the same label twice, or two without label, do not."""
     plan(course, 2020)
-    create_class_group(course, year(2027), label="A")
-    create_class_group(course, year(2027), label="B")
+    make_group(course, year(2027), label="A")
+    make_group(course, year(2027), label="B")
     with pytest.raises(IntegrityError), transaction.atomic():
-        create_class_group(course, year(2027), label="A")
+        make_group(course, year(2027), label="A")
 
 
 @pytest.mark.django_db
 def test_two_unlabeled_turmas_in_the_same_year_are_rejected(course):
     """With no label the default single turma is unique per course and intake year."""
     plan(course, 2020)
-    create_class_group(course, year(2027))
+    make_group(course, year(2027))
     with pytest.raises(IntegrityError), transaction.atomic():
-        create_class_group(course, year(2027))
+        make_group(course, year(2027))
 
 
 @pytest.mark.django_db
 def test_a_course_may_skip_an_intake_year(course):
     """Not opening a course in 2028 simply leaves that year without a turma."""
     plan(course, 2020)
-    create_class_group(course, year(2027))
-    create_class_group(course, year(2029))
+    make_group(course, year(2027))
+    make_group(course, year(2029))
     assert set(ClassGroup.objects.values_list("intake_year__start_year", flat=True)) == {2027, 2029}
 
 
@@ -132,14 +138,14 @@ def test_last_academic_year_cannot_precede_the_intake_year(course):
     """A turma cannot end before it starts."""
     plan(course, 2020)
     with pytest.raises(ValidationError):
-        create_class_group(course, year(2027), last_year=year(2026))
+        make_group(course, year(2027), last_year=year(2026))
 
 
 @pytest.mark.django_db
 def test_model_curricular_year_follows_the_last_academic_year(course):
     """The model reports the year while active and None once it has ended."""
     plan(course, 2020)
-    group = create_class_group(course, year(2027), last_year=year(2028))
+    group = make_group(course, year(2027), last_year=year(2028))
     assert group.curricular_year_in(2028) == 2
     assert group.curricular_year_in(2029) is None
 
@@ -148,7 +154,7 @@ def test_model_curricular_year_follows_the_last_academic_year(course):
 def test_records_in_use_cannot_be_deleted(course):
     """A course, plan or academic year with a turma is protected."""
     study_plan = plan(course, 2020)
-    group = create_class_group(course, year(2027))
+    group = make_group(course, year(2027))
     for protected in (course, study_plan, group.intake_year):
         with pytest.raises(ProtectedError):
             protected.delete()
@@ -178,4 +184,4 @@ def test_only_the_pgc_manager_can_edit_class_groups(profile):
     RoleAssignment.objects.create(
         user=user, profile=profile, scope_kind=kind, scope_id=None if kind == "none" else 1
     )
-    assert can(user, "class_group.edit") is (profile == Profile.PGC_MANAGER)
+    assert can(user, "class_group.edit", ScopeKind.FACULTY, 1) is (profile == Profile.PGC_MANAGER)

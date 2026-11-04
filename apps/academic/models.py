@@ -458,6 +458,11 @@ class ClassGroup(models.Model):
         verbose_name=_("último ano letivo"),
         help_text=_("Last academic year of the turma; empty while it is active."),
     )
+    version = models.PositiveIntegerField(
+        _("versão"),
+        default=1,
+        help_text=_("Optimistic lock: grows by one on every save (D54)."),
+    )
 
     class Meta:
         verbose_name = _("turma")
@@ -483,7 +488,8 @@ class ClassGroup(models.Model):
 
         Raises:
             ValidationError: if the plan is not a plan of the course, if the plan is changed
-                after creation, or if the last academic year precedes the intake year.
+                after creation, if the last academic year precedes the intake year, or if
+                the version is stale because someone else saved first (D54).
         """
         if self.study_plan.course_id != self.course_id:
             raise ValidationError({"study_plan": _("O plano não pertence ao curso da turma.")})
@@ -498,4 +504,15 @@ class ClassGroup(models.Model):
             stored = type(self).objects.filter(pk=self.pk).values_list("study_plan_id", flat=True)
             if stored and stored[0] != self.study_plan_id:
                 raise ValidationError({"study_plan": _("Uma turma não muda de plano.")})
+            # Optimistic lock: only the editor who saw the current version may save.
+            updated = (
+                type(self)
+                .objects.filter(pk=self.pk, version=self.version)
+                .update(version=models.F("version") + 1)
+            )
+            if not updated:
+                raise ValidationError(
+                    _("Esta turma foi alterada por outra pessoa. Recarregue a página.")
+                )
+            self.version += 1
         super().save(*args, **kwargs)

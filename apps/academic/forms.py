@@ -12,6 +12,7 @@ from apps.core.generic import ReasonModelForm, ScopedModelForm
 
 from .models import (
     AcademicYear,
+    ClassGroup,
     ClassType,
     Coordination,
     Course,
@@ -125,3 +126,27 @@ class SubjectForm(ScopedModelForm):
     def class_loads(self) -> dict[int, Decimal | None]:
         """Return the weekly hours entered, keyed by class type id (``None`` if blank)."""
         return {pk: self.cleaned_data.get(f"hours_{pk}") for pk in self.class_type_ids}
+
+
+class ClassGroupCreateForm(ScopedModelForm):
+    """Create a turma; the plan is chosen by the system, not by the user (D48, D49)."""
+
+    scope_field = "course"
+    scope_filter = "faculty_id__in"
+
+    class Meta:
+        model = ClassGroup
+        fields = ["course", "intake_year", "label", "last_academic_year"]
+
+
+class ClassGroupUpdateForm(ScopedModelForm):
+    """Edit the label and the last academic year of a turma.
+
+    The course, the intake year and the plan are fixed. The hidden ``version`` field carries
+    the version the user saw, so that a concurrent change is detected (D54).
+    """
+
+    class Meta:
+        model = ClassGroup
+        fields = ["label", "last_academic_year", "version"]
+        widgets = {"version": forms.HiddenInput()}
