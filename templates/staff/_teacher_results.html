@@ -5,7 +5,8 @@
       <tr>
         <th>{% translate "Identificador" %}</th><th>{% translate "Nome" %}</th>
         <th>{% translate "Coordenação" %}</th><th>{% translate "Categoria" %}</th>
-        <th>{% translate "Tipo" %}</th><th>{% translate "Ativo" %}</th><th></th>
+        <th>{% translate "Tipo" %}</th><th>{% translate "Intervalo (h)" %}</th>
+        <th>{% translate "Ativo" %}</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -13,6 +14,7 @@
       <tr>
         <td>{{ item.identifier }}</td><td>{{ item.name }}</td><td>{{ item.coordination }}</td>
         <td>{{ item.category }}</td><td>{{ item.get_teacher_type_display }}</td>
+        <td>{% if item.load_range %}{% if item.load_range.minimum is None %}{% translate "até" %} {{ item.load_range.maximum }} h{% else %}{{ item.load_range.minimum }}–{{ item.load_range.maximum }} h{% endif %}{% if item.load_range.missing %} <small>({% translate "incompleto" %})</small>{% endif %}{% else %}{% translate "Sem intervalo" %}{% endif %}</td>
         <td>{% if item.is_active %}{% translate "Sim" %}{% else %}{% translate "Não" %}{% endif %}</td>
         <td>
           <a href="{% url 'staff:teacher_update' item.pk %}">{% translate "Editar" %}</a>
