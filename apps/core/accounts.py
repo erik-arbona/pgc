@@ -15,8 +15,12 @@ Rules that stop a manager from gaining power they should not have:
 
 from __future__ import annotations
 
+import unicodedata
+
 from django.contrib.auth import get_user_model
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
@@ -132,9 +136,20 @@ def create_account(
     """
     if not _managed_faculties(actor):
         raise PermissionDenied("Not allowed to create accounts.")
-    username = username.strip()
+    # NFKC makes look-alike characters (full-width letters, combining marks) collide with the
+    # plain ones; the validator then rejects spaces, zero-width characters and markup. Audited
+    # saves do not run model validation, so both are applied here.
+    username = unicodedata.normalize("NFKC", username.strip())
     if not username:
         raise ValidationError({"username": _("Indique o nome de utilizador.")})
+    try:
+        UnicodeUsernameValidator()(username)
+    except ValidationError:
+        raise ValidationError(
+            {"username": _("Use só letras, números e os caracteres @ . + - _ .")}
+        ) from None
+    if len(username) > 150:
+        raise ValidationError({"username": _("Use no máximo 150 caracteres.")})
     user_model = get_user_model()
     if user_model.objects.filter(username__iexact=username).exists():
         raise ValidationError({"username": _("Já existe uma conta com este nome de utilizador.")})
@@ -142,6 +157,42 @@ def create_account(
     user.set_unusable_password()
     audited_save(user, actor, reason)
     return user
+
+
+def create_account_with_role(
+    actor,
+    *,
+    username: str,
+    first_name: str,
+    last_name: str,
+    email: str,
+    profile: str,
+    scope_kind: str,
+    scope_id: int | None,
+    reason: str = "",
+):
+    """Create an account and its first role in one transaction (D62).
+
+    Used to give a teacher an account from the teacher list. If the role is refused (for
+    example a teacher of another Faculty), nothing is created, not even the account.
+
+    Returns:
+        The new user.
+
+    Raises:
+        PermissionDenied, ValidationError: as ``create_account`` and ``assign_role``.
+    """
+    with transaction.atomic():
+        user = create_account(
+            actor,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            reason=reason,
+        )
+        assign_role(actor, user, profile, scope_kind, scope_id, reason)
+        return user
 
 
 def update_account(actor, user, *, first_name: str, last_name: str, email: str, reason: str):
@@ -233,7 +284,14 @@ def assign_role(
     ):
         raise ValidationError(_("Este docente já tem uma conta."))
     role = RoleAssignment(user=user, profile=profile, scope_kind=scope_kind, scope_id=scope_id)
-    audited_save(role, actor, reason)
+    try:
+        with transaction.atomic():
+            audited_save(role, actor, reason)
+    except IntegrityError:
+        # Another request won the race; the database constraints are the real guard.
+        if profile == Profile.TEACHER:
+            raise ValidationError(_("Este docente já tem uma conta.")) from None
+        raise ValidationError(_("Esta conta já tem este perfil neste âmbito.")) from None
     return role
 
 

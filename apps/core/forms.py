@@ -76,6 +76,6 @@ class AccountRoleForm(ReasonFieldsMixin, forms.Form):
     def clean_scope(self) -> tuple[str, int]:
         """Parse ``"kind:id"`` into a kind and a number; anything else is an error."""
         kind, _sep, raw = self.cleaned_data["scope"].partition(":")
-        if not raw.isdigit():
+        if not (raw.isascii() and raw.isdigit()):  # '²'.isdigit() is True, int('²') fails
             raise forms.ValidationError(_("Escolha um âmbito."))
         return kind, int(raw)

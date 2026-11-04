@@ -5,12 +5,16 @@ pattern), D56. Permissions are checked on the server with the registered actions
 """
 
 from django.contrib import messages
-from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.core.exceptions import ValidationError
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.views.generic import FormView
 
 from apps.academic.models import Coordination
+from apps.core.accounts import create_account_with_role
+from apps.core.forms import AccountCreateForm
 from apps.core.generic import (
     ManagedCreateView,
     ManagedDeleteView,
@@ -20,7 +24,11 @@ from apps.core.generic import (
     ScopedDeleteView,
     ScopedListView,
     ScopedUpdateView,
+    ScopedViewMixin,
+    add_validation_errors,
 )
+from apps.core.models import Profile, RoleAssignment, ScopeKind
+from apps.core.permissions import registry
 
 from .forms import CategoryForm, LoadRangeForm, PositionForm, TeacherForm
 from .models import Category, LoadRange, Position, Teacher
@@ -153,8 +161,22 @@ class TeacherListView(TeacherMixin, ScopedListView):
         # One lookup for the whole page: the range in force today for each teacher (D58).
         teachers = list(context["object_list"])
         ranges = load_ranges_for(teachers)
+        # Which teachers have an account, and where the manager can still create one (D62).
+        linked = dict(
+            RoleAssignment.objects.filter(
+                profile=Profile.TEACHER,
+                scope_kind=ScopeKind.TEACHER,
+                scope_id__in=[t.pk for t in teachers],
+            ).values_list("scope_id", "user__username")
+        )
+        account_faculties = registry.scope_ids(self.request.user, "account.edit", ScopeKind.FACULTY)
         for teacher in teachers:
             teacher.load_range = ranges[teacher.pk]
+            teacher.account_username = linked.get(teacher.pk)
+            teacher.can_create_account = (
+                teacher.account_username is None
+                and teacher.coordination.faculty_id in account_faculties
+            )
         context["object_list"] = teachers
         params = self.request.GET
         context["selected_coordination"] = params.get("coordination", "")
@@ -324,3 +346,82 @@ class LoadRangeDeleteView(LoadRangeMixin, FutureRuleOnlyMixin, ManagedDeleteView
     def delete_object(self, form) -> None:
         """Delete the rule through the audited service."""
         delete_load_range(self.object, self.request.user, form.cleaned_data["reason"])
+
+
+class TeacherAccountView(TeacherMixin, ScopedViewMixin, FormView):
+    """Create the account of a teacher together with the role that links it to them (D62).
+
+    It needs scope over the teacher's Faculty for both ``teacher.edit`` and ``account.edit``.
+    The account and the role are created in one transaction. The interface never sets a
+    password: the account is created with an unusable one.
+    """
+
+    template_name = "core/form.html"
+    form_class = AccountCreateForm
+    title = _("Criar conta do docente")
+
+    def _load_teacher(self):
+        """Return the teacher, or raise ``PermissionDenied`` if their Faculty is out of reach."""
+        teacher = get_object_or_404(
+            Teacher.objects.select_related("coordination"), pk=self.kwargs["pk"]
+        )
+        self.require_scope_of(teacher)
+        registry.require(
+            self.request.user,
+            "account.edit",
+            ScopeKind.FACULTY,
+            teacher.coordination.faculty_id,
+        )
+        return teacher
+
+    def _already_linked(self) -> bool:
+        """Tell whether the teacher already has an account."""
+        return RoleAssignment.objects.filter(
+            profile=Profile.TEACHER, scope_kind=ScopeKind.TEACHER, scope_id=self.teacher.pk
+        ).exists()
+
+    def _guard(self):
+        """Load the teacher; return a redirect with a message if they already have an account."""
+        self.teacher = self._load_teacher()
+        if self._already_linked():
+            messages.error(self.request, _("Este docente já tem uma conta."))
+            return redirect(str(self.success_url))
+        return None
+
+    def get(self, request, *args, **kwargs):
+        """Show the form for a teacher without an account."""
+        return self._guard() or super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        """Create the account for a teacher without one."""
+        return self._guard() or super().post(request, *args, **kwargs)
+
+    def get_initial(self):
+        """Suggest the username and the names from the teacher's identifier and name."""
+        first, _sep, rest = self.teacher.name.partition(" ")
+        return {
+            "username": self.teacher.identifier.lower(),
+            "first_name": first,
+            "last_name": rest,
+        }
+
+    def form_valid(self, form):
+        """Create the account and the teacher role together."""
+        data = form.cleaned_data
+        try:
+            user = create_account_with_role(
+                self.request.user,
+                username=data["username"],
+                first_name=data["first_name"],
+                last_name=data["last_name"],
+                email=data["email"],
+                profile=Profile.TEACHER,
+                scope_kind=ScopeKind.TEACHER,
+                scope_id=self.teacher.pk,
+                reason=data.get("reason", ""),
+            )
+        except ValidationError as error:
+            add_validation_errors(form, error)
+            return self.form_invalid(form)
+        messages.success(self.request, _("Conta criada. A conta não tem palavra-passe."))
+        return redirect(reverse("core:account_update", kwargs={"pk": user.pk}))

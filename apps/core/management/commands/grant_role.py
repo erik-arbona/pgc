@@ -8,6 +8,7 @@ list of grantable profiles, and writes to the audit log with no actor (the syste
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+from django.db import IntegrityError, transaction
 
 from apps.core.audit import audited_save
 from apps.core.models import RoleAssignment
@@ -39,6 +40,8 @@ class Command(BaseCommand):
             user = user_model.objects.get(username=options["username"])
         except user_model.DoesNotExist:
             raise CommandError(f"No user named {options['username']!r}.") from None
+        if user.is_superuser or user.is_staff:
+            raise CommandError("Administrator accounts take no business roles (D39, D62).")
         profile, kind, scope_id = options["profile"], options["scope_kind"], options["scope_id"]
         if not scope_kind_allowed(profile, kind):
             raise CommandError(f"Profile {profile} does not admit scope kind {kind}.")
@@ -56,6 +59,17 @@ class Command(BaseCommand):
             user=user, profile=profile, scope_kind=kind, scope_id=scope_id
         ).exists():
             raise CommandError("The user already has this role.")
+        if (
+            profile == Profile.TEACHER
+            and RoleAssignment.objects.filter(
+                profile=Profile.TEACHER, scope_kind=ScopeKind.TEACHER, scope_id=scope_id
+            ).exists()
+        ):
+            raise CommandError("This teacher already has an account.")
         role = RoleAssignment(user=user, profile=profile, scope_kind=kind, scope_id=scope_id)
-        audited_save(role, None, "Atribuído pelo operador (linha de comandos)")
+        try:
+            with transaction.atomic():
+                audited_save(role, None, "Atribuído pelo operador (linha de comandos)")
+        except IntegrityError:
+            raise CommandError("The role could not be saved (it already exists).") from None
         self.stdout.write(f"Granted {profile} ({kind} {scope_id}) to {user.username}.")

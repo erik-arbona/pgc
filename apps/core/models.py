@@ -206,6 +206,12 @@ class RoleAssignment(models.Model):
                 ),
                 name="role_assignment_scope_id_matches_kind",
             ),
+            # One teacher is one person, so at most one account links to them (D62).
+            models.UniqueConstraint(
+                fields=["scope_id"],
+                condition=models.Q(profile="teacher", scope_kind="teacher"),
+                name="unique_account_per_teacher",
+            ),
         ]
 
     def __str__(self) -> str:
