@@ -21,8 +21,8 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T1.1 Modelo de matrículas **por turma** e ano letivo, estimadas e atualizadas com as reais, sem nomes (D66, D76, D81).
 - [ ] T1.2 Importação pela `SiiSource` (CSV ou consulta à base do SII), com mapeamento de referências, relatório sem valores e auditoria. **Aplazada** até haver acesso ao SII (D82, Q4); o contrato aceitará a coluna opcional do percurso, porque os estudantes escolhem o percurso e o número tem de vir do SII ou ser introduzido.
 - [x] T1.3 Introdução e correção manual da matrícula (estimada e depois real) de cada turma pelos Serviços Académicos, com lista das turmas que existem num ano e ainda não têm número (D83).
-- [ ] T1.4 Inscritos por disciplina e época (importação; visibilidade D29). ⚑ Q4
-- [ ] T1.5 Dimensão de cada turma, consultável pelo coordenador (`02`).
+- [ ] T1.4 Inscritos por disciplina e época (importação; visibilidade D29). **Aplazada** até haver acesso ao SII e o módulo de exames (D84, Q4): são listas com nomes e nada do DSD as precisa.
+- [x] T1.5 Dimensão de cada turma, consultável pelo coordenador (`02`), só em leitura (D84).
 
 ## 2. DSD e ofertas (D43, `04`)
 - [ ] T2.1 DSD por ano letivo com os dois semestres, criado só pelo gestor; o coordenador não cria nem elimina (D43). Um só DSD por ano letivo, garantido na BD: se outro gestor tentar criar um segundo, é recusado com mensagem clara, mesmo em simultâneo.

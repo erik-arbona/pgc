@@ -26,6 +26,8 @@
       {% if can_subjects %}<a href="{% url 'academic:subject_list' %}">{% translate "Disciplinas" %}</a>{% endif %}
       {% has_scope "class_group.edit" "faculty" as can_groups %}
       {% if can_groups %}<a href="{% url 'academic:classgroup_list' %}">{% translate "Turmas" %}</a>{% endif %}
+      {% can "enrollment.view" as can_sizes %}
+      {% if can_sizes %}<a href="{% url 'academic:classsize_list' %}">{% translate "Dimensão das turmas" %}</a>{% endif %}
       {% can "enrollment.edit" as can_enrollments %}
       {% if can_enrollments %}<a href="{% url 'academic:enrollment_list' %}">{% translate "Matrículas" %}</a>
       <a href="{% url 'academic:enrollment_pending' %}">{% translate "Turmas sem matrícula" %}</a>{% endif %}

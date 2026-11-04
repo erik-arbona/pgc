@@ -62,6 +62,7 @@ urlpatterns = [
     path(
         "study-plans/<int:pk>/delete/", views.StudyPlanDeleteView.as_view(), name="studyplan_delete"
     ),
+    path("class-sizes/", views.ClassSizeView.as_view(), name="classsize_list"),
     path("enrollments/", views.EnrollmentListView.as_view(), name="enrollment_list"),
     path("enrollments/new/", views.EnrollmentCreateView.as_view(), name="enrollment_create"),
     path("enrollments/pending/", views.EnrollmentPendingView.as_view(), name="enrollment_pending"),

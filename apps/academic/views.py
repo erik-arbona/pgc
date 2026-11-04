@@ -56,6 +56,7 @@ from .models import (
     Track,
 )
 from .services import (
+    class_group_size_rows,
     create_class_group,
     delete_cross_course_group,
     evaluate_selection,
@@ -629,6 +630,42 @@ class EnrollmentPendingView(EnrollmentMixin, ManagedViewMixin, TemplateView):
                 if year is not None and group.pk not in done:
                     rows.append({"group": group, "curricular_year": year})
         context.update({"years": years, "selected_year": selected, "rows": rows})
+        return context
+
+
+class ClassSizeView(ManagedViewMixin, TemplateView):
+    """The coordinator reads the size of every turma in an academic year (T1.5, D84).
+
+    It is read-only: the numbers are entered by the Serviços Académicos. Only numbers are
+    shown, never names of students.
+    """
+
+    permission_action = "enrollment.view"
+    template_name = "academic/class_sizes.html"
+    title = _("Dimensão das turmas")
+
+    def get_context_data(self, **kwargs):
+        """Compute the rows of the selected academic year (the latest by default)."""
+        context = super().get_context_data(**kwargs)
+        years = AcademicYear.objects.order_by("-start_year")
+        params = self.request.GET
+        selected = None
+        if params.get("academic_year", "").isdigit():
+            selected = years.filter(pk=int(params["academic_year"])).first()
+        selected = selected or years.first()
+        course = None
+        if params.get("course", "").isdigit():
+            course = Course.objects.filter(pk=int(params["course"])).first()
+        rows = class_group_size_rows(selected, course) if selected is not None else []
+        context.update(
+            {
+                "years": years,
+                "courses": Course.objects.all(),
+                "selected_year": selected,
+                "selected_course": course,
+                "rows": rows,
+            }
+        )
         return context
 
 
