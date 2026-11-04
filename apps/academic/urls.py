@@ -38,4 +38,20 @@ urlpatterns = [
         views.AcademicYearDeleteView.as_view(),
         name="academicyear_delete",
     ),
+    path("coordinations/", views.CoordinationListView.as_view(), name="coordination_list"),
+    path("coordinations/new/", views.CoordinationCreateView.as_view(), name="coordination_create"),
+    path(
+        "coordinations/<int:pk>/edit/",
+        views.CoordinationUpdateView.as_view(),
+        name="coordination_update",
+    ),
+    path(
+        "coordinations/<int:pk>/delete/",
+        views.CoordinationDeleteView.as_view(),
+        name="coordination_delete",
+    ),
+    path("courses/", views.CourseListView.as_view(), name="course_list"),
+    path("courses/new/", views.CourseCreateView.as_view(), name="course_create"),
+    path("courses/<int:pk>/edit/", views.CourseUpdateView.as_view(), name="course_update"),
+    path("courses/<int:pk>/delete/", views.CourseDeleteView.as_view(), name="course_delete"),
 ]

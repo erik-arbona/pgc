@@ -4,9 +4,9 @@ Implements: docs/especificacao/03_requisitos_funcionais.md – block 1, data ent
 PGC manager. Every form that edits an existing record asks for a reason (D40).
 """
 
-from apps.core.generic import ReasonModelForm
+from apps.core.generic import ReasonModelForm, ScopedModelForm
 
-from .models import AcademicYear, ClassType, Faculty
+from .models import AcademicYear, ClassType, Coordination, Course, Faculty
 
 
 class ClassTypeForm(ReasonModelForm):
@@ -31,3 +31,19 @@ class AcademicYearForm(ReasonModelForm):
     class Meta:
         model = AcademicYear
         fields = ["start_year"]
+
+
+class CoordinationForm(ScopedModelForm):
+    """Create or edit a coordination; the Faculty choices are the manager's own (D51)."""
+
+    class Meta:
+        model = Coordination
+        fields = ["faculty", "name"]
+
+
+class CourseForm(ScopedModelForm):
+    """Create or edit a course; the Faculty choices are the manager's own (D51)."""
+
+    class Meta:
+        model = Course
+        fields = ["faculty", "name", "level"]

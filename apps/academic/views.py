@@ -12,10 +12,14 @@ from apps.core.generic import (
     ManagedDeleteView,
     ManagedListView,
     ManagedUpdateView,
+    ScopedCreateView,
+    ScopedDeleteView,
+    ScopedListView,
+    ScopedUpdateView,
 )
 
-from .forms import AcademicYearForm, ClassTypeForm, FacultyForm
-from .models import AcademicYear, ClassType, Faculty
+from .forms import AcademicYearForm, ClassTypeForm, CoordinationForm, CourseForm, FacultyForm
+from .models import AcademicYear, ClassType, Coordination, Course, Faculty
 
 
 class ClassTypeMixin:
@@ -121,3 +125,81 @@ class AcademicYearDeleteView(AcademicYearMixin, ManagedDeleteView):
     """Delete an academic year that nothing uses."""
 
     title = _("Eliminar ano letivo")
+
+
+class CoordinationMixin:
+    """Settings shared by the coordination screens (limited to the manager's Faculties, D51)."""
+
+    model = Coordination
+    permission_action = "coordination.edit"
+    success_url = reverse_lazy("academic:coordination_list")
+
+
+class CoordinationListView(CoordinationMixin, ScopedListView):
+    """List the coordinations of the manager's Faculties."""
+
+    template_name = "academic/coordination_list.html"
+    title = _("Coordenações")
+
+    def get_queryset(self):
+        """Filter to the manager's Faculties and load the Faculty with each row."""
+        return super().get_queryset().select_related("faculty")
+
+
+class CoordinationCreateView(CoordinationMixin, ScopedCreateView):
+    """Add a coordination in one of the manager's Faculties."""
+
+    form_class = CoordinationForm
+    title = _("Nova coordenação")
+
+
+class CoordinationUpdateView(CoordinationMixin, ScopedUpdateView):
+    """Edit a coordination (needs a reason)."""
+
+    form_class = CoordinationForm
+    title = _("Editar coordenação")
+
+
+class CoordinationDeleteView(CoordinationMixin, ScopedDeleteView):
+    """Delete a coordination that nothing uses."""
+
+    title = _("Eliminar coordenação")
+
+
+class CourseMixin:
+    """Settings shared by the course screens (limited to the manager's Faculties, D51)."""
+
+    model = Course
+    permission_action = "course.edit"
+    success_url = reverse_lazy("academic:course_list")
+
+
+class CourseListView(CourseMixin, ScopedListView):
+    """List the courses of the manager's Faculties."""
+
+    template_name = "academic/course_list.html"
+    title = _("Cursos")
+
+    def get_queryset(self):
+        """Filter to the manager's Faculties and load the Faculty with each row."""
+        return super().get_queryset().select_related("faculty")
+
+
+class CourseCreateView(CourseMixin, ScopedCreateView):
+    """Add a course in one of the manager's Faculties."""
+
+    form_class = CourseForm
+    title = _("Novo curso")
+
+
+class CourseUpdateView(CourseMixin, ScopedUpdateView):
+    """Edit a course (needs a reason)."""
+
+    form_class = CourseForm
+    title = _("Editar curso")
+
+
+class CourseDeleteView(CourseMixin, ScopedDeleteView):
+    """Delete a course that nothing uses."""
+
+    title = _("Eliminar curso")
