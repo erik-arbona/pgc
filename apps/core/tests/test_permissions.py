@@ -6,7 +6,7 @@ Implements: docs/especificacao/07_arquitetura.md – Permissions (checked on the
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.test import RequestFactory
 from django.views import View
 
@@ -113,7 +113,7 @@ def test_permissions_of_several_profiles_add_up():
 def test_scoped_check_requires_the_exact_scope():
     """With a scope, the assignment must match kind and id exactly (hierarchy comes in T2.1)."""
     registry = PermissionRegistry()
-    registry.register("dsd.edit", {Profile.COORDINATOR}, write=True)
+    registry.register("dsd.edit", {Profile.COORDINATOR}, write=True, scoped=True)
     user = make_user(Profile.COORDINATOR, ScopeKind.COORDINATION, 3)
     assert registry.can(user, "dsd.edit", ScopeKind.COORDINATION, 3) is True
     assert registry.can(user, "dsd.edit", ScopeKind.COORDINATION, 4) is False
@@ -124,7 +124,7 @@ def test_scoped_check_requires_the_exact_scope():
 def test_manager_with_two_faculties_can_act_on_each_but_not_on_others():
     """The PGC manager acts only on the Faculties assigned to them."""
     registry = PermissionRegistry()
-    registry.register("subject.edit", {Profile.PGC_MANAGER}, write=True)
+    registry.register("subject.edit", {Profile.PGC_MANAGER}, write=True, scoped=True)
     user = make_user(Profile.PGC_MANAGER, ScopeKind.FACULTY, 1)
     RoleAssignment.objects.create(
         user=user, profile=Profile.PGC_MANAGER, scope_kind=ScopeKind.FACULTY, scope_id=2
@@ -138,9 +138,46 @@ def test_manager_with_two_faculties_can_act_on_each_but_not_on_others():
 def test_right_scope_with_the_wrong_profile_is_denied():
     """Matching the scope is not enough: the profile must be allowed for the action."""
     registry = PermissionRegistry()
-    registry.register("dsd.edit", {Profile.COORDINATOR}, write=True)
+    registry.register("dsd.edit", {Profile.COORDINATOR}, write=True, scoped=True)
     user = make_user(Profile.VIEWER, ScopeKind.COORDINATION, 3)
     assert registry.can(user, "dsd.edit", ScopeKind.COORDINATION, 3) is False
+
+
+@pytest.mark.django_db
+def test_scoped_action_checked_without_a_scope_fails_closed_instead_of_passing():
+    """A scoped action never passes 'for any scope': omitting the scope is a configuration error.
+
+    Otherwise a coordinator of coordination 3 could act on every coordination whenever a view
+    forgets to say which one it concerns.
+    """
+    registry = PermissionRegistry()
+    registry.register("dsd.edit", {Profile.COORDINATOR}, write=True, scoped=True)
+    user = make_user(Profile.COORDINATOR, ScopeKind.COORDINATION, 3)
+    with pytest.raises(ImproperlyConfigured):
+        registry.can(user, "dsd.edit")
+    with pytest.raises(ImproperlyConfigured):
+        registry.require(user, "dsd.edit")
+
+
+@pytest.mark.django_db
+def test_view_mixin_with_a_scoped_action_requires_a_scope_override():
+    """A view for a scoped action that does not override get_permission_scope is rejected."""
+    registry = PermissionRegistry()
+    registry.register("dsd.edit", {Profile.COORDINATOR}, write=True, scoped=True)
+
+    class ScopedView(PermissionRequiredMixin, View):
+        permission_action = "dsd.edit"
+        permission_registry = registry
+
+        def get(self, request):
+            from django.http import HttpResponse
+
+            return HttpResponse("ok")
+
+    request = RequestFactory().get("/")
+    request.user = make_user(Profile.COORDINATOR, ScopeKind.COORDINATION, 3)
+    with pytest.raises(ImproperlyConfigured):
+        ScopedView.as_view()(request)
 
 
 @pytest.mark.django_db
