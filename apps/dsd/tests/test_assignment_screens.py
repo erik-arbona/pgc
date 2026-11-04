@@ -293,3 +293,52 @@ def test_the_teacher_form_is_guarded_by_the_assignment_action():
 
     assert UnitTeacherView.permission_code == "dsd.assignment.edit"
     assert UnitRoomView.permission_code == "dsd.teaching_unit.edit"
+
+
+# --- the review findings -----------------------------------------------------------------------
+
+
+def labels(client, world):
+    """The texts of the teacher choices of the form."""
+    form = client.get(teacher_url(world)).context["form"]
+    return [label for _, label in form.fields["teacher"].choices if label != "---------"]
+
+
+def test_the_labels_show_the_load_each_candidate_would_have_with_this_unit(client, world):
+    """Ana has 5 h (below the minimum of 6); with the 2 h of this unit she would have 7."""
+    open_cell(world)
+    assign_teacher(world["coordinator"], unit(world, "P"), world["mine"])  # 3 h
+    client.force_login(world["coordinator"])
+    # The T unit (2 h) has no teacher: Docente T1 has 3 h now and would have 5; T2 would have 2.
+    found = {label.split(" – ")[0]: label for label in labels(client, world)}
+    assert "5.00 h" in found["Docente T1"]
+    assert "2.00 h" in found["Docente T2"]
+
+
+def test_the_current_teacher_is_shown_with_the_load_they_have(client, world):
+    """The teacher of this very unit already counts it: no hours are added again."""
+    open_cell(world)
+    assign_teacher(world["coordinator"], unit(world, "T"), world["mine"])  # 2 h
+    client.force_login(world["coordinator"])
+    found = {label.split(" – ")[0]: label for label in labels(client, world)}
+    assert "2.00 h" in found["Docente T1"]
+
+
+def test_a_deactivated_current_teacher_stays_among_the_choices_and_is_marked(client, world):
+    """Otherwise the form would look like 'Sem docente' and saving would remove them."""
+    open_cell(world)
+    assign_teacher(world["coordinator"], unit(world), world["mine"])
+    Teacher.objects.filter(pk=world["mine"].pk).update(is_active=False)
+    client.force_login(world["coordinator"])
+    form = client.get(teacher_url(world)).context["form"]
+    assert form.initial["teacher"] == world["mine"].pk
+    assert world["mine"] in form.fields["teacher"].queryset
+    assert any("inativo" in label for label in labels(client, world))
+
+
+def test_a_post_without_the_version_is_refused(client, world):
+    """The version of the unit is part of the form: without it there is no lock to check."""
+    open_cell(world)
+    client.force_login(world["coordinator"])
+    response = client.post(teacher_url(world), {"teacher": world["mine"].pk, "reason": ""})
+    assert response.status_code == 200 and unit(world).teacher is None

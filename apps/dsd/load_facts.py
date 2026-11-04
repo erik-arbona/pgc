@@ -29,7 +29,12 @@ from .annual_load import AnnualLoad, AnnualTeachingHours, annual_teaching_hours
 from .load_status import LoadAssessment, LoadStatus, assess_load
 from .models import Dsd, DsdSemester, TeachingUnit
 from .preparation import preparation_by_teacher
-from .teaching_hours import AssignmentFact, TeachingUnitFact, semester_teaching_hours
+from .teaching_hours import (
+    AssignmentFact,
+    TeachingUnitFact,
+    round_hours,
+    semester_teaching_hours,
+)
 
 ZERO = Decimal("0.00")
 
@@ -184,3 +189,35 @@ def status_text(assessment: LoadAssessment) -> str:
     if assessment.status == LoadStatus.ABOVE_MAXIMUM:
         text += f" (+{assessment.extra_hours} h)"
     return text
+
+
+def assessment_with_unit(
+    load: TeacherLoad, semester_number: int, weekly_hours: Decimal
+) -> LoadAssessment:
+    """Return the assessment a teacher would have if one more unit were given to them (T5.1b).
+
+    The hours are added to the semester of the unit and the state is judged again against the same
+    range; nothing is stored. Used to help choose a teacher before assigning.
+
+    Args:
+        load: the teacher's current load.
+        semester_number: 1 or 2, the semester of the unit.
+        weekly_hours: the weekly hours of the unit (a teacher alone gets all of them, D94).
+
+    Returns:
+        The assessment with the unit included.
+    """
+    first, second = load.assessment.semester_weekly_hours
+    if semester_number == 1:
+        first = round_hours(first + weekly_hours)
+    else:
+        second = round_hours(second + weekly_hours)
+    return assess_load(
+        AnnualLoad(
+            teacher_id=load.assessment.teacher_id,
+            semester_weekly_hours=(first, second),
+            weekly_hours=first + second,
+            range=load.assessment.range,
+            as_of=load.assessment.as_of,
+        )
+    )

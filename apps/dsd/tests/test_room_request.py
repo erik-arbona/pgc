@@ -420,3 +420,11 @@ def test_a_divided_turma_asks_per_group_unit(client, world):
     ] == [20, 15]
     # 30 students in 2 groups: 15 each, so 15 places hold a group.
     assert room_request_warnings(TeachingUnit.objects.get(pk=second.pk), 15) == []
+
+
+def test_a_room_post_without_the_version_is_refused(client, world):
+    """The version of the unit is part of the form: without it there is no lock to check."""
+    open_cell(world)
+    client.force_login(world["coordinator"])
+    response = client.post(room_url(world), {"room_capacity": 35, "room_type": "", "reason": ""})
+    assert response.status_code == 200 and unit(world).room_capacity is None

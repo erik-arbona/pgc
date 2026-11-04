@@ -4,6 +4,8 @@ Implements: docs/backlog_fase2.md T2.1 and T2.2; D43 (only the manager creates a
 the state; the coordinator reads), D86.
 """
 
+from decimal import Decimal
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -39,7 +41,7 @@ from .forms import (
     TeacherAssignForm,
 )
 from .lifecycle import cell_writable
-from .load_facts import status_text, teacher_loads
+from .load_facts import assessment_with_unit, status_text, teacher_loads
 from .models import (
     CoordinationSemester,
     Dsd,
@@ -898,18 +900,65 @@ class UnitTeacherView(_UnitEditMixin, FormView):
 
     @cached_property
     def candidates(self) -> list[Teacher]:
-        """The active teachers of the coordination of the subject."""
-        return list(
+        """The active teachers of the coordination of the subject, plus the current teacher.
+
+        The current teacher is always listed, even if deactivated or moved to another
+        coordination, so that the form never looks like "Sem docente" when there is one.
+        """
+        teachers = list(
             Teacher.objects.filter(
                 coordination_id=self.offering.subject.coordination_id, is_active=True
             ).order_by("name")
         )
+        current = self.unit.teacher
+        if current is not None and all(teacher.pk != current.pk for teacher in teachers):
+            teachers.append(current)
+        return teachers
+
+    @cached_property
+    def unit_weekly_hours(self) -> Decimal:
+        """The weekly hours of the unit: those of its class type in the subject's load."""
+        return next(
+            (
+                load.weekly_hours
+                for load in self.offering.subject.class_loads.all()
+                if load.class_type_id == self.unit.class_type_id
+            ),
+            Decimal("0"),
+        )
+
+    def descriptions(self) -> dict[int, str]:
+        """Describe each candidate: the annual hours and the state they would have (T5.1b).
+
+        For a teacher who does not have the unit, the hours of the unit are added to the load they
+        have; the current teacher already counts it, so their load is shown as it is. A teacher
+        who is no longer eligible is marked.
+        """
+        loads = teacher_loads(self.offering.dsd_semester.dsd, self.candidates)
+        eligible = self.offering.subject.coordination_id
+        described = {}
+        for teacher in self.candidates:
+            load = loads[teacher.pk]
+            assessment = (
+                load.assessment
+                if teacher.pk == self.unit.teacher_id
+                else assessment_with_unit(
+                    load, self.offering.dsd_semester.number, self.unit_weekly_hours
+                )
+            )
+            text = f"{assessment.weekly_hours} h ({status_text(assessment)})"
+            if not teacher.is_active:
+                text += " – " + str(_("inativo"))
+            elif teacher.coordination_id != eligible:
+                text += " – " + str(_("de outra coordenação"))
+            described[teacher.pk] = text
+        return described
 
     def get_form_kwargs(self):
         """Give the form the candidates with their load, and start from the current teacher."""
         kwargs = super().get_form_kwargs()
         kwargs["teachers"] = self.candidates
-        kwargs["loads"] = teacher_loads(self.offering.dsd_semester.dsd, self.candidates)
+        kwargs["descriptions"] = self.descriptions()
         kwargs["changing"] = self.unit.teacher_id is not None
         if "data" not in kwargs:
             kwargs["initial"] = {"teacher": self.unit.teacher_id, "seen": self.unit.version}

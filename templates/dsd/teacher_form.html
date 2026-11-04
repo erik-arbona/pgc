@@ -4,7 +4,7 @@
 {% block content %}
   <h1>{{ title }}</h1>
   <p>{{ offering.subject.code }} – {{ offering.subject.name }} · {{ unit.class_type.code }}</p>
-  <p>{% translate "Cada unidade tem um só docente. Ao lado de cada nome vê-se a carga anual que teria e o estado face ao seu intervalo. Escolher «Sem docente» retira o atual." %}</p>
+  <p>{% translate "Cada unidade tem um só docente. Ao lado de cada nome vê-se a carga anual que teria com esta unidade e o estado face ao seu intervalo. Escolher «Sem docente» retira o atual." %}</p>
   <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
