@@ -15,7 +15,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
   - [x] T0.6a Modelo e regras: `Track` por plano, `Subject.track` e `ClassGroup.track` opcionais, validações, ano curricular da turma, disciplinas que cada turma vê, `create_class_group` com percurso.
   - [x] T0.6b Ecrãs: gerir percursos, escolher o percurso na disciplina e na turma, colunas nas listas.
   - [x] T0.6c Carregar os planos reais de EIC e TM (D78), comando `load_real_plans` (D80). Q26 a Q28 seguem com os valores por defeito de D80, por confirmar.
-- [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições. **Aplazada**: fazer com T5.1 (atribuições) e T7.2 (exames), porque ainda não existem esses modelos.
+- [ ] T0.5 Proteções de apagamento: turma com atribuições (D54), sala com exames (D63), docente com atribuições. **Em curso**: a turma e o docente com unidades já estão protegidos (FK `PROTECT`, testes em T5.1a); falta a sala com exames, com T7.2.
 
 ## 1. Matrículas e inscritos (bloco 3)
 - [x] T1.1 Modelo de matrículas **por turma** e ano letivo, estimadas e atualizadas com as reais, sem nomes (D66, D76, D81).
@@ -55,7 +55,9 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 
 ## 5. Atribuição (bloco 4)
 - [ ] T5.1 Um docente por unidade letiva, só da coordenação da disciplina (D08, D19); bloqueio otimista e restrição na BD.
-- [ ] T5.2 Partilha com quota, só a pedido; soma = 100% verificada em transação (D19). ⚑ Q12
+  - [x] T5.1a Serviço: `assign_teacher` / `unassign_teacher`, permissão, regras de junção, separação e divisão (D94).
+  - [ ] T5.1b Cálculo ao vivo (adaptador para as regras puras) e ecrãs: coluna «Docente» e botões.
+- ~~T5.2 Partilha com quota~~ **Cancelada** (D94): uma unidade tem um só docente e não há quotas.
 - [ ] T5.3 Componente não letiva por docente e semestre: tipo, descrição e horas (D15).
 - [ ] T5.4 Horas extra aceites, registadas pelo coordenador (D13). ⚑ Q13
 - [ ] T5.5 Motivo abaixo da mínima (coordenador); aceitação ou recusa pelo CE, que devolve o caso (D16, bloco 6). ⚑ Q14
@@ -108,7 +110,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - ~~**Q9** (T3.5): a sala pede-se por turma/grupo ou por unidade letiva?~~ Resolvida por defeito: por unidade letiva; aviso e não bloqueio, salvo ao juntar (D93).
 - ~~**Q10** (T4.2): a preparação conta por repetição (N grupos) e pesa-se pela quota?~~ Resolvida: acompanha cada hora letiva, repetida por grupo e pela quota (D71); confirmar na Porta 1.
 - **Q11** (T4.3, fecho): a função recebe a data de referência (D72); aberto usa hoje, fechado conserva a data de fecho. *Por decidir:* a data quando só um semestre está fechado.
-- **Q12** (T5.2): as quotas somam exatamente 100% ao guardar ou é só aviso? *Defeito:* aviso (como em `05`).
+- ~~**Q12** (T5.2): as quotas somam exatamente 100% ao guardar ou é só aviso?~~ Já não se aplica: não há quotas (D94).
 - **Q13** (T5.4): horas extra aceites por docente e ano ou por atribuição? *Defeito:* por docente e ano, com nº de horas.
 - **Q14** (T5.5): como se avisa o coordenador de uma recusa sem o bloco 9? *Defeito:* só aviso na aplicação.
 - **Q15** (T7.1): as faixas horárias podem sobrepor-se? *Defeito:* não.

@@ -266,6 +266,15 @@ class TeachingUnit(GuardedDsdWrites, VersionedModel):
         verbose_name=_("tipo de aula"),
         help_text=_("Type of class taught in this unit."),
     )
+    teacher = models.ForeignKey(
+        Teacher,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # a teacher with units cannot be deleted (T0.5)
+        related_name="teaching_units",
+        verbose_name=_("docente"),
+        help_text=_("The teacher of the unit: one per unit, no sharing (D19, D94)."),
+    )
     room_type = models.ForeignKey(
         RoomType,
         null=True,
