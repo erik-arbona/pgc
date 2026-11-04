@@ -17,5 +17,6 @@ urlpatterns = [
     path("core/", include("apps.core.urls")),
     path("academic/", include("apps.academic.urls")),
     path("staff/", include("apps.staff.urls")),
+    path("rooms/", include("apps.rooms.urls")),
     path("admin/", admin.site.urls),
 ]
