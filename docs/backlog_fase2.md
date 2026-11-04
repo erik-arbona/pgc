@@ -36,7 +36,7 @@ Cada tarefa cabe numa sessão; marcar `[x]` com testes a passar e código docume
 - [x] T4.1 Horas letivas por semestre: junção conta uma vez, grupos N vezes, quota (`05`). Testes exaustivos.
 - [x] T4.2 Preparação por docente com os pesos (D14, D61). ⚑ Q10
 - [x] T4.3 Total anual = soma dos semestres; intervalo por `resolve_load_range` com data de referência (D12, D58). ⚑ Q11
-- [ ] T4.4 Quatro estados mais «sem intervalo»; mínimo opcional (D46, D58); horas extra = total − máximo (D13).
+- [x] T4.4 Quatro estados mais «sem intervalo»; mínimo opcional (D46, D58); horas extra = total − máximo (D13).
 - [ ] T4.5 Alertas: unidade sem docente, quotas ≠ 100%, sem sala pedida, fora do intervalo (`05`).
 
 ## 5. Atribuição (bloco 4)

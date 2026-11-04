@@ -37,9 +37,9 @@ Termos do domínio, o que significam na PGC e o nome proposto no código. Os nom
 | Horas letivas | Horas de aula atribuídas, semanais (por docente e semestre); as únicas validadas contra o intervalo. Junção conta uma vez, cada grupo conta uma vez (D70) | `TeacherTeachingHours` |
 | Horas de preparação | Calculadas por docente: T + (TP + P + L) × 1,5 (parâmetro, pesos por tipo de aula); acompanham cada hora letiva, repetida por grupo (D61, D71) | — |
 | Componente não letiva / outras atividades | Complementos de ensino, investigação, gestão e serviços, com descrição e horas, por semestre | `OtherActivity` |
-| Horas extra | Total de horas letivas menos o máximo do intervalo; só se o docente aceitar; registadas pelo coordenador | `ExtraHours` |
+| Horas extra | Total de horas letivas menos o máximo do intervalo (calculadas por `assess_load`, D74); só se o docente aceitar; registadas pelo coordenador | `ExtraHours` |
 | Carga anual | Soma das horas letivas semanais dos dois semestres, comparada com o intervalo em vigor na data de referência (D12, D58, D72) | `AnnualLoad` |
-| Estado da carga | Abaixo da mínima, no intervalo, na máxima, acima da máxima | `LoadStatus` |
+| Estado da carga | Abaixo da mínima, no intervalo, na máxima, acima da máxima, ou «sem intervalo» quando nenhuma regra vigora (D74) | `LoadStatus` |
 | Proposta de concurso | Disciplina que o coordenador não pode atribuir; justificação obrigatória; decisão do CE | `CompetitionRequest` |
 | Colaborador (habitual) | Docente externo que já leciona na Universidade e pode ser convidado pelo CE; os outros tipos são o docente a tempo inteiro e o docente de concurso; cada tipo tem intervalo de horas próprio e configurável | — |
 | DSD | Distribuição de Serviço Docente de um ano letivo, criada pelo gestor da PGC (um por ano letivo), com os dois semestres; cada semestre abre-se e fecha-se por coordenação (D43) | `Dsd` |
