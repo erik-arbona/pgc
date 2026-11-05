@@ -183,3 +183,63 @@ def test_over_the_maximum_the_state_has_no_excess_and_the_extra_hours_have_a_col
     assert row["Estado"] == "acima do máximo"
     assert row["Horas extra"] == "2,00"
     assert row["Horas letivas anuais"] == "10,00"
+
+
+def test_a_teacher_of_another_coordination_only_has_what_the_screen_shows(board, client):
+    """Review of T6.4: preparation, other activities, the total and the extra hours of a teacher
+    of another coordination are not this coordinator's business (D69, D100)."""
+    from apps.dsd.models import OtherActivity
+    from apps.dsd.services import add_activity
+
+    open_cell(board)
+    add_activity(
+        board["manager"],
+        board["foreign"],
+        board["semester"],
+        OtherActivity.Kind.RESEARCH,
+        "Reservado",
+        D("4"),
+    )
+    TeachingUnit.objects.filter(pk=unit_of(board, "A", "T").pk).update(teacher=board["foreign"])
+    client.force_login(board["coordinator"])
+    rows = {r["Identificador"]: r for r in rows_of(client.get(url(board)))}
+    foreign = rows["T3"]
+    assert foreign["Horas letivas anuais"] != ""  # the screen shows the annual hours
+    assert foreign["Estado"] != ""  # and the state
+    for column in (
+        "Categoria",
+        "Tipo",
+        "Horas extra",
+        "Preparação 1.º semestre",
+        "Preparação 2.º semestre",
+        "Outras atividades 1.º semestre",
+        "Outras atividades 2.º semestre",
+        "Total geral",
+    ):
+        assert foreign[column] == "", column
+    assert rows["T1"]["Total geral"] != ""  # the teachers of this coordination keep everything
+
+
+def test_a_dsd_without_semesters_is_a_404(board, client):
+    """No semester to read: 404, not a server error (review of T6.4)."""
+    from apps.academic.models import AcademicYear
+    from apps.dsd.models import Dsd
+
+    empty = Dsd.objects.create(academic_year=AcademicYear.objects.create(start_year=2031))
+    client.force_login(board["coordinator"])
+    response = client.get(
+        reverse("dsd:coordination_load_csv", args=[empty.pk, board["coordination"].pk])
+    )
+    assert response.status_code == 404
+
+
+def test_the_download_is_not_cached(board, client):
+    """A file with personal data must not be kept by a browser or a proxy."""
+    client.force_login(board["coordinator"])
+    control = client.get(url(board))["Cache-Control"]
+    assert "no-store" in control or "no-cache" in control
+
+
+def test_a_tiny_negative_number_is_not_written_as_minus_zero():
+    """-0.001 rounds to zero: the cell says 0,00, never -0,00."""
+    assert format_number(D("-0.001")) == "0,00"

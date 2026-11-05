@@ -55,7 +55,10 @@ def format_number(value: Decimal | None) -> str:
     """
     if value is None:
         return ""
-    return str(value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)).replace(".", ",")
+    rounded = value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    if rounded == 0:
+        rounded = abs(rounded)  # never "-0,00"
+    return str(rounded).replace(".", ",")
 
 
 def csv_text(value: str | None) -> str:
@@ -78,6 +81,11 @@ def export_rows(overview: CoordinationOverview) -> list[list[str]]:
     Args:
         overview: the overview (live load of each teacher, D70-D74, D95).
 
+    A teacher of another coordination who only appears because they teach a unit here gets
+    what the overview shows (annual hours, range and state) and nothing else: their category,
+    extra hours, preparation, other activities and general total are not this coordinator's
+    business (D69, D100).
+
     Returns:
         The rows in the order of ``HEADER``, as text.
     """
@@ -86,25 +94,26 @@ def export_rows(overview: CoordinationOverview) -> list[list[str]]:
         teacher = row.teacher
         assessment = row.load.assessment
         resolved = assessment.range
+        own = not row.foreign
         rows.append(
             [
                 csv_text(teacher.identifier),
                 csv_text(teacher.name),
                 csv_text(teacher.coordination.name),
-                csv_text(teacher.category.name),
-                csv_text(teacher.get_teacher_type_display()),
+                csv_text(teacher.category.name) if own else "",
+                csv_text(teacher.get_teacher_type_display()) if own else "",
                 format_number(assessment.semester_weekly_hours[0]),
                 format_number(assessment.semester_weekly_hours[1]),
                 format_number(assessment.weekly_hours),
                 format_number(resolved.minimum if resolved else None),
                 format_number(resolved.maximum if resolved else None),
                 csv_text(status_text(assessment, show_extra=False)),
-                format_number(assessment.extra_hours),
-                format_number(row.load.preparation[0]),
-                format_number(row.load.preparation[1]),
-                format_number(row.load.other_hours[0]),
-                format_number(row.load.other_hours[1]),
-                format_number(row.load.general_total),
+                format_number(assessment.extra_hours) if own else "",
+                format_number(row.load.preparation[0]) if own else "",
+                format_number(row.load.preparation[1]) if own else "",
+                format_number(row.load.other_hours[0]) if own else "",
+                format_number(row.load.other_hours[1]) if own else "",
+                format_number(row.load.general_total) if own else "",
                 "sim" if row.foreign else "",
             ]
         )

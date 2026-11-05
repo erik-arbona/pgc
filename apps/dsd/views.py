@@ -13,6 +13,7 @@ from django.db.models import Prefetch
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
+from django.utils.cache import add_never_cache_headers
 from django.utils.functional import cached_property
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
@@ -1858,10 +1859,16 @@ class CoordinationLoadCsvView(CoordinationOverviewView):
         coordination = get_object_or_404(
             Coordination.objects.select_related("faculty"), pk=self.kwargs["coordination_pk"]
         )
-        overview = coordination_overview(dsd, 1, coordination)
+        # The rows come from the whole DSD; the semester only matters for counts the CSV does
+        # not use, so any semester will do.
+        first = dsd.semesters.order_by("number").values_list("number", flat=True).first()
+        if first is None:
+            raise Http404
+        overview = coordination_overview(dsd, first, coordination)
         response = HttpResponse(
             render_csv(export_rows(overview), HEADER), content_type="text/csv; charset=utf-8"
         )
         name = slugify(f"carga {coordination.name} {dsd.academic_year.label}") or "carga"
         response["Content-Disposition"] = f'attachment; filename="{name}.csv"'
+        add_never_cache_headers(response)  # personal data: nobody should keep a copy
         return response
