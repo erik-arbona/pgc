@@ -101,7 +101,9 @@ def coordination_overview(
         Teacher.objects.filter(
             Q(coordination=coordination, is_active=True)
             | Q(pk__in={teacher_id for _unit, teacher_id in units if teacher_id is not None})
-        ).order_by("name")
+        )
+        .select_related("category", "coordination")
+        .order_by("name")
     )
     loads = teacher_loads(dsd, teachers)
     # What needs attention is what this coordinator can act on: a teacher of another
