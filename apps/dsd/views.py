@@ -14,6 +14,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView, View
 
@@ -51,6 +52,7 @@ from .forms import (
     TeacherAssignForm,
 )
 from .lifecycle import cell_writable
+from .load_export import HEADER, export_rows, render_csv
 from .load_facts import (
     load_text,
     minimum_reason_text,
@@ -1841,3 +1843,25 @@ class MySheetView(PageMixin, LoginRequiredMixin, View):
         if dsd is None:
             raise Http404
         return redirect("dsd:teacher_sheet", pk=dsd.pk, teacher_pk=own[0])
+
+
+class CoordinationLoadCsvView(CoordinationOverviewView):
+    """Download the load of the teachers of a coordination as CSV, to check it against the Excel.
+
+    It has the same permission and the same figures as the overview (``dsd.coordination.view``,
+    D69, D101). It takes the DSD as a whole, so the semester of the overview does not matter.
+    """
+
+    def get(self, request, *args, **kwargs):
+        """Answer with the CSV as an attachment."""
+        dsd = get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+        coordination = get_object_or_404(
+            Coordination.objects.select_related("faculty"), pk=self.kwargs["coordination_pk"]
+        )
+        overview = coordination_overview(dsd, 1, coordination)
+        response = HttpResponse(
+            render_csv(export_rows(overview), HEADER), content_type="text/csv; charset=utf-8"
+        )
+        name = slugify(f"carga {coordination.name} {dsd.academic_year.label}") or "carga"
+        response["Content-Disposition"] = f'attachment; filename="{name}.csv"'
+        return response

@@ -20,6 +20,11 @@ urlpatterns = [
         views.CoordinationOverviewView.as_view(),
         name="coordination_overview",
     ),
+    path(
+        "<int:pk>/coordinations/<int:coordination_pk>/load.csv",
+        views.CoordinationLoadCsvView.as_view(),
+        name="coordination_load_csv",
+    ),
     path("<int:pk>/offerings/", views.OfferingListView.as_view(), name="offering_list"),
     path("offerings/<int:pk>/", views.OfferingDetailView.as_view(), name="offering_detail"),
     path(

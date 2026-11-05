@@ -62,5 +62,7 @@
       {% endfor %}
     </tbody>
   </table>
+  <p><a href="{% url 'dsd:coordination_load_csv' dsd.pk coordination.pk %}">{% translate "Exportar CSV" %}</a>
+  <small>{% translate "Para comparar com o Excel: um docente por linha, separado por «;» e com vírgula decimal." %}</small></p>
   <p><a href="{% url 'dsd:dsd_detail' dsd.pk %}">{% translate "Voltar" %}</a></p>
 {% endblock %}
