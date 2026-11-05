@@ -21,7 +21,7 @@
             — <a href="{% url 'dsd:offering_list' dsd.pk %}">{% translate "Ofertas" %}</a>
           {% endif %}
           {% if item.teachers %}
-            — {% for teacher in item.teachers %}{% if can_open %}<a href="{% url 'dsd:teacher_sheet' dsd.pk teacher.pk %}">{{ teacher.name }}</a>{% else %}{{ teacher.name }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+            — {% for teacher in item.teachers %}{% if teacher.pk in openable %}<a href="{% url 'dsd:teacher_sheet' dsd.pk teacher.pk %}">{{ teacher.name }}</a>{% else %}{{ teacher.name }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
           {% endif %}
         </li>
       {% endfor %}
@@ -45,7 +45,7 @@
     <tbody>
       {% for row in overview.rows %}
         <tr>
-          <td>{% if can_open %}<a href="{% url 'dsd:teacher_sheet' dsd.pk row.teacher.pk %}">{{ row.teacher.name }}</a>{% else %}{{ row.teacher.name }}{% endif %}{% if row.foreign %}<br><small>{% translate "de outra coordenação" %}</small>{% endif %}</td>
+          <td>{% if row.teacher.pk in openable %}<a href="{% url 'dsd:teacher_sheet' dsd.pk row.teacher.pk %}">{{ row.teacher.name }}</a>{% else %}{{ row.teacher.name }}{% endif %}{% if row.foreign %}<br><small>{% translate "de outra coordenação" %}</small>{% endif %}</td>
           <td>{{ row.load.assessment.weekly_hours }}</td>
           <td>{% if row.load.assessment.range %}{{ row.load.assessment.range.minimum|default_if_none:"—" }} – {{ row.load.assessment.range.maximum }}{% else %}—{% endif %}</td>
           <td>

@@ -211,11 +211,13 @@ def teacher_loads(
     return loads
 
 
-def status_text(assessment: LoadAssessment) -> str:
+def status_text(assessment: LoadAssessment, show_extra: bool = True) -> str:
     """Return the state of a load in Portuguese, with the extra hours when above the maximum.
 
     Args:
         assessment: the assessment of a teacher's annual load.
+        show_extra: whether to add the extra hours above the maximum; the teacher does not read
+            them until they accepted them (D100).
 
     Returns:
         A short text for the screens, for example ``acima do máximo (+2.00 h)``.
@@ -228,7 +230,7 @@ def status_text(assessment: LoadAssessment) -> str:
         LoadStatus.NO_RANGE: _("sem intervalo"),
     }
     text = str(texts[assessment.status])
-    if assessment.status == LoadStatus.ABOVE_MAXIMUM:
+    if show_extra and assessment.status == LoadStatus.ABOVE_MAXIMUM:
         text += f" (+{assessment.extra_hours} h)"
     return text
 

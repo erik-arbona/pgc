@@ -165,8 +165,9 @@ def test_the_sheet_requires_a_session(world, client):
 def test_after_a_transfer_the_buttons_follow_the_cell_of_each_activity(world, client):
     """The activity stays in the coordination where it was entered (review T5.3).
 
-    The coordinator who owns the activity sees its change and remove links; the new coordinator
-    of the teacher does not, because the screens would refuse them.
+    The sheet belongs to the teacher's coordination now (T6.3): the coordinator who entered the
+    activity can no longer open it, and the new coordinator sees it without change links,
+    because the activity screens would refuse them.
     """
     open_cell(world)
     change_state(world["manager"], "open", [world["semester"]], [world["foreign"].coordination])
@@ -175,6 +176,6 @@ def test_after_a_transfer_the_buttons_follow_the_cell_of_each_activity(world, cl
         coordination=world["foreign"].coordination
     )
     client.force_login(world["coordinator"])
-    assert "/edit/" in client.get(sheet_url(world)).content.decode()
+    assert client.get(sheet_url(world)).status_code == 403
     client.force_login(world["other_coordinator"])
     assert "/edit/" not in client.get(sheet_url(world)).content.decode()
