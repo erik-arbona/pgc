@@ -8,6 +8,7 @@ D69 (coordination scope), D100, docs/especificacao/07_arquitetura.md – teacher
 # ruff: noqa: F811
 
 from decimal import Decimal
+from html.parser import HTMLParser
 
 import pytest
 from django.db import connection
@@ -161,19 +162,63 @@ def test_the_overview_links_only_the_sheets_the_viewer_can_open(own, client):
     assert f"/teachers/{own['foreign'].pk}/" not in html
 
 
-def test_the_lessons_cost_a_fixed_number_of_queries(own, client):
-    """More lessons do not mean more queries (no N+1)."""
+def test_the_lessons_do_not_query_the_course_or_track_of_each_turma(own, client):
+    """A turma is printed with its course and track, so they are loaded together with it.
+
+    Without that, each distinct turma on the sheet costs one more query (review of T6.3).
+    """
     open_cell(own)
-    assign_teacher(own["coordinator"], unit_of(own, "A", "T"), own["mine"])
+    for label in "AB":
+        assign_teacher(own["coordinator"], unit_of(own, label, "T"), own["mine"])
     client.force_login(own["coordinator"])
-    client.get(sheet(own))  # warm caches that are not about the lessons
-    with CaptureQueriesContext(connection) as before:
+    client.get(sheet(own))  # warm the caches that are not about the lessons
+    with CaptureQueriesContext(connection) as captured:
         client.get(sheet(own))
-    for label, kind in (("A", "P"), ("B", "T"), ("B", "P")):
+    sql = [query["sql"] for query in captured.captured_queries]
+    assert not [q for q in sql if 'FROM "academic_course"' in q or 'FROM "academic_track"' in q]
+
+
+class _Paragraphs(HTMLParser):
+    """Count the </p> that close nothing."""
+
+    def __init__(self):
+        super().__init__()
+        self.open = 0
+        self.stray = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "p":
+            self.open += 1
+
+    def handle_endtag(self, tag):
+        if tag == "p":
+            if self.open == 0:
+                self.stray += 1
+            else:
+                self.open -= 1
+
+
+def test_the_sheet_has_no_stray_closing_tags_for_who_reads_but_cannot_write(own, client):
+    """The board covers the coordination but cannot write: nothing to show, nothing left over."""
+    parser = _Paragraphs()
+    parser.feed(html_of(client, own["ce"], sheet(own)).content.decode())
+    assert parser.stray == 0
+
+
+def test_the_teacher_does_not_see_the_extra_hours_that_are_not_accepted_yet(own, client):
+    """Over the maximum without an acceptance: the state shows, the pending excess does not."""
+    from apps.staff.models import LoadRange
+
+    LoadRange.objects.update(maximum_hours=Decimal("8"))
+    open_cell(own)
+    for label, kind in (("A", "T"), ("A", "P"), ("B", "T"), ("B", "P")):
         assign_teacher(own["coordinator"], unit_of(own, label, kind), own["mine"])
-    with CaptureQueriesContext(connection) as after:
-        client.get(sheet(own))
-    assert len(after) <= len(before)  # it must not grow with the lessons
+    mine = html_of(client, own["me"], sheet(own)).content.decode()
+    assert "acima do máximo" in mine
+    assert "(+" not in mine
+    assert "(+" in html_of(client, own["coordinator"], sheet(own)).content.decode()
+    set_accepted_extra(own["coordinator"], own["mine"], own["semester"].dsd, Decimal("2"))
+    assert "(+" in html_of(client, own["me"], sheet(own)).content.decode()
 
 
 def test_the_offering_page_links_only_the_sheets_the_viewer_can_open(own, client):

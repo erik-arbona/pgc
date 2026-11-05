@@ -9,6 +9,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import Prefetch
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -16,7 +17,7 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView, View
 
-from apps.academic.models import ClassType, Coordination
+from apps.academic.models import ClassGroup, ClassType, Coordination
 from apps.academic.services import class_group_sizes
 from apps.core.generic import (
     ManagedCreateView,
@@ -31,6 +32,7 @@ from apps.staff.models import Teacher
 
 from .below_minimum import MinimumReasonState
 from .coordination_overview import attention_text, coordination_overview
+from .extra_hours import ExtraStatus
 from .forms import (
     ActivityEditForm,
     ActivityForm,
@@ -1071,6 +1073,17 @@ class TeacherSheetView(PageMixin, LoginRequiredMixin, TemplateView):
             self.request.user, TEACHER_SHEET_VIEW, self.teacher.coordination_id
         )
 
+    def _status(self, load) -> str:
+        """The state of the annual load in words, as far as this viewer may read it.
+
+        Who covers the coordination reads everything: the reason and the extra hours still to
+        accept. The teacher reads the state, and the excess over the maximum only once they have
+        accepted it (D100).
+        """
+        if self.manages:
+            return load_text(load)
+        return status_text(load.assessment, show_extra=load.extra.status != ExtraStatus.PENDING)
+
     def _lessons(self) -> dict[int, list[dict]]:
         """The lessons the teacher gives in the DSD, by semester number (T6.3).
 
@@ -1086,8 +1099,15 @@ class TeacherSheetView(PageMixin, LoginRequiredMixin, TemplateView):
             )
             .prefetch_related(
                 "offering__subject__class_loads",
-                "members__class_group_link__class_group",
-                "members__subgroup__class_group_link__class_group",
+                # A turma is printed with its course and track: load them with it.
+                Prefetch(
+                    "members__class_group_link__class_group",
+                    queryset=ClassGroup.objects.select_related("course", "track"),
+                ),
+                Prefetch(
+                    "members__subgroup__class_group_link__class_group",
+                    queryset=ClassGroup.objects.select_related("course", "track"),
+                ),
             )
             .order_by(
                 "offering__dsd_semester__number",
@@ -1184,7 +1204,7 @@ class TeacherSheetView(PageMixin, LoginRequiredMixin, TemplateView):
                 "dsd": self.dsd,
                 "teacher": self.teacher,
                 "load": load,
-                "status": load_text(load) if self.manages else status_text(load.assessment),
+                "status": self._status(load),
                 "manages": self.manages,
                 "extra_record": extra_record,
                 "minimum_record": minimum_record,
