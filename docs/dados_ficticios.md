@@ -10,8 +10,8 @@ Um conjunto pequeno, carregável com um comando, que permita testar todas as reg
 - 3 cursos de licenciatura e 1 de mestrado, com planos de 2 anos e 2 semestres cada.
 - Um curso com **duas turmas no mesmo ano** (para testar o caso futuro), os restantes com uma.
 - Pelo menos uma **disciplina transversal** declarada em 2 cursos e recusada num 3.º.
-- Docentes de cada categoria, alguns com cargos, para cobrir os quatro estados de carga (abaixo da mínima, no intervalo, na máxima, acima da máxima).
-- Um tipo de aula partilhado entre dois docentes (50%/50%).
+- Docentes de cada categoria, alguns com cargos, para cobrir os quatro estados de carga (abaixo da mínima, no intervalo, na máxima, acima da máxima). **Feito (T8.1):** o DSD de 2026 com as ofertas geradas, o 1.º semestre aberto e oito situações, uma por docente: abaixo da mínima com o motivo em falta (DT004), à espera do Conselho (DT005), recusado (DT001) e aceite (DT003); no intervalo (DT008); na máxima (DT006); e acima da máxima com as horas extra aceites (DT002) e por aceitar (DT007). Há aulas por atribuir, duas outras atividades e uma conta de docente ligada a DT001 (ficha própria). Só os docentes de tempo completo podem ficar abaixo da mínima: os colaboradores e os de concurso têm um intervalo próprio sem mínimo (D46).
+- ~~Um tipo de aula partilhado entre dois docentes (50%/50%).~~ **Já não existe**: uma unidade letiva tem um só docente (D94).
 - Salas de vários tipos e capacidades, incluindo uma pequena demais para um exame.
 - Uma época de exames com faixas horárias e alguns exames já marcados por outra coordenação na mesma turma.
 - Listas de inscritos fictícias, incluindo um exame sem inscritos.

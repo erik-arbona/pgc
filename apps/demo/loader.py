@@ -39,6 +39,8 @@ from apps.rooms.models import Room, RoomType
 from apps.staff.models import Category, LoadRange, Position, Teacher
 from apps.staff.services import save_load_range, save_teacher_with_positions
 
+from .dsd_loader import load_dsd_scenario
+
 DEMO_PASSWORD = "demo1234"
 RANGES_FROM = date(2026, 1, 1)
 
@@ -160,6 +162,7 @@ class DemoLoader:
         self._load_ranges()
         self._load_rooms()
         self._load_accounts(faculties, coordinations, teachers)
+        load_dsd_scenario(self, year, coordinations)
 
     def _load_subjects(self, plans: dict, coordinations: dict) -> dict:
         """Create 8 subjects per course: years 1 and 2, two semesters, two subjects each."""

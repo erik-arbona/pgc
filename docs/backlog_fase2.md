@@ -87,7 +87,7 @@ As secções 0 a 6 construíram as regras e os ecrãs com um estilo mínimo (D50
 - [ ] T7.11 Exportação Word e PDF por turma, curso e coordenação.
 
 ## 8. Dados fictícios
-- [ ] T8.1 Completar `load_demo_data`: quatro estados de carga, partilha 50/50, época com exames de outra coordenação, exame sem inscritos (D65).
+- [x] T8.1 Completar `load_demo_data`: quatro estados de carga e motivos, horas extra, outras atividades (feito); ~~partilha 50/50~~ (D94); época com exames de outra coordenação e exame sem inscritos (a completar com a secção 7) (D65).
 
 ## Ordem de construção recomendada
 1. Secção 0 (T0.2 e T0.4 definem os âmbitos de que dependem todas as escritas).
