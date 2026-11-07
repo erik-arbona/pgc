@@ -17,7 +17,7 @@
       {% for item in items %}
         <li>
           {{ item.text }}
-          {% if can_open and item.kind == "unassigned_units" or can_open and item.kind == "stale_units" %}
+          {% if can_open and item.kind == "unassigned_units" or can_open and item.kind == "stale_units" or can_open and item.kind == "room_missing" or can_open and item.kind == "room_unfit" %}
             — <a href="{% url 'dsd:offering_list' dsd.pk %}">{% translate "Ofertas" %}</a>
           {% endif %}
           {% if item.teachers %}

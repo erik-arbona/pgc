@@ -29,6 +29,8 @@ class AttentionKind(StrEnum):
 
     UNASSIGNED_UNITS = "unassigned_units"  # lessons that still have no teacher
     STALE_UNITS = "stale_units"  # units the plan and the turmas no longer call for
+    ROOM_MISSING = "room_missing"  # current units that ask for no room
+    ROOM_UNFIT = "room_unfit"  # units whose request no room of the campus meets
     REASON_MISSING = "reason_missing"  # below the minimum and no reason given
     REASON_REFUSED = "reason_refused"  # the Executive Board refused the reason
     REASON_PENDING = "reason_pending"  # waiting for the Executive Board
@@ -73,7 +75,11 @@ class AttentionItem:
 
 
 def attention_items(
-    unassigned_units: int, stale_units: int, teachers: Iterable[TeacherFacts]
+    unassigned_units: int,
+    stale_units: int,
+    teachers: Iterable[TeacherFacts],
+    room_missing: int = 0,
+    room_unfit: int = 0,
 ) -> list[AttentionItem]:
     """List what needs attention in a coordination, most urgent first (D20, D98).
 
@@ -81,6 +87,8 @@ def attention_items(
         unassigned_units: the units of the semester that are current and have no teacher.
         stale_units: the obsolete units of the semester.
         teachers: the facts of each teacher of the coordination.
+        room_missing: the current units that ask for no room (T4.5).
+        room_unfit: the units whose request no room of the campus can meet (T4.5, D64).
 
     Returns:
         One item per kind that applies, in a fixed order; empty when nothing is pending. A reason
@@ -104,6 +112,10 @@ def attention_items(
         items.append(AttentionItem(AttentionKind.UNASSIGNED_UNITS, unassigned_units))
     if stale_units > 0:
         items.append(AttentionItem(AttentionKind.STALE_UNITS, stale_units))
+    if room_missing > 0:
+        items.append(AttentionItem(AttentionKind.ROOM_MISSING, room_missing))
+    if room_unfit > 0:
+        items.append(AttentionItem(AttentionKind.ROOM_UNFIT, room_unfit))
     for kind, ids in people.items():
         ordered = tuple(sorted(ids))
         items.append(AttentionItem(kind, len(ordered), ordered))

@@ -53,6 +53,7 @@ from .forms import (
     TeacherAssignForm,
 )
 from .lifecycle import cell_writable
+from .lifecycle_rules import ACTION_CLOSE
 from .load_export import HEADER, export_rows, render_csv
 from .load_facts import (
     load_text,
@@ -169,7 +170,7 @@ class DsdStateView(ManagedViewMixin, FormView):
 
     permission_action = "dsd.semester_state.edit"
     form_class = StateChangeForm
-    template_name = "core/form.html"
+    template_name = "dsd/state_form.html"
     title = _("Abrir ou fechar semestre")
 
     @cached_property
@@ -193,6 +194,12 @@ class DsdStateView(ManagedViewMixin, FormView):
         coordinations = (
             [data["coordination"]] if data["coordination"] else Coordination.objects.all()
         )
+        if data["action"] == ACTION_CLOSE and not self.request.POST.get("confirm_close"):
+            warnings = self._closing_warnings(semesters, coordinations)
+            if warnings:
+                return self.render_to_response(
+                    self.get_context_data(form=form, closing_warnings=warnings)
+                )
         try:
             result = change_state(
                 self.request.user, data["action"], semesters, coordinations, data["reason"]
@@ -206,6 +213,41 @@ class DsdStateView(ManagedViewMixin, FormView):
             % {"changed": len(result.changed), "skipped": len(result.skipped)},
         )
         return redirect("dsd:dsd_detail", pk=self.dsd.pk)
+
+    def _closing_warnings(self, semesters, coordinations) -> list[dict]:
+        """List what is still pending in each open cell the manager is about to close (T4.5).
+
+        The system warns before closing, it does not forbid it (05, validations): the manager
+        sees the same items as the overview of the coordination and decides. Cells that are not
+        open have nothing to close and are left out.
+
+        Returns:
+            One entry per open cell with something pending: coordination, semester and the texts.
+        """
+        coordinations = list(coordinations)
+        semesters = list(semesters)
+        open_cells = set(
+            CoordinationSemester.objects.filter(
+                dsd_semester__in=semesters,
+                coordination__in=coordinations,
+                status=CoordinationSemester.Status.OPEN,
+            ).values_list("dsd_semester_id", "coordination_id")
+        )
+        warnings = []
+        for semester in semesters:
+            for coordination in coordinations:
+                if (semester.pk, coordination.pk) not in open_cells:
+                    continue
+                overview = coordination_overview(self.dsd, semester.number, coordination)
+                if overview.items:
+                    warnings.append(
+                        {
+                            "coordination": coordination,
+                            "semester": semester,
+                            "texts": [attention_text(item) for item in overview.items],
+                        }
+                    )
+        return warnings
 
 
 class OfferingListView(ManagedViewMixin, TemplateView):
