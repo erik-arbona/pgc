@@ -12,3 +12,5 @@
 **Dependencies:** `core`, `academic`, `staff`, `rooms`.
 
 **Real study plans (D78, D80):** `manage.py load_real_plans` loads the plans of EIC and TM from `docs/Planos_EIC_TM.md` (courses, plans, tracks and 86 subjects). `real_plans.py` is the pure parser, `real_plan_loader.py` writes the records through the audited services; the command takes `--faculty` and `--coordination` or `--placeholders`, `--eic-year`, `--tm-year`, `--turmas` and `--force`. It is idempotent and lists what it does not load (the UCT tables and the optional subjects).
+
+**DSD scenario (T8.1):** `dsd_loader.load_dsd_scenario` runs at the end of `DemoLoader.load`. It creates the DSD of the demo year with its offerings, opens the first semester, estimates the enrolments and gives the eight demo teachers eight different situations of the live load (four below the minimum with the four states of the reason, one in range, one at the maximum, two above it with extra hours accepted and not), plus two other activities. It goes through the same services as the screens, as `demo_gestor` and `demo_ce`, and each step only runs if its result is missing, so it never overrides what a person did. See D65.
