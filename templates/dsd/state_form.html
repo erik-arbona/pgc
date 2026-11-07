@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  {% if closing_warnings %}
+    <section class="warning" role="alert">
+      <h2>{% translate "Atenção antes de fechar" %}</h2>
+      <p>{% translate "Há coisas por resolver nas células que vai fechar. Pode fechar mesmo assim, ou cancelar e deixar que as coordenações as resolvam." %}</p>
+      {% for warning in closing_warnings %}
+        <h3>{{ warning.coordination.name }} · {{ warning.semester.number }}.º {% translate "semestre" %}</h3>
+        <ul>
+          {% for text in warning.texts %}<li>{{ text }}</li>{% endfor %}
+        </ul>
+      {% endfor %}
+    </section>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    {% if closing_warnings %}
+      <button type="submit" name="confirm_close" value="1">{% translate "Fechar mesmo assim" %}</button>
+    {% else %}
+      <button type="submit">{% translate "Guardar" %}</button>
+    {% endif %}
+    <a href="{{ cancel_url|default:'/' }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}
