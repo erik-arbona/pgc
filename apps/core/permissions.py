@@ -395,6 +395,10 @@ registry.register(
     write=True,
     scoped=True,
 )
+# Tender proposals (block 5): the board of the Faculty decides, the PGC manager registers the
+# teacher the tender obtained (D17, D46, D105).
+registry.register("dsd.tender.decide", {Profile.EXECUTIVE_BOARD}, write=True, scoped=True)
+registry.register("dsd.tender.fill", {Profile.PGC_MANAGER}, write=True, scoped=True)
 # The reports of the Executive Board (teachers below the minimum with their reasons, below the
 # maximum, with extra hours) for the coordinations of its own Faculty (D69, D104).
 registry.register("dsd.report.view", {Profile.EXECUTIVE_BOARD}, write=False, scoped=True)

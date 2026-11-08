@@ -22,7 +22,16 @@ pytestmark = pytest.mark.django_db
 # Board's review of a reason below the minimum: it is a decision about the coordinator's data,
 # not distribution data, and it must work in a closed cell (D97). Its service checks the scoped
 # action itself.
-EXEMPT = {"Dsd", "DsdSemester", "CoordinationSemester", "BelowMinimumReview"}
+# The tender proposals change state through actors with different cell rules (the board
+# decides without a cell, D97), so their services check the cell where it matters (D105).
+EXEMPT = {
+    "Dsd",
+    "DsdSemester",
+    "CoordinationSemester",
+    "BelowMinimumReview",
+    "TenderProposal",
+    "TenderEvent",
+}
 
 
 @pytest.fixture

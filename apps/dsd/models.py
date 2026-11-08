@@ -22,6 +22,7 @@ from apps.rooms.models import RoomType
 from apps.staff.models import Teacher
 
 from .guard import GuardedDsdWrites
+from .tender_rules import TenderState
 
 
 class Dsd(models.Model):
@@ -725,3 +726,153 @@ class BelowMinimumReview(models.Model):
 
     def __str__(self) -> str:
         return f"{self.reason} – {self.get_decision_display()}"
+
+
+_TENDER_STATE_LABELS = {
+    TenderState.PROPOSED: _("Proposta, à espera do Conselho"),
+    TenderState.REFUSED: _("Recusada pelo Conselho"),
+    TenderState.APPROVED: _("Aprovada pelo Conselho"),
+    TenderState.INVITED: _("Docente convidado"),
+    TenderState.ACCEPTED: _("Convite aceite"),
+    TenderState.TENDER: _("A concurso"),
+    TenderState.FILLED: _("Docente atribuído"),
+    TenderState.WITHDRAWN: _("Retirada"),
+}
+TENDER_STATE_CHOICES = [(state.value, _TENDER_STATE_LABELS[state]) for state in TenderState]
+
+
+class TenderProposal(VersionedModel):
+    """A proposal to put a teaching unit to tender, from the coordinator to the board (block 5).
+
+    The coordinator proposes a unit that no teacher of the coordination can take, with a
+    justification. The Executive Board refuses it (back to the coordinator) or approves it and
+    then invites a collaborator or launches the tender; the unit is filled by the coordinator
+    (an accepted collaborator) or by the PGC manager (the teacher the tender obtained). The state
+    machine lives in ``tender_rules``; every step is kept in ``TenderEvent``. The state is changed
+    by actors with different cell rules (the board decides without a cell, D97), so the model is
+    exempt from the write guard and the services check the cell where it matters. See D17, D46,
+    D105.
+    """
+
+    class ReasonKind(models.TextChoices):
+        """The usual reasons a coordinator gives (05): the three of the specification and others."""
+
+        NO_PROFILE = "no_profile", _("Não há docente da coordenação com o perfil")
+        NOT_ENOUGH_HOURS = (
+            "not_enough_hours",
+            _("Os docentes que há não chegam para a carga horária"),
+        )
+        NO_EXTRA_HOURS = "no_extra_hours", _("Os docentes que há não aceitam horas extra")
+        OTHER = "other", _("Outro motivo (descrito na justificação)")
+
+    unit = models.ForeignKey(
+        TeachingUnit,
+        on_delete=models.CASCADE,  # a unit that disappears takes its closed proposals with it
+        related_name="tender_proposals",
+        verbose_name=_("unidade letiva"),
+        help_text=_("The teaching unit that has no teacher."),
+    )
+    state = models.CharField(
+        _("estado"),
+        max_length=20,
+        choices=TENDER_STATE_CHOICES,
+        default=TenderState.PROPOSED.value,
+        help_text=_("Where the proposal stands (see tender_rules)."),
+    )
+    reason_kind = models.CharField(
+        _("tipo de motivo"),
+        max_length=20,
+        choices=ReasonKind.choices,
+        help_text=_("The usual reason for the proposal."),
+    )
+    justification = models.TextField(
+        _("justificação"), help_text=_("Why no teacher of the coordination can take the unit.")
+    )
+    suggested_teacher = models.ForeignKey(
+        Teacher,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # a teacher in a proposal cannot be deleted
+        related_name="suggested_for_tenders",
+        verbose_name=_("colaborador sugerido"),
+        help_text=_("The collaborator the coordinator suggests, if any (D46)."),
+    )
+    invited_teacher = models.ForeignKey(
+        Teacher,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # a teacher in a proposal cannot be deleted
+        related_name="invited_for_tenders",
+        verbose_name=_("colaborador convidado"),
+        help_text=_("The collaborator the board invited, if any."),
+    )
+    board_comment = models.TextField(
+        _("comentário do Conselho"),
+        blank=True,
+        help_text=_("Why the board refused the proposal (required then)."),
+    )
+
+    class Meta:
+        verbose_name = _("proposta de concurso")
+        verbose_name_plural = _("propostas de concurso")
+        ordering = ["-pk"]
+        constraints = [
+            # A unit has at most one proposal that is still open (not filled and not withdrawn):
+            # two coordinators cannot open it at the same time.
+            models.UniqueConstraint(
+                fields=["unit"],
+                condition=~models.Q(
+                    state__in=[TenderState.FILLED.value, TenderState.WITHDRAWN.value]
+                ),
+                name="one_open_tender_per_unit",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.unit} – {self.get_state_display()}"
+
+
+class TenderEvent(models.Model):
+    """One step in the life of a tender proposal: who did what, when, with which comment.
+
+    It is the history the specification asks for (state and history of each proposal) and it
+    survives only as long as the proposal does; the audit trail keeps the changes of every row.
+    """
+
+    proposal = models.ForeignKey(
+        TenderProposal,
+        on_delete=models.CASCADE,  # the history belongs to its proposal
+        related_name="events",
+        verbose_name=_("proposta"),
+        help_text=_("The proposal the step belongs to."),
+    )
+    from_state = models.CharField(
+        _("estado anterior"),
+        max_length=20,
+        blank=True,
+        help_text=_("The state before the step; empty for the proposal itself."),
+    )
+    to_state = models.CharField(
+        _("estado novo"), max_length=20, help_text=_("The state after the step.")
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,  # the author of a step is never lost
+        related_name="tender_events",
+        verbose_name=_("autor"),
+        help_text=_("Who did it."),
+    )
+    comment = models.TextField(_("comentário"), blank=True, help_text=_("What they said."))
+    created_at = models.DateTimeField(
+        _("data"), auto_now_add=True, help_text=_("When the step happened.")
+    )
+
+    class Meta:
+        verbose_name = _("passo da proposta")
+        verbose_name_plural = _("passos da proposta")
+        ordering = ["pk"]
+
+    def __str__(self) -> str:
+        return f"{self.proposal_id}: {self.from_state or '-'} → {self.to_state}"

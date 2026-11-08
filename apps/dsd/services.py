@@ -48,8 +48,11 @@ from .models import (
     SubGroup,
     TeachingUnit,
     TeachingUnitMember,
+    TenderEvent,
+    TenderProposal,
 )
 from .sizes import group_students
+from .tender_rules import OPEN_STATES, TenderState
 
 SEMESTER_NUMBERS = (1, 2)
 GENERATE = "dsd.offering.generate"
@@ -58,6 +61,8 @@ TEACHING_UNIT_EDIT = "dsd.teaching_unit.edit"
 ASSIGNMENT_EDIT = "dsd.assignment.edit"
 REVIEW_MINIMUM = "dsd.below_minimum.review"
 TEACHER_SHEET_VIEW = "dsd.teacher.view"
+TENDER_DECIDE = "dsd.tender.decide"
+TENDER_FILL = "dsd.tender.fill"
 COURSE_VIEW = "dsd.course.view"
 REPORT_VIEW = "dsd.report.view"
 MAX_GROUPS = 20
@@ -516,6 +521,10 @@ def _drop_unit(actor, unit: TeachingUnit, reason: str) -> None:
     current = TeachingUnit.objects.select_for_update().filter(pk=unit.pk).first()
     if current is not None and current.teacher_id:
         raise ValidationError(_("A unidade tem docente atribuído: retire-o primeiro."))
+    if TenderProposal.objects.filter(unit_id=unit.pk, state__in=OPEN_STATES).exists():
+        raise ValidationError(
+            _("A unidade tem uma proposta de concurso aberta: retire-a primeiro.")
+        )
     members = list(unit.members.select_related("subgroup"))
     if len(members) > 1:
         raise ValidationError(
@@ -913,6 +922,10 @@ def merge_units(
                 _("Nenhuma sala do campus tem %(capacity)s lugares ou mais: não se pode juntar.")
                 % {"capacity": room_capacity}
             )
+        if TenderProposal.objects.filter(unit__in=locked.values(), state__in=OPEN_STATES).exists():
+            raise ValidationError(
+                _("Uma das unidades tem uma proposta de concurso aberta: retire-a antes de juntar.")
+            )
         teachers = [unit for unit in locked.values() if unit.teacher_id]
         if len(teachers) > 1:
             raise ValidationError(
@@ -977,6 +990,10 @@ def separate_member(
             raise _stale_message() from None
         if seen_version is not None and locked.version != seen_version:
             raise _stale_message()
+        if TenderProposal.objects.filter(unit=locked, state__in=OPEN_STATES).exists():
+            raise ValidationError(
+                _("A unidade tem uma proposta de concurso aberta: retire-a antes de separar.")
+            )
         current = TeachingUnitMember.objects.filter(unit=locked)
         if not current.filter(pk=member.pk).exists():
             raise ValidationError(_("Este membro já não pertence a esta unidade."))
@@ -1119,8 +1136,14 @@ def _set_teacher(
     teacher: Teacher | None,
     reason: str,
     seen_version: int | None,
+    tender: TenderProposal | None = None,
+    tender_version: int | None = None,
 ) -> TeachingUnit:
     """Give a unit a teacher, change it or take it off, inside ``dsd_write`` (T5.1, D94).
+
+    A unit with an open tender proposal takes only the collaborator who accepted the invitation,
+    or, through ``tender`` (the proposal in the state «A concurso», with the version the manager
+    saw), the teacher the tender obtained; either one finishes the proposal (block 5, D105).
 
     Raises:
         PermissionDenied: if the actor does not cover the coordination.
@@ -1159,11 +1182,63 @@ def _set_teacher(
                 raise ValidationError(
                     _("A unidade está obsoleta: já não é pedida pelo plano nem pelas turmas.")
                 )
+        finishing = _check_open_proposal(locked, teacher, tender, tender_version)
         if locked.teacher_id is not None and not reason.strip():
             raise ValidationError({"reason": _("O motivo é obrigatório.")})
         locked.teacher = teacher
         audited_save(locked, actor, reason.strip() or _("Atribuição de docente"))
+        if finishing is not None:
+            before = finishing.state
+            finishing.state = TenderState.FILLED.value
+            audited_save(finishing, actor, _("Docente atribuído"))
+            TenderEvent.objects.create(
+                proposal=finishing, from_state=before, to_state=finishing.state, actor=actor
+            )
     return locked
+
+
+def _check_open_proposal(
+    unit: TeachingUnit,
+    teacher: Teacher | None,
+    tender: TenderProposal | None,
+    tender_version: int | None,
+) -> TenderProposal | None:
+    """Check what an open tender proposal allows for a locked unit; return the one it finishes.
+
+    The proposal row is read under a lock, after the unit's, which is the order of every unit
+    writer. Taking the teacher off is always allowed.
+
+    Raises:
+        ValidationError: if the unit has an open proposal and the teacher is not the collaborator
+            who accepted it nor the tender's winner, or if ``tender`` is given and the proposal is
+            not in tender or has changed.
+    """
+    if teacher is None:
+        return None
+    open_proposal = (
+        TenderProposal.objects.select_for_update().filter(unit=unit, state__in=OPEN_STATES).first()
+    )
+    if tender is not None:
+        if open_proposal is None or open_proposal.pk != tender.pk:
+            raise _stale_message()
+        if open_proposal.state != TenderState.TENDER.value:
+            raise ValidationError(_("Só se atribui o docente de uma unidade a concurso."))
+        if tender_version is None or open_proposal.version != tender_version:
+            raise _stale_message()
+        return open_proposal
+    if open_proposal is None:
+        return None
+    if (
+        open_proposal.state == TenderState.ACCEPTED.value
+        and open_proposal.invited_teacher_id == teacher.pk
+    ):
+        return open_proposal
+    raise ValidationError(
+        _(
+            "A unidade tem uma proposta de concurso aberta: "
+            "só pode receber o colaborador que aceitou."
+        )
+    )
 
 
 def assign_teacher(
