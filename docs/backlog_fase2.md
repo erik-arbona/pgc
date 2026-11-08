@@ -73,6 +73,10 @@ As secções 0 a 6 construíram as regras e os ecrãs com um estilo mínimo (D50
 - [ ] T6.5 Desenho: página inicial por perfil, menu, estilos comuns (cores, tipografia, tabelas, formulários, estados e mensagens) e acessibilidade; a partir de uma referência do utilizador.
 - [ ] T6.6 Aplicar o desenho aos ecrãs existentes (dados mestres, DSD, ofertas, ficha do docente, visão geral da coordenação) sem alterar regras nem permissões.
 
+## 5b. Propostas de concurso (bloco 5, D17, D46, D105)
+- [x] T5.6a Modelo, máquina de estados e serviços: propor, retirar, recusar, aprovar, convidar, registar a resposta, mandar a concurso e atribuir; uma proposta aberta por unidade; histórico.
+- [ ] T5.6b Ecrãs: propor na linha da oferta, lista e decisão do Conselho, lista «A concurso» do gestor, estados nos relatórios e na visão geral, e a alerta de concurso sem decisão antes de fechar.
+
 ## 6c. Vistas e relatórios do bloco 7 (D20, `07`)
 - [x] T6.7 Vista por curso: aulas de todas as coordenações, filtros, partilhadas marcadas e contadas uma só vez, o que falta, indicadores (D103). ⚑ o coordenador lê qualquer curso (a confirmar)
 - [x] T6.8 Relatórios do Conselho Executivo por Faculdade: abaixo da mínima com os motivos, abaixo da máxima, horas extra.
