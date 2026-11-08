@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load i18n pgc_permissions %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  {% can "dsd.view" as can_open %}
+  <h1>{{ course.name }}</h1>
+  <p>{{ course.faculty.name }} · {{ dsd }}</p>
+  <p>{% translate "Todas as coordenações que dão aulas neste curso, só em leitura." %}</p>
+
+  <form method="get">
+    <label>{% translate "Semestre" %}
+      <select name="semester">
+        <option value="">{% translate "Todos" %}</option>
+        {% for number in data.options.semesters %}<option value="{{ number }}"{% if filters.semester == number %} selected{% endif %}>{{ number }}.º</option>{% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Ano" %}
+      <select name="year">
+        <option value="">{% translate "Todos" %}</option>
+        {% for number in data.options.years %}<option value="{{ number }}"{% if filters.curricular_year == number %} selected{% endif %}>{{ number }}.º</option>{% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Tipo de aula" %}
+      <select name="class_type">
+        <option value="">{% translate "Todos" %}</option>
+        {% for code in data.options.class_types %}<option value="{{ code }}"{% if filters.class_type == code %} selected{% endif %}>{{ code }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Docente" %}
+      <select name="teacher">
+        <option value="">{% translate "Todos" %}</option>
+        {% for teacher in data.options.teachers %}<option value="{{ teacher.pk }}"{% if filters.teacher_id == teacher.pk %} selected{% endif %}>{{ teacher.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>{% translate "Turma" %}
+      <select name="class_group">
+        <option value="">{% translate "Todas" %}</option>
+        {% for group in data.options.class_groups %}<option value="{{ group.pk }}"{% if filters.class_group_id == group.pk %} selected{% endif %}>{{ group }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">{% translate "Filtrar" %}</button>
+    <a href="{% url 'dsd:course_view' dsd.pk course.pk %}">{% translate "Limpar" %}</a>
+  </form>
+
+  <h2>{% translate "Indicadores" %}</h2>
+  <p>
+    {% translate "Horas semanais do curso" %}: <strong>{{ data.total_hours }} h</strong>
+    · {% translate "Docentes" %}: <strong>{{ data.indicators.teachers }}</strong>
+    · {% translate "Horas sem docente" %}: <strong>{{ data.indicators.hours_without_teacher }} h</strong>
+  </p>
+  {% if data.indicators.hours_by_category %}
+    <p>{% translate "Horas por categoria" %}:
+      {% for name, hours in data.indicators.hours_by_category.items %}{{ name }} {{ hours }} h{% if not forloop.last %} · {% endif %}{% endfor %}
+    </p>
+  {% endif %}
+  <p><small>{% translate "As aulas partilhadas com outro curso contam uma só vez: no curso que as dá." %}</small></p>
+
+  {% if data.without_turma %}
+    <h2>{% translate "Disciplinas do plano sem turma" %}</h2>
+    <ul>
+      {% for subject in data.without_turma %}
+        <li>{{ subject.code }} – {{ subject.name }} ({{ subject.curricular_year }}.º ano, {{ subject.semester }}.º semestre) <strong>{% translate "sem turma" %}</strong></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2>{% translate "Aulas" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% translate "Disciplina" %}</th><th>{% translate "Ano" %}</th><th>{% translate "Semestre" %}</th>
+        <th>{% translate "Tipo de aula" %}</th><th>{% translate "Turmas ou grupos" %}</th>
+        <th>{% translate "Docente" %}</th><th>{% translate "Horas" %}</th><th>{% translate "Coordenação" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data.rows %}
+        <tr class="lesson">
+          <td>
+            {% if can_open and not row.guest %}<a href="{% url 'dsd:offering_detail' row.unit.offering_id %}">{{ row.subject.code }} – {{ row.subject.name }}</a>{% else %}{{ row.subject.code }} – {{ row.subject.name }}{% endif %}
+            {% if row.shared %}<br><small>{% translate "partilhada" %}</small>{% endif %}
+          </td>
+          <td>{{ row.curricular_year }}.º</td>
+          <td>{{ row.semester_number }}.º</td>
+          <td>{{ row.class_type }}</td>
+          <td>
+            {% for group in row.groups %}{{ group }}{% if not forloop.last %}; {% endif %}{% endfor %}
+            {% if row.guest %}<br><small>{% blocktranslate with code=row.host_subject.code %}juntada na aula de {{ code }}{% endblocktranslate %}</small>{% endif %}
+          </td>
+          <td>{% if row.teacher %}{{ row.teacher.name }}{% else %}<strong>{% translate "sem docente" %}</strong>{% endif %}</td>
+          <td>{% if row.guest %}—{% elif row.weekly_hours is None %}<strong>{% translate "sem horas no plano" %}</strong>{% else %}{{ row.weekly_hours }}{% endif %}</td>
+          <td>{{ row.unit.offering.subject.coordination.name }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">{% translate "Nenhuma aula com estes filtros." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{% url 'dsd:course_list' dsd.pk %}">{% translate "Voltar" %}</a></p>
+{% endblock %}

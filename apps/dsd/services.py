@@ -58,6 +58,7 @@ TEACHING_UNIT_EDIT = "dsd.teaching_unit.edit"
 ASSIGNMENT_EDIT = "dsd.assignment.edit"
 REVIEW_MINIMUM = "dsd.below_minimum.review"
 TEACHER_SHEET_VIEW = "dsd.teacher.view"
+COURSE_VIEW = "dsd.course.view"
 MAX_GROUPS = 20
 
 
