@@ -74,8 +74,22 @@ def test_a_finished_proposal_is_not_open():
     assert OPEN_STATES == set(TenderState) - {TenderState.FILLED, TenderState.WITHDRAWN}
 
 
-def test_only_a_refusal_needs_a_comment():
+def test_only_a_refusal_and_a_cancellation_need_a_comment():
     """The board tells the coordinator what is missing; the other steps need no comment."""
     assert needs_comment(TenderAction.REFUSE)
-    for action in set(TenderAction) - {TenderAction.REFUSE}:
+    for action in set(TenderAction) - {TenderAction.REFUSE, TenderAction.CANCEL}:
         assert not needs_comment(action)
+
+
+def test_the_board_can_cancel_a_proposal_in_any_open_state():
+    """A dead case (the collaborator left, the unit went obsolete) must have an exit."""
+    for state in OPEN_STATES:
+        assert next_state(state, TenderAction.CANCEL) == TenderState.WITHDRAWN
+    for state in (TenderState.FILLED, TenderState.WITHDRAWN):
+        with pytest.raises(ValueError):
+            next_state(state, TenderAction.CANCEL)
+
+
+def test_a_cancellation_needs_a_comment():
+    """The board says why it closes the case."""
+    assert needs_comment(TenderAction.CANCEL)

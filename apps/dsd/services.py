@@ -990,6 +990,10 @@ def separate_member(
             raise _stale_message() from None
         if seen_version is not None and locked.version != seen_version:
             raise _stale_message()
+        if TenderProposal.objects.filter(unit=locked, state__in=OPEN_STATES).exists():
+            raise ValidationError(
+                _("A unidade tem uma proposta de concurso aberta: retire-a antes de separar.")
+            )
         current = TeachingUnitMember.objects.filter(unit=locked)
         if not current.filter(pk=member.pk).exists():
             raise ValidationError(_("Este membro já não pertence a esta unidade."))

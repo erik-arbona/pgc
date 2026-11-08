@@ -39,6 +39,7 @@ class TenderAction(StrEnum):
     ACCEPT_INVITATION = "accept_invitation"  # board records the teacher's answer: yes
     DECLINE_INVITATION = "decline_invitation"  # board records the answer: no (D46)
     FILL = "fill"  # the unit is given its teacher
+    CANCEL = "cancel"  # board: closes a case that cannot go on (the collaborator left...)
 
 
 # action -> {state it can be done from: state it leads to}
@@ -58,6 +59,12 @@ _TRANSITIONS: dict[TenderAction, dict[TenderState, TenderState]] = {
     TenderAction.FILL: {
         TenderState.ACCEPTED: TenderState.FILLED,
         TenderState.TENDER: TenderState.FILLED,
+    },
+    # A dead case must have an exit: the board can close it from any open state.
+    TenderAction.CANCEL: {
+        state: TenderState.WITHDRAWN
+        for state in TenderState
+        if state not in (TenderState.FILLED, TenderState.WITHDRAWN)
     },
 }
 
@@ -85,12 +92,12 @@ def next_state(state: TenderState, action: TenderAction) -> TenderState:
 
 
 def needs_comment(action: TenderAction) -> bool:
-    """Tell whether an action needs a comment: only a refusal does, to say what is missing.
+    """Tell whether an action needs a comment: a refusal (what is missing) or a cancellation.
 
     Args:
         action: what is done.
 
     Returns:
-        True for a refusal.
+        True for a refusal and for a cancellation.
     """
-    return action == TenderAction.REFUSE
+    return action in (TenderAction.REFUSE, TenderAction.CANCEL)

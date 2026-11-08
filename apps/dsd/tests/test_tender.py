@@ -394,3 +394,86 @@ def test_a_unit_with_an_open_proposal_cannot_be_merged(board):
         merge_units(board["coordinator"], units, 80)
     withdraw_tender(board["coordinator"], proposal, "Engano", proposal.version)
     merge_units(board["coordinator"], units, 80)
+
+
+# --- review of the first part ---------------------------------------------------------------------
+
+
+def test_the_board_cancels_a_case_that_cannot_go_on_and_the_unit_is_free_again(board):
+    """The accepted collaborator was deactivated: the case would hold the unit forever."""
+    open_cell(board)
+    proposal = propose(board)
+    decide(board, proposal, TenderAction.APPROVE)
+    invited = collaborator(board["coordination"], "C1")
+    decide(board, proposal, TenderAction.INVITE, teacher=invited)
+    decide(board, proposal, TenderAction.ACCEPT_INVITATION)
+    Teacher.objects.filter(pk=invited.pk).update(is_active=False)
+    invited.refresh_from_db()  # a view always loads the teacher afresh
+    unit = unit_of(board, "A", "T")
+    with pytest.raises(ValidationError):
+        assign_teacher(board["coordinator"], unit, invited)
+    with pytest.raises(ValidationError):
+        decide(board, proposal, TenderAction.CANCEL, comment=" ")
+    assert decide(board, proposal, TenderAction.CANCEL, comment="Saiu").state == (
+        TenderState.WITHDRAWN
+    )
+    assign_teacher(board["coordinator"], unit, board["mine"])
+
+
+def test_the_board_cancels_a_proposal_in_tender_and_only_the_board_does(board):
+    """A tender nobody fills can be closed; the coordinator cannot do it."""
+    proposal = approved(board)
+    decide(board, proposal, TenderAction.SEND_TO_TENDER)
+    for user in (board["coordinator"], board["manager"], board["other_ce"]):
+        with pytest.raises(PermissionDenied):
+            decide(board, proposal, TenderAction.CANCEL, comment="x", user=user)
+    assert decide(board, proposal, TenderAction.CANCEL, comment="Desistência").state == (
+        TenderState.WITHDRAWN
+    )
+
+
+def test_a_merged_unit_with_an_open_proposal_cannot_be_separated(board):
+    """Separating changes the audience the board approved."""
+    from apps.dsd.services import merge_units, separate_member
+
+    open_cell(board)
+    merged = merge_units(
+        board["coordinator"], [unit_of(board, "A", "T"), unit_of(board, "B", "T")], 80
+    )
+    proposal = propose(board, unit=merged)
+    member = merged.members.first()
+    with pytest.raises(ValidationError):
+        separate_member(board["coordinator"], merged, member, "x")
+    withdraw_tender(board["coordinator"], proposal, "Engano", proposal.version)
+    separate_member(board["coordinator"], merged, member, "x")
+
+
+def test_a_refused_proposal_of_a_unit_that_became_obsolete_is_not_resubmitted(board):
+    """It could never be filled: the unit is no longer asked for."""
+    from apps.academic.models import SubjectClassLoad
+
+    open_cell(board)
+    proposal = propose(board)
+    refused = decide(board, proposal, TenderAction.REFUSE, comment="Falta")
+    SubjectClassLoad.objects.filter(class_type=board["T"]).delete()
+    with pytest.raises(ValidationError):
+        resubmit_tender(board["coordinator"], refused, KIND, "Nova", None, refused.version)
+
+
+def test_a_declined_invitation_forgets_the_invited_and_a_resubmission_forgets_the_comment(board):
+    """Stale data does not stay on the row (the history keeps it)."""
+    proposal = approved(board)
+    decide(board, proposal, TenderAction.INVITE, teacher=collaborator(board["coordination"], "C1"))
+    declined = decide(board, proposal, TenderAction.DECLINE_INVITATION)
+    assert declined.invited_teacher is None
+    other = TenderProposal.objects.get(pk=propose_other(board).pk)
+    refused = decide(board, other, TenderAction.REFUSE, comment="Falta")
+    assert refused.board_comment == "Falta"
+    resubmit_tender(board["coordinator"], refused, KIND, "Nova", None, refused.version)
+    refused.refresh_from_db()
+    assert refused.board_comment == ""
+
+
+def propose_other(board):
+    """A proposal on the practice unit of turma A."""
+    return propose(board, unit=unit_of(board, "A", "P"))

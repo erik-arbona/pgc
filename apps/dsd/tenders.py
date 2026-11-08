@@ -205,9 +205,14 @@ def resubmit_tender(
         locked = _locked(proposal, seen_version)
         if suggested_teacher is not None:
             _check_collaborator(suggested_teacher, _coordination_of(unit))
+        if locked.unit_id in stale_unit_ids(unit.offering.dsd_semester, _coordination_of(unit)):
+            raise ValidationError(
+                _("A unidade está obsoleta: já não é pedida pelo plano nem pelas turmas.")
+            )
         locked.reason_kind = reason_kind
         locked.justification = text
         locked.suggested_teacher = suggested_teacher
+        locked.board_comment = ""  # the history keeps what the board said
         _move(locked, TenderAction.RESUBMIT, actor, text)
     return locked
 
@@ -247,6 +252,7 @@ _BOARD_ACTIONS = {
     TenderAction.SEND_TO_TENDER,
     TenderAction.ACCEPT_INVITATION,
     TenderAction.DECLINE_INVITATION,
+    TenderAction.CANCEL,
 }
 
 
@@ -266,8 +272,9 @@ def decide_tender(
     Args:
         actor: the Executive Board user.
         proposal: the proposal.
-        action: refuse, approve, invite, send_to_tender, accept_invitation or decline_invitation.
-        comment: what the board says; required to refuse.
+        action: refuse, approve, invite, send_to_tender, accept_invitation, decline_invitation
+            or cancel (closes a case that cannot go on, from any open state).
+        comment: what the board says; required to refuse and to cancel.
         teacher: the collaborator to invite (required to invite).
         seen_version: the version the user saw (D54).
 
@@ -295,6 +302,8 @@ def decide_tender(
             locked.invited_teacher = teacher
         if action == TenderAction.REFUSE:
             locked.board_comment = comment.strip()
+        if action == TenderAction.DECLINE_INVITATION:
+            locked.invited_teacher = None  # the history keeps who it was
         _move(locked, action, actor, comment)
     return locked
 
