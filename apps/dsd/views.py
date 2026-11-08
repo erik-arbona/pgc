@@ -277,8 +277,9 @@ class OfferingListView(ManagedViewMixin, TemplateView):
         params = self.request.GET
         if params.get("semester") in ("1", "2"):
             offerings = offerings.filter(dsd_semester__number=int(params["semester"]))
-        if params.get("coordination", "").isdigit():
-            offerings = offerings.filter(subject__coordination_id=int(params["coordination"]))
+        coordination = _int_or_none(params.get("coordination"))
+        if coordination is not None:
+            offerings = offerings.filter(subject__coordination_id=coordination)
         sizes = class_group_sizes(dsd.academic_year)
         rows = [
             (
@@ -775,7 +776,7 @@ class OfferingMergeView(_UnitEditMixin, FormView):
     def units(self) -> list[TeachingUnit]:
         """The units asked for, all of this offering; unknown ones are a 404."""
         source = self.request.POST if self.request.method == "POST" else self.request.GET
-        ids = [int(pk) for pk in source.getlist("units") if pk.isdigit()]
+        ids = [n for n in map(_int_or_none, source.getlist("units")) if n is not None]
         units = list(
             TeachingUnit.objects.filter(
                 offering__dsd_semester=self.offering.dsd_semester, pk__in=ids
@@ -1843,15 +1844,14 @@ class UnitTeacherInlineView(OfferingDetailView):
         candidates = {
             teacher.pk: teacher for teacher in candidate_teachers(offering.subject.coordination_id)
         }
-        teacher_id = request.POST.get("teacher", "")
-        teacher = candidates.get(int(teacher_id)) if teacher_id.isdigit() else None
-        seen = request.POST.get("seen", "")
+        teacher = candidates.get(_int_or_none(request.POST.get("teacher")))
+        seen = _int_or_none(request.POST.get("seen"))
         if teacher is None:
             return str(_("Escolha um docente da lista."))
-        if not seen.isdigit():
+        if seen is None:
             return str(_("Dados do formulário inválidos."))
         try:
-            assign_teacher(request.user, unit, teacher, "", int(seen))
+            assign_teacher(request.user, unit, teacher, "", seen)
         except ValidationError as error:
             return " ".join(error.messages)
         return ""
@@ -1935,8 +1935,12 @@ def _courses_the_user_may_read(user):
 
 
 def _int_or_none(text: str | None) -> int | None:
-    """Read a number from the query string; anything else is ignored, never an error."""
-    return int(text) if text and text.isdigit() else None
+    """Read a number from the request; anything else is ignored, never an error.
+
+    Only ASCII digits count: ``str.isdigit()`` is also true for characters such as ``²`` that
+    ``int()`` rejects, which would be a server error on a forged value.
+    """
+    return int(text) if text and text.isascii() and text.isdigit() else None
 
 
 class CourseListView(ManagedViewMixin, TemplateView):
