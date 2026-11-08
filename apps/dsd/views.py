@@ -2010,8 +2010,8 @@ class BoardReportView(PageMixin, LoginRequiredMixin, TemplateView):
     """The reports of the Executive Board: below the minimum, in range and with extra hours.
 
     Only the board reads them (``dsd.report.view``) and only for the coordinations of its own
-    Faculty (D69): a board of another Faculty gets an empty report, a coordinator or a manager is
-    refused (T6.8, D104).
+    Faculty (D69): a board of another Faculty reads its own report, and a user who covers no
+    coordination (a coordinator, a manager, a teacher) is refused (T6.8, D104).
     """
 
     template_name = "dsd/board_report.html"
