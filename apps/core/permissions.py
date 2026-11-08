@@ -395,6 +395,14 @@ registry.register(
     write=True,
     scoped=True,
 )
+# The view by course reads the lessons of every coordination in a course: a coordinator reads
+# any course (they read everything and write only what is theirs, D84, to confirm); the
+# manager and the Executive Board read the courses of their Faculty, which the view checks.
+registry.register(
+    "dsd.course.view",
+    {Profile.COORDINATOR, Profile.PGC_MANAGER, Profile.EXECUTIVE_BOARD},
+    write=False,
+)
 # The sheet of a teacher: the teacher reads their own (D09); whoever covers the teacher's
 # coordination reads it too (D69, D100).
 registry.register(

@@ -22,5 +22,7 @@
     </tbody>
   </table>
   <p><a href="{% url 'dsd:offering_list' object.pk %}">{% translate "Ofertas" %}</a></p>
+  {% can "dsd.course.view" as can_courses %}
+  {% if can_courses %}<p><a href="{% url 'dsd:course_list' object.pk %}">{% translate "Vista por curso" %}</a></p>{% endif %}
   <p><a href="{% url 'dsd:dsd_list' %}">{% translate "Voltar" %}</a></p>
 {% endblock %}

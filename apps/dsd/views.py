@@ -19,7 +19,7 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView, View
 
-from apps.academic.models import ClassGroup, ClassType, Coordination
+from apps.academic.models import ClassGroup, ClassType, Coordination, Course
 from apps.academic.services import class_group_sizes
 from apps.core.generic import (
     ManagedCreateView,
@@ -28,12 +28,14 @@ from apps.core.generic import (
     PageMixin,
     add_validation_errors,
 )
+from apps.core.models import ScopeKind
 from apps.core.permissions import registry
 from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
 from .below_minimum import MinimumReasonState
 from .coordination_overview import attention_text, coordination_overview
+from .course_view import CourseFilters, course_view
 from .extra_hours import ExtraStatus
 from .forms import (
     ActivityEditForm,
@@ -76,6 +78,7 @@ from .models import (
 )
 from .services import (
     ASSIGNMENT_EDIT,
+    COURSE_VIEW,
     GENERATE,
     LEAD_TEACHER,
     REVIEW_MINIMUM,
@@ -1914,3 +1917,84 @@ class CoordinationLoadCsvView(CoordinationOverviewView):
         response["Content-Disposition"] = f'attachment; filename="{name}.csv"'
         add_never_cache_headers(response)  # personal data: nobody should keep a copy
         return response
+
+
+def _courses_the_user_may_read(user):
+    """The courses a user reads in the view by course (D84, D103).
+
+    A coordinator reads every course (read only: they write what is theirs and nothing else); the
+    manager and the Executive Board read the courses of their Faculty.
+    """
+    if registry.scope_ids(user, COURSE_VIEW, ScopeKind.COORDINATION):
+        return Course.objects.all()
+    return Course.objects.filter(
+        faculty_id__in=registry.scope_ids(user, COURSE_VIEW, ScopeKind.FACULTY)
+    )
+
+
+def _int_or_none(text: str | None) -> int | None:
+    """Read a number from the query string; anything else is ignored, never an error."""
+    return int(text) if text and text.isdigit() else None
+
+
+class CourseListView(ManagedViewMixin, TemplateView):
+    """The courses a user may read, each with a link to its view (T6.7)."""
+
+    permission_action = COURSE_VIEW
+    template_name = "dsd/course_list.html"
+
+    def get_context_data(self, **kwargs):
+        """List the readable courses by Faculty and name."""
+        context = super().get_context_data(**kwargs)
+        dsd = get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+        courses = _courses_the_user_may_read(self.request.user).select_related("faculty")
+        context.update(
+            {
+                "title": _("Vista por curso"),
+                "dsd": dsd,
+                "courses": courses.order_by("faculty__name", "name"),
+            }
+        )
+        return context
+
+
+class CourseDetailView(ManagedViewMixin, TemplateView):
+    """The DSD of one course, with every coordination that teaches it, read only (T6.7).
+
+    It shows each lesson of the subjects of the course, the shared subjects marked, the lessons
+    hosted by another subject as guest rows that add nothing to the totals, what is missing
+    (subjects without a turma, lessons without a teacher) and the indicators of the course. The
+    filters (semester, year, class type, teacher, turma) combine and come from the query string.
+    """
+
+    permission_action = COURSE_VIEW
+    template_name = "dsd/course_view.html"
+
+    def get_context_data(self, **kwargs):
+        """Compute the view of the course after checking that the user may read it."""
+        context = super().get_context_data(**kwargs)
+        dsd = get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+        course = get_object_or_404(
+            Course.objects.select_related("faculty"), pk=self.kwargs["course_pk"]
+        )
+        if not _courses_the_user_may_read(self.request.user).filter(pk=course.pk).exists():
+            raise PermissionDenied
+        get = self.request.GET
+        semester = _int_or_none(get.get("semester"))
+        filters = CourseFilters(
+            semester=semester if semester in (1, 2) else None,
+            curricular_year=_int_or_none(get.get("year")),
+            class_type=get.get("class_type") or None,
+            teacher_id=_int_or_none(get.get("teacher")),
+            class_group_id=_int_or_none(get.get("class_group")),
+        )
+        context.update(
+            {
+                "title": course.name,
+                "dsd": dsd,
+                "course": course,
+                "data": course_view(dsd, course, filters),
+                "filters": filters,
+            }
+        )
+        return context

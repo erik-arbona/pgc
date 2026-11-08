@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{{ dsd }}</p>
+  {% if courses %}
+    <table>
+      <thead>
+        <tr><th>{% translate "Curso" %}</th><th>{% translate "Faculdade" %}</th></tr>
+      </thead>
+      <tbody>
+        {% for course in courses %}
+          <tr>
+            <td><a href="{% url 'dsd:course_view' dsd.pk course.pk %}">{{ course.name }}</a></td>
+            <td>{{ course.faculty.name }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% translate "Nenhum curso para mostrar." %}</p>
+  {% endif %}
+  <p><a href="{% url 'dsd:dsd_detail' dsd.pk %}">{% translate "Voltar" %}</a></p>
+{% endblock %}

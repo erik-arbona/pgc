@@ -15,6 +15,12 @@ urlpatterns = [
     path("<int:pk>/", views.DsdDetailView.as_view(), name="dsd_detail"),
     path("my-sheet/", views.MySheetView.as_view(), name="my_sheet"),
     path("<int:pk>/state/", views.DsdStateView.as_view(), name="dsd_state"),
+    path("<int:pk>/courses/", views.CourseListView.as_view(), name="course_list"),
+    path(
+        "<int:pk>/courses/<int:course_pk>/",
+        views.CourseDetailView.as_view(),
+        name="course_view",
+    ),
     path(
         "<int:pk>/coordinations/<int:coordination_pk>/",
         views.CoordinationOverviewView.as_view(),
