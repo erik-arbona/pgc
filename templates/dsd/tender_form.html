@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{{ offering.subject.code }} – {{ offering.subject.name }} · {{ unit.class_type.code }}</p>
+  <p>{% translate "Use esta proposta quando nenhum docente da coordenação pode dar a unidade. O Conselho Executivo analisa-a e pode recusá-la." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% translate "Propor" %}</button>
+    <a href="{{ cancel_url }}">{% translate "Cancelar" %}</a>
+  </form>
+{% endblock %}

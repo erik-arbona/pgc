@@ -101,3 +101,29 @@ def needs_comment(action: TenderAction) -> bool:
         True for a refusal and for a cancellation.
     """
     return action in (TenderAction.REFUSE, TenderAction.CANCEL)
+
+
+# Who does each action: the coordinator, the Executive Board or the PGC manager.
+COORDINATOR_ACTIONS = {TenderAction.RESUBMIT, TenderAction.WITHDRAW}
+BOARD_ACTIONS = {
+    TenderAction.REFUSE,
+    TenderAction.APPROVE,
+    TenderAction.INVITE,
+    TenderAction.SEND_TO_TENDER,
+    TenderAction.ACCEPT_INVITATION,
+    TenderAction.DECLINE_INVITATION,
+    TenderAction.CANCEL,
+}
+MANAGER_ACTIONS = {TenderAction.FILL}
+
+
+def actions_from(state: TenderState) -> list[TenderAction]:
+    """List the actions that can be done to a proposal in a state, in a fixed order.
+
+    Args:
+        state: where the proposal stands.
+
+    Returns:
+        The actions whose transition starts there; empty for a filled or withdrawn proposal.
+    """
+    return [action for action in TenderAction if state in _TRANSITIONS[action]]

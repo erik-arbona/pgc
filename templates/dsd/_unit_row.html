@@ -9,7 +9,7 @@
         </td>
         <td>
           {% if row.unit.teacher %}{% if row.teacher_link %}<a href="{% url 'dsd:teacher_sheet' offering.dsd_semester.dsd_id row.unit.teacher_id %}">{{ row.unit.teacher.name }}</a>{% else %}{{ row.unit.teacher.name }}{% endif %}{% if row.teacher_status %}<br><small>{{ row.teacher_status }}</small>{% endif %}
-          {% elif row.choices %}
+          {% elif row.choices and not row.tender %}
             <form method="post" action="{% url 'dsd:unit_teacher_inline' offering.pk row.unit.pk %}" hx-post="{% url 'dsd:unit_teacher_inline' offering.pk row.unit.pk %}" hx-trigger="change" hx-target="closest tr" hx-swap="outerHTML">
               {% csrf_token %}<input type="hidden" name="seen" value="{{ row.unit.version }}">
               <select name="teacher" aria-label="{% translate 'Docente' %}">
@@ -20,6 +20,8 @@
             </form>
           {% else %}—{% endif %}
           {% if row.error %}<br><small class="error">{{ row.error }}</small>{% endif %}
+          {% if row.tender %}<br><small><a href="{% url 'dsd:tender_detail' row.tender.pk %}">{{ row.tender.get_state_display }}</a></small>
+          {% elif row.can_propose %}<br><small><a href="{% url 'dsd:tender_propose' offering.pk row.unit.pk %}">{% translate "Propor a concurso" %}</a></small>{% endif %}
         </td>
         <td>{% if row.unit.room_capacity %}{{ row.unit.room_capacity }}{% if row.unit.room_type %} ({{ row.unit.room_type.name }}){% endif %}{% for warning in row.room_warnings %}<br><small class="warning">{{ warning }}</small>{% endfor %}{% else %}—{% endif %}</td>
         <td>{% if row.stale %}{% translate "Obsoleta" %}{% endif %}</td>

@@ -93,3 +93,27 @@ def test_the_board_can_cancel_a_proposal_in_any_open_state():
 def test_a_cancellation_needs_a_comment():
     """The board says why it closes the case."""
     assert needs_comment(TenderAction.CANCEL)
+
+
+def test_the_actions_possible_from_each_state():
+    """What a page may offer: the actions whose transition starts in the state."""
+    from apps.dsd.tender_rules import actions_from
+
+    assert set(actions_from(TenderState.PROPOSED)) == {
+        TenderAction.REFUSE,
+        TenderAction.APPROVE,
+        TenderAction.WITHDRAW,
+        TenderAction.CANCEL,
+    }
+    assert set(actions_from(TenderState.TENDER)) == {TenderAction.FILL, TenderAction.CANCEL}
+    assert actions_from(TenderState.FILLED) == []
+    assert actions_from(TenderState.WITHDRAWN) == []
+
+
+def test_every_action_belongs_to_one_role():
+    """The coordinator, the board or the manager: no action is nobody's or two roles'."""
+    from apps.dsd.tender_rules import BOARD_ACTIONS, COORDINATOR_ACTIONS, MANAGER_ACTIONS
+
+    groups = [COORDINATOR_ACTIONS, BOARD_ACTIONS, MANAGER_ACTIONS]
+    assert set().union(*groups) == set(TenderAction)
+    assert sum(len(group) for group in groups) == len(TenderAction)

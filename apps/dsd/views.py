@@ -76,6 +76,7 @@ from .models import (
     SubGroup,
     TeachingUnit,
     TeachingUnitMember,
+    TenderProposal,
 )
 from .services import (
     ASSIGNMENT_EDIT,
@@ -113,6 +114,7 @@ from .services import (
     unit_versions,
 )
 from .teacher_choices import candidate_teachers, describe_candidates
+from .tender_rules import OPEN_STATES
 
 
 class DsdListView(ManagedListView):
@@ -511,12 +513,18 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         everyone = {teacher.pk: teacher for teacher in candidates}
         everyone.update({unit.teacher_id: unit.teacher for unit in units if unit.teacher_id})
         loads = teacher_loads(semester.dsd, everyone.values()) if everyone else {}
+        open_proposals = {
+            proposal.unit_id: proposal
+            for proposal in TenderProposal.objects.filter(unit__in=units, state__in=OPEN_STATES)
+        }
         rows = []
         for unit in units:
             row = self._row(unit, offering, stale, sizes, can_edit, loads=loads)
             row["unassigned"] = unit.teacher_id is None and unit.pk not in stale
+            row["tender"] = open_proposals.get(unit.pk)
+            row["can_propose"] = can_assign and row["unassigned"] and row["tender"] is None
             row["choices"] = []
-            if can_assign and row["unassigned"]:
+            if can_assign and row["unassigned"] and row["tender"] is None:
                 described = describe_candidates(
                     candidates,
                     loads,

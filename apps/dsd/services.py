@@ -63,6 +63,7 @@ REVIEW_MINIMUM = "dsd.below_minimum.review"
 TEACHER_SHEET_VIEW = "dsd.teacher.view"
 TENDER_DECIDE = "dsd.tender.decide"
 TENDER_FILL = "dsd.tender.fill"
+TENDER_VIEW = "dsd.tender.view"
 COURSE_VIEW = "dsd.course.view"
 REPORT_VIEW = "dsd.report.view"
 MAX_GROUPS = 20

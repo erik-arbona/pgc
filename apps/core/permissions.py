@@ -399,6 +399,14 @@ registry.register(
 # teacher the tender obtained (D17, D46, D105).
 registry.register("dsd.tender.decide", {Profile.EXECUTIVE_BOARD}, write=True, scoped=True)
 registry.register("dsd.tender.fill", {Profile.PGC_MANAGER}, write=True, scoped=True)
+# Reading a proposal: whoever covers the coordination (the coordinator, and the manager and
+# the board of its Faculty). The writes are checked by the use cases.
+registry.register(
+    "dsd.tender.view",
+    {Profile.COORDINATOR, Profile.PGC_MANAGER, Profile.EXECUTIVE_BOARD},
+    write=False,
+    scoped=True,
+)
 # The reports of the Executive Board (teachers below the minimum with their reasons, below the
 # maximum, with extra hours) for the coordinations of its own Faculty (D69, D104).
 registry.register("dsd.report.view", {Profile.EXECUTIVE_BOARD}, write=False, scoped=True)

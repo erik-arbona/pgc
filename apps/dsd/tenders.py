@@ -35,7 +35,14 @@ from .services import (
     _stale_message,
     stale_unit_ids,
 )
-from .tender_rules import OPEN_STATES, TenderAction, TenderState, needs_comment, next_state
+from .tender_rules import (
+    BOARD_ACTIONS,
+    OPEN_STATES,
+    TenderAction,
+    TenderState,
+    needs_comment,
+    next_state,
+)
 
 
 def _coordination_of(unit: TeachingUnit) -> int:
@@ -245,17 +252,6 @@ def withdraw_tender(
     return locked
 
 
-_BOARD_ACTIONS = {
-    TenderAction.REFUSE,
-    TenderAction.APPROVE,
-    TenderAction.INVITE,
-    TenderAction.SEND_TO_TENDER,
-    TenderAction.ACCEPT_INVITATION,
-    TenderAction.DECLINE_INVITATION,
-    TenderAction.CANCEL,
-}
-
-
 def decide_tender(
     actor,
     proposal: TenderProposal,
@@ -287,7 +283,7 @@ def decide_tender(
             collaborator are missing or not valid, or the version is stale.
     """
     action = TenderAction(action)
-    if action not in _BOARD_ACTIONS:
+    if action not in BOARD_ACTIONS:
         raise ValidationError(_("Ação inválida."))
     coordination_id = _coordination_of(proposal.unit)
     registry.require_on_coordination(actor, TENDER_DECIDE, coordination_id)
@@ -334,3 +330,21 @@ def fill_tender(
     _set_teacher(actor, unit, teacher, "", None, tender=proposal, tender_version=seen_version)
     proposal.refresh_from_db()
     return proposal
+
+
+def tender_collaborators(coordination_id: int) -> list[Teacher]:
+    """The teachers a proposal can suggest or the board can invite: active habitual collaborators.
+
+    Args:
+        coordination_id: the coordination of the subject (D08, D46).
+
+    Returns:
+        The collaborators by name.
+    """
+    return list(
+        Teacher.objects.filter(
+            coordination_id=coordination_id,
+            is_active=True,
+            teacher_type=Teacher.Type.HABITUAL_COLLABORATOR,
+        ).order_by("name")
+    )
