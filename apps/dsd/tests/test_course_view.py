@@ -331,3 +331,61 @@ def test_an_inactive_user_reads_nothing(world, client):
     world["coordinator"].save()
     client.force_login(world["coordinator"])
     assert client.get(url(world)).status_code in (302, 403)
+
+
+# --- review of the view by course ------------------------------------------------------------
+
+
+def test_digits_that_are_not_ascii_are_ignored_in_every_query_string_of_the_dsd(world, client):
+    """'²' passes str.isdigit() but not int(): it must be ignored, never a server error."""
+    client.force_login(world["manager"])
+    junk = {"semester": "²", "year": "²", "teacher": "²", "class_group": "²", "coordination": "²"}
+    assert client.get(url(world), junk).status_code == 200
+    listing = reverse("dsd:offering_list", args=[world["dsd"].pk])
+    assert client.get(listing, junk).status_code == 200
+    offering = world["links"]["EIC"].offering
+    merge = reverse("dsd:offering_merge", args=[offering.pk])
+    assert client.get(merge, {"units": ["²", "²"]}).status_code in (200, 302)
+
+
+def test_the_inline_teacher_choice_ignores_digits_that_are_not_ascii(world, client):
+    """A forged teacher or version made of '²' is an error in the row, not a 500."""
+    from apps.dsd.tests.test_merge_cross_course import unit_of as unit
+
+    client.force_login(world["manager"])
+    target = unit(world, "EIC")
+    response = client.post(
+        reverse("dsd:unit_teacher_inline", args=[target.offering_id, target.pk]),
+        {"teacher": "²", "seen": "²"},
+        HTTP_HX_REQUEST="true",
+    )
+    assert response.status_code == 200
+
+
+def test_the_missing_turma_list_is_not_shown_when_the_view_is_narrowed_to_a_teacher_or_a_type(
+    world,
+):
+    """Filtering by teacher, class type or turma is about lessons, not about plan subjects."""
+    Subject.objects.create(
+        study_plan=world["plans"]["EIC"],
+        code="A3",
+        name="Disciplina A3",
+        ects=D("6"),
+        curricular_year=2,
+        semester=1,
+        coordination=world["coordination"],
+        semester_hours=D("60"),
+    )
+    assert [s.code for s in view_of(world, "EIC").without_turma] == ["A3"]
+    assert view_of(world, "EIC", class_type="T").without_turma == []
+    assert view_of(world, "EIC", teacher_id=1).without_turma == []
+    assert view_of(world, "EIC", class_group_id=1).without_turma == []
+
+
+def test_a_unit_whose_class_type_left_the_plan_says_it_has_no_hours(world, client):
+    """Instead of a bare dash that hides that the total is understated."""
+    SubjectClassLoad.objects.filter(
+        class_type=world["P"], subject=world["subjects"]["EIC"]
+    ).delete()
+    client.force_login(world["coordinator"])
+    assert "sem horas no plano" in client.get(url(world)).content.decode()

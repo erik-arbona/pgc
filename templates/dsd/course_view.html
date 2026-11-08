@@ -88,7 +88,7 @@
             {% if row.guest %}<br><small>{% blocktranslate with code=row.host_subject.code %}juntada na aula de {{ code }}{% endblocktranslate %}</small>{% endif %}
           </td>
           <td>{% if row.teacher %}{{ row.teacher.name }}{% else %}<strong>{% translate "sem docente" %}</strong>{% endif %}</td>
-          <td>{% if row.guest %}—{% else %}{{ row.weekly_hours|default_if_none:"—" }}{% endif %}</td>
+          <td>{% if row.guest %}—{% elif row.weekly_hours is None %}<strong>{% translate "sem horas no plano" %}</strong>{% else %}{{ row.weekly_hours }}{% endif %}</td>
           <td>{{ row.unit.offering.subject.coordination.name }}</td>
         </tr>
       {% empty %}

@@ -260,7 +260,13 @@ def _guest_rows(dsd: Dsd, course: Course, shared_ids: set[int]) -> list[LessonRo
 
 
 def _without_turma(dsd: Dsd, course: Course, filters: CourseFilters) -> list[Subject]:
-    """The subjects of the plan in force that no turma attends in this DSD (no offering)."""
+    """The subjects of the plan in force that no turma attends in this DSD (no offering).
+
+    Narrowing the view to a teacher, a class type or a turma is about lessons, not about plan
+    subjects, so the list is empty then.
+    """
+    if filters.teacher_id is not None or filters.class_type or filters.class_group_id is not None:
+        return []
     year = dsd.academic_year.start_year
     plan = (
         course.study_plans.filter(academic_year__start_year__lte=year)
