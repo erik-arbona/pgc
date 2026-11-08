@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{{ dsd }} · {% translate "Docentes ativos das coordenações da sua Faculdade." %}</p>
+
+  <h2>{% translate "Abaixo da mínima" %}</h2>
+  {% if report.below_minimum %}
+    <table>
+      <thead>
+        <tr>
+          <th>{% translate "Docente" %}</th><th>{% translate "Coordenação" %}</th><th>{% translate "Horas" %}</th>
+          <th>{% translate "Motivo" %}</th><th>{% translate "Estado" %}</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.below_minimum %}
+          <tr>
+            <td><a href="{% url 'dsd:teacher_sheet' dsd.pk row.teacher.pk %}">{{ row.teacher.name }}</a></td>
+            <td>{{ row.teacher.coordination.name }}</td>
+            <td>{{ row.load.assessment.weekly_hours }}</td>
+            <td>{% if row.reason %}{{ row.reason.text }}{% else %}—{% endif %}</td>
+            <td>{{ row.status }}</td>
+            <td>{% if row.reason %}<a href="{% url 'dsd:minimum_review' row.reason.pk %}">{% translate "Avaliar" %}</a>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% translate "Nenhum docente." %}</p>
+  {% endif %}
+
+  <h2>{% translate "Abaixo da máxima" %}</h2>
+  <p><small>{% translate "Já atingiram a mínima e ainda podem receber aulas até ao máximo." %}</small></p>
+  {% if report.below_maximum %}
+    <table>
+      <thead>
+        <tr>
+          <th>{% translate "Docente" %}</th><th>{% translate "Coordenação" %}</th><th>{% translate "Horas" %}</th>
+          <th>{% translate "Horas livres" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.below_maximum %}
+          <tr>
+            <td><a href="{% url 'dsd:teacher_sheet' dsd.pk row.teacher.pk %}">{{ row.teacher.name }}</a></td>
+            <td>{{ row.teacher.coordination.name }}</td>
+            <td>{{ row.load.assessment.weekly_hours }}</td>
+            <td>{{ row.free_hours|default_if_none:"—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% translate "Nenhum docente." %}</p>
+  {% endif %}
+
+  <h2>{% translate "Horas extra" %}</h2>
+  {% if report.extra_hours %}
+    <table>
+      <thead>
+        <tr>
+          <th>{% translate "Docente" %}</th><th>{% translate "Coordenação" %}</th><th>{% translate "Horas" %}</th>
+          <th>{% translate "Excesso" %}</th><th>{% translate "Aceites" %}</th><th>{% translate "Por aceitar" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.extra_hours %}
+          <tr>
+            <td><a href="{% url 'dsd:teacher_sheet' dsd.pk row.teacher.pk %}">{{ row.teacher.name }}</a></td>
+            <td>{{ row.teacher.coordination.name }}</td>
+            <td>{{ row.load.assessment.weekly_hours }}</td>
+            <td>{{ row.load.extra.extra_hours }}</td>
+            <td>{{ row.load.extra.accepted_hours }}</td>
+            <td>{{ row.load.extra.pending_hours }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% translate "Nenhum docente." %}</p>
+  {% endif %}
+  <p><small>{% translate "As disciplinas a concurso entram quando houver propostas de concurso." %}</small></p>
+{% endblock %}

@@ -34,6 +34,7 @@ from apps.rooms.services import room_summary
 from apps.staff.models import Teacher
 
 from .below_minimum import MinimumReasonState
+from .board_report import board_report
 from .coordination_overview import attention_text, coordination_overview
 from .course_view import CourseFilters, course_view
 from .extra_hours import ExtraStatus
@@ -81,6 +82,7 @@ from .services import (
     COURSE_VIEW,
     GENERATE,
     LEAD_TEACHER,
+    REPORT_VIEW,
     REVIEW_MINIMUM,
     TEACHER_SHEET_VIEW,
     TEACHING_UNIT_EDIT,
@@ -2002,3 +2004,49 @@ class CourseDetailView(ManagedViewMixin, TemplateView):
             }
         )
         return context
+
+
+class BoardReportView(PageMixin, LoginRequiredMixin, TemplateView):
+    """The reports of the Executive Board: below the minimum, in range and with extra hours.
+
+    Only the board reads them (``dsd.report.view``) and only for the coordinations of its own
+    Faculty (D69): a board of another Faculty reads its own report, and a user who covers no
+    coordination (a coordinator, a manager, a teacher) is refused (T6.8, D104).
+    """
+
+    template_name = "dsd/board_report.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        """Refuse users who cover no coordination for the reports."""
+        if request.user.is_authenticated and not registry.coordination_ids(
+            request.user, REPORT_VIEW
+        ):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        """Compute the reports of the coordinations the user covers."""
+        context = super().get_context_data(**kwargs)
+        dsd = get_object_or_404(Dsd.objects.select_related("academic_year"), pk=self.kwargs["pk"])
+        covered = registry.coordination_ids(self.request.user, REPORT_VIEW)
+        context.update(
+            {
+                "title": _("Relatórios do Conselho Executivo"),
+                "dsd": dsd,
+                "report": board_report(dsd, covered),
+            }
+        )
+        return context
+
+
+class BoardReportHomeView(PageMixin, LoginRequiredMixin, View):
+    """Send the board to the reports of the latest DSD, for the menu link (T6.8)."""
+
+    def get(self, request, *args, **kwargs):
+        """Redirect to the reports of the DSD of the latest year."""
+        if not registry.coordination_ids(request.user, REPORT_VIEW):
+            raise PermissionDenied
+        dsd = Dsd.objects.order_by("-academic_year__start_year").first()
+        if dsd is None:
+            raise Http404
+        return redirect("dsd:board_report", pk=dsd.pk)
