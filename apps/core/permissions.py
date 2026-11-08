@@ -395,6 +395,9 @@ registry.register(
     write=True,
     scoped=True,
 )
+# The reports of the Executive Board (teachers below the minimum with their reasons, below the
+# maximum, with extra hours) for the coordinations of its own Faculty (D69, D104).
+registry.register("dsd.report.view", {Profile.EXECUTIVE_BOARD}, write=False, scoped=True)
 # The view by course reads the lessons of every coordination in a course: a coordinator reads
 # any course (they read everything and write only what is theirs, D84, to confirm); the
 # manager and the Executive Board read the courses of their Faculty, which the view checks.

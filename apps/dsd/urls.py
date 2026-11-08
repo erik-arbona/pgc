@@ -14,6 +14,8 @@ urlpatterns = [
     path("new/", views.DsdCreateView.as_view(), name="dsd_create"),
     path("<int:pk>/", views.DsdDetailView.as_view(), name="dsd_detail"),
     path("my-sheet/", views.MySheetView.as_view(), name="my_sheet"),
+    path("reports/", views.BoardReportHomeView.as_view(), name="board_report_home"),
+    path("<int:pk>/reports/", views.BoardReportView.as_view(), name="board_report"),
     path("<int:pk>/state/", views.DsdStateView.as_view(), name="dsd_state"),
     path("<int:pk>/courses/", views.CourseListView.as_view(), name="course_list"),
     path(

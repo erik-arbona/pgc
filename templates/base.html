@@ -20,6 +20,8 @@
       {% if can_dsd %}<a href="{% url 'dsd:dsd_list' %}">{% translate "DSD" %}</a>{% endif %}
       {% has_scope "dsd.teacher.view" "teacher" as has_sheet %}
       {% if has_sheet %}<a href="{% url 'dsd:my_sheet' %}">{% translate "A minha ficha" %}</a>{% endif %}
+      {% has_scope "dsd.report.view" "faculty" as has_reports %}
+      {% if has_reports %}<a href="{% url 'dsd:board_report_home' %}">{% translate "Relatórios" %}</a>{% endif %}
       {% has_scope "coordination.edit" "faculty" as can_scoped %}
       {% if can_scoped %}<a href="{% url 'academic:coordination_list' %}">{% translate "Coordenações" %}</a>
       <a href="{% url 'academic:course_list' %}">{% translate "Cursos" %}</a>{% endif %}

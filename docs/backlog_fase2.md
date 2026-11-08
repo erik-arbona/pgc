@@ -75,7 +75,7 @@ As secções 0 a 6 construíram as regras e os ecrãs com um estilo mínimo (D50
 
 ## 6c. Vistas e relatórios do bloco 7 (D20, `07`)
 - [x] T6.7 Vista por curso: aulas de todas as coordenações, filtros, partilhadas marcadas e contadas uma só vez, o que falta, indicadores (D103). ⚑ o coordenador lê qualquer curso (a confirmar)
-- [ ] T6.8 Relatórios do Conselho Executivo por Faculdade: abaixo da mínima com os motivos, abaixo da máxima, horas extra.
+- [x] T6.8 Relatórios do Conselho Executivo por Faculdade: abaixo da mínima com os motivos, abaixo da máxima, horas extra.
 - [ ] T6.9 Mapas por coordenação e docente; exportação para Excel e PDF (exige dependências novas: perguntar antes).
 
 ## 7. Calendário de exames (bloco 10)
