@@ -298,3 +298,36 @@ def test_the_list_of_courses_shows_the_courses_the_user_may_read(world, client):
     client.force_login(world["coordinator"])
     html = client.get(reverse("dsd:course_list", args=[world["dsd"].pk])).content.decode()
     assert url(world, "EIC") in html and url(world, "EEC") in html
+
+
+def test_a_course_with_no_plan_and_no_units_renders_an_empty_page(world, client):
+    """A new course: nothing to list, nothing missing, and no error."""
+    from apps.academic.models import Course
+
+    empty = Course.objects.create(faculty=world["faculty"], name="Curso vazio", level="bachelor")
+    client.force_login(world["coordinator"])
+    response = client.get(reverse("dsd:course_view", args=[world["dsd"].pk, empty.pk]))
+    assert response.status_code == 200
+    assert "Nenhuma aula" in response.content.decode()
+
+
+def test_a_user_with_two_roles_reads_what_either_allows(world, client, django_user_model):
+    """A manager of another Faculty who is also a coordinator keeps the coordinator's reading."""
+    outsider = other_faculty_user(django_user_model, Profile.PGC_MANAGER, "x4")
+    client.force_login(outsider)
+    assert client.get(url(world)).status_code == 403
+    RoleAssignment.objects.create(
+        user=outsider,
+        profile=Profile.COORDINATOR,
+        scope_kind=ScopeKind.COORDINATION,
+        scope_id=world["coordination"].pk,
+    )
+    assert client.get(url(world)).status_code == 200
+
+
+def test_an_inactive_user_reads_nothing(world, client):
+    """Deactivated accounts are refused whatever their roles."""
+    world["coordinator"].is_active = False
+    world["coordinator"].save()
+    client.force_login(world["coordinator"])
+    assert client.get(url(world)).status_code in (302, 403)
