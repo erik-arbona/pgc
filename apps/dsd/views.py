@@ -87,6 +87,7 @@ from .services import (
     REVIEW_MINIMUM,
     TEACHER_SHEET_VIEW,
     TEACHING_UNIT_EDIT,
+    TENDER_VIEW,
     add_activity,
     assign_teacher,
     change_state,
@@ -492,6 +493,11 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         return context
 
     @cached_property
+    def _tender_coordinations(self) -> set[int]:
+        """The coordinations whose tender proposals the user may read."""
+        return registry.coordination_ids(self.request.user, TENDER_VIEW)
+
+    @cached_property
     def _sheet_coordinations(self) -> set[int]:
         """The coordinations whose teachers' sheets the user may open."""
         return registry.coordination_ids(self.request.user, TEACHER_SHEET_VIEW)
@@ -522,6 +528,8 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
             row = self._row(unit, offering, stale, sizes, can_edit, loads=loads)
             row["unassigned"] = unit.teacher_id is None and unit.pk not in stale
             row["tender"] = open_proposals.get(unit.pk)
+            # dsd.view is not scoped but dsd.tender.view is: link only what can be opened.
+            row["tender_link"] = coordination_id in self._tender_coordinations
             row["can_propose"] = can_assign and row["unassigned"] and row["tender"] is None
             row["choices"] = []
             if can_assign and row["unassigned"] and row["tender"] is None:

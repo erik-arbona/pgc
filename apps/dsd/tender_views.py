@@ -227,9 +227,13 @@ class TenderDetailView(_ProposalMixin, TemplateView):
                     for action in offered_actions(self.request.user, proposal)
                 ],
                 "offering_url": reverse("dsd:offering_detail", args=[unit.offering_id]),
+                # Only when the assignment can really be done: right user and writable cell.
                 "to_assign": proposal.state == TenderState.ACCEPTED.value
-                and registry.can_on_coordination(
-                    self.request.user, ASSIGNMENT_EDIT, coordination_of(proposal)
+                and cell_writable(
+                    self.request.user,
+                    ASSIGNMENT_EDIT,
+                    unit.offering.dsd_semester,
+                    coordination_of(proposal),
                 ),
             }
         )

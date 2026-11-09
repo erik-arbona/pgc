@@ -334,3 +334,35 @@ def test_in_a_closed_cell_the_coordinator_loses_the_buttons_and_the_board_keeps_
     assert available(client, board["coordinator"], proposal) == set()
     assert available(client, board["ce"], proposal) == {"approve", "refuse", "cancel"}
     assert post(client, board["ce"], proposal, "approve").status_code == 302
+
+
+# --- review of the screens ----------------------------------------------------------------------
+
+
+def test_the_offering_row_links_to_a_proposal_only_for_who_can_read_it(board, client):
+    """dsd.view is not scoped, dsd.tender.view is: a link that gives 403 is a defect (review)."""
+    open_cell(board)
+    proposal = propose(board)
+    client.force_login(board["coordinator"])
+    assert detail_url(proposal) in client.get(offering_url(board)).content.decode()
+    # A coordinator of another coordination reads the offering but not the proposal.
+    client.force_login(board["other_coordinator"])
+    html = client.get(offering_url(board)).content.decode()
+    assert detail_url(proposal) not in html
+    assert "à espera do Conselho" in html  # the state is still shown, as text
+
+
+def test_the_hint_to_assign_the_collaborator_follows_the_cell(board, client):
+    """In a closed cell the coordinator cannot assign, so the page does not tell them to."""
+    from apps.dsd.services import change_state
+
+    proposal = approved(board)
+    invited = collaborator(board["coordination"], "C1")
+    decide(board, proposal, TenderAction.INVITE, teacher=invited)
+    decide(board, proposal, TenderAction.ACCEPT_INVITATION)
+    client.force_login(board["coordinator"])
+    assert "O convite foi aceite" in client.get(detail_url(proposal)).content.decode()
+    change_state(
+        board["manager"], "close", [board["semester"]], [board["coordination"]], reason="fim"
+    )
+    assert "O convite foi aceite" not in client.get(detail_url(proposal)).content.decode()

@@ -20,7 +20,7 @@
             </form>
           {% else %}—{% endif %}
           {% if row.error %}<br><small class="error">{{ row.error }}</small>{% endif %}
-          {% if row.tender %}<br><small><a href="{% url 'dsd:tender_detail' row.tender.pk %}">{{ row.tender.get_state_display }}</a></small>
+          {% if row.tender %}<br><small>{% if row.tender_link %}<a href="{% url 'dsd:tender_detail' row.tender.pk %}">{{ row.tender.get_state_display }}</a>{% else %}{{ row.tender.get_state_display }}{% endif %}</small>
           {% elif row.can_propose %}<br><small><a href="{% url 'dsd:tender_propose' offering.pk row.unit.pk %}">{% translate "Propor a concurso" %}</a></small>{% endif %}
         </td>
         <td>{% if row.unit.room_capacity %}{{ row.unit.room_capacity }}{% if row.unit.room_type %} ({{ row.unit.room_type.name }}){% endif %}{% for warning in row.room_warnings %}<br><small class="warning">{{ warning }}</small>{% endfor %}{% else %}—{% endif %}</td>
