@@ -14,7 +14,8 @@ from apps.rooms.models import RoomType
 from apps.staff.models import Teacher
 
 from .lifecycle_rules import ACTION_CLOSE, ACTION_OPEN, ACTION_REOPEN, ACTIONS, needs_reason
-from .models import Dsd, Offering, OtherActivity
+from .models import Dsd, Offering, OtherActivity, TenderProposal
+from .tender_rules import TenderAction, needs_comment
 
 
 def parse_seen(text: str) -> dict[int, int]:
@@ -402,3 +403,73 @@ class MinimumReviewForm(forms.Form):
         help_text=_("Obrigatório ao recusar: diz ao coordenador o que falta."),
     )
     seen = forms.IntegerField(widget=forms.HiddenInput)
+
+
+class TenderProposalForm(forms.Form):
+    """The data of a proposal to tender: the usual reason, the justification and a suggestion."""
+
+    reason_kind = forms.ChoiceField(label=_("Motivo"), choices=TenderProposal.ReasonKind.choices)
+    justification = forms.CharField(
+        label=_("Justificação"), widget=forms.Textarea(attrs={"rows": 4})
+    )
+    suggested_teacher = forms.ModelChoiceField(
+        label=_("Colaborador sugerido"),
+        queryset=Teacher.objects.none(),
+        required=False,
+        empty_label=_("Nenhum"),
+    )
+
+    def __init__(self, *args, collaborators=(), **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["suggested_teacher"].queryset = Teacher.objects.filter(
+            pk__in=[teacher.pk for teacher in collaborators]
+        ).order_by("name")
+
+
+class TenderActionForm(forms.Form):
+    """The form of one action on a proposal; its fields depend on the action (block 5).
+
+    Every action carries the version of the proposal the user saw (D54). Withdrawing asks for a
+    reason, treating a refused proposal again for the proposal data, inviting for a collaborator,
+    filling for the teacher, and the board's decisions for a comment (required to refuse and to
+    cancel).
+    """
+
+    seen = forms.IntegerField(widget=forms.HiddenInput)
+
+    def __init__(self, *args, action, collaborators=(), eligible=(), **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        collaborator_ids = [teacher.pk for teacher in collaborators]
+        if action == TenderAction.WITHDRAW:
+            self.fields["reason"] = forms.CharField(
+                label=_("Motivo"), widget=forms.Textarea(attrs={"rows": 3})
+            )
+        elif action == TenderAction.RESUBMIT:
+            self.fields["reason_kind"] = forms.ChoiceField(
+                label=_("Motivo"), choices=TenderProposal.ReasonKind.choices
+            )
+            self.fields["justification"] = forms.CharField(
+                label=_("Justificação"), widget=forms.Textarea(attrs={"rows": 4})
+            )
+            self.fields["suggested_teacher"] = forms.ModelChoiceField(
+                label=_("Colaborador sugerido"),
+                queryset=Teacher.objects.filter(pk__in=collaborator_ids).order_by("name"),
+                required=False,
+                empty_label=_("Nenhum"),
+            )
+        elif action == TenderAction.FILL:
+            self.fields["teacher"] = forms.ModelChoiceField(
+                label=_("Docente"),
+                queryset=Teacher.objects.filter(pk__in=[t.pk for t in eligible]).order_by("name"),
+            )
+        else:
+            if action == TenderAction.INVITE:
+                self.fields["teacher"] = forms.ModelChoiceField(
+                    label=_("Colaborador a convidar"),
+                    queryset=Teacher.objects.filter(pk__in=collaborator_ids).order_by("name"),
+                )
+            self.fields["comment"] = forms.CharField(
+                label=_("Comentário"),
+                required=needs_comment(action),
+                widget=forms.Textarea(attrs={"rows": 3}),
+            )

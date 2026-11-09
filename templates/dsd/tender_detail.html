@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>
+    {{ offering.subject.code }} – {{ offering.subject.name }} · {{ unit.class_type.code }}
+    · {{ offering.dsd_semester.number }}.º {% translate "semestre" %}
+  </p>
+  <p><strong>{{ proposal.get_state_display }}</strong></p>
+
+  <h2>{% translate "Justificação do coordenador" %}</h2>
+  <p>{{ proposal.get_reason_kind_display }}</p>
+  <p>{{ proposal.justification|linebreaksbr }}</p>
+  {% if proposal.suggested_teacher %}<p>{% translate "Colaborador sugerido" %}: {{ proposal.suggested_teacher.name }}</p>{% endif %}
+  {% if proposal.invited_teacher %}<p>{% translate "Colaborador convidado" %}: {{ proposal.invited_teacher.name }}</p>{% endif %}
+  {% if proposal.board_comment %}
+    <h2>{% translate "Comentário do Conselho Executivo" %}</h2>
+    <p>{{ proposal.board_comment|linebreaksbr }}</p>
+  {% endif %}
+
+  {% if to_assign %}
+    <p>
+      <strong>{% translate "O convite foi aceite." %}</strong>
+      {% translate "Atribua o colaborador na página da oferta:" %}
+      <a href="{{ offering_url }}">{{ offering.subject.code }}</a>
+      ({{ proposal.invited_teacher.name }})
+    </p>
+  {% endif %}
+
+  {% if actions %}
+    <h2>{% translate "O que pode fazer" %}</h2>
+    <ul>
+      {% for action in actions %}<li><a href="{{ action.url }}">{{ action.label }}</a></li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2>{% translate "Histórico" %}</h2>
+  <table>
+    <thead>
+      <tr><th>{% translate "Data" %}</th><th>{% translate "Quem" %}</th><th>{% translate "Passo" %}</th><th>{% translate "Comentário" %}</th></tr>
+    </thead>
+    <tbody>
+      {% for item in events %}
+        <tr>
+          <td>{{ item.event.created_at|date:"d/m/Y H:i" }}</td>
+          <td>{% if item.event.actor %}{{ item.event.actor.get_full_name|default:item.event.actor.username }}{% else %}—{% endif %}</td>
+          <td>{% if item.from_label %}{{ item.from_label }} → {% endif %}{{ item.to_label }}</td>
+          <td>{{ item.event.comment|linebreaksbr }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{{ offering_url }}">{% translate "Voltar à oferta" %}</a></p>
+{% endblock %}

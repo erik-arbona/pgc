@@ -5,7 +5,7 @@ Implements: docs/backlog_fase2.md T2.1-T2.3.
 
 from django.urls import path
 
-from . import views
+from . import tender_views, views
 
 app_name = "dsd"
 
@@ -14,6 +14,17 @@ urlpatterns = [
     path("new/", views.DsdCreateView.as_view(), name="dsd_create"),
     path("<int:pk>/", views.DsdDetailView.as_view(), name="dsd_detail"),
     path("my-sheet/", views.MySheetView.as_view(), name="my_sheet"),
+    path(
+        "offerings/<int:pk>/units/<int:unit_pk>/tender/",
+        tender_views.TenderProposeView.as_view(),
+        name="tender_propose",
+    ),
+    path("tenders/<int:pk>/", tender_views.TenderDetailView.as_view(), name="tender_detail"),
+    path(
+        "tenders/<int:pk>/<str:action>/",
+        tender_views.TenderActionView.as_view(),
+        name="tender_action",
+    ),
     path("reports/", views.BoardReportHomeView.as_view(), name="board_report_home"),
     path("<int:pk>/reports/", views.BoardReportView.as_view(), name="board_report"),
     path("<int:pk>/state/", views.DsdStateView.as_view(), name="dsd_state"),

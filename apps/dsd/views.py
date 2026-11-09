@@ -76,6 +76,7 @@ from .models import (
     SubGroup,
     TeachingUnit,
     TeachingUnitMember,
+    TenderProposal,
 )
 from .services import (
     ASSIGNMENT_EDIT,
@@ -86,6 +87,7 @@ from .services import (
     REVIEW_MINIMUM,
     TEACHER_SHEET_VIEW,
     TEACHING_UNIT_EDIT,
+    TENDER_VIEW,
     add_activity,
     assign_teacher,
     change_state,
@@ -113,6 +115,7 @@ from .services import (
     unit_versions,
 )
 from .teacher_choices import candidate_teachers, describe_candidates
+from .tender_rules import OPEN_STATES
 
 
 class DsdListView(ManagedListView):
@@ -490,6 +493,11 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         return context
 
     @cached_property
+    def _tender_coordinations(self) -> set[int]:
+        """The coordinations whose tender proposals the user may read."""
+        return registry.coordination_ids(self.request.user, TENDER_VIEW)
+
+    @cached_property
     def _sheet_coordinations(self) -> set[int]:
         """The coordinations whose teachers' sheets the user may open."""
         return registry.coordination_ids(self.request.user, TEACHER_SHEET_VIEW)
@@ -511,12 +519,20 @@ class OfferingDetailView(ManagedViewMixin, TemplateView):
         everyone = {teacher.pk: teacher for teacher in candidates}
         everyone.update({unit.teacher_id: unit.teacher for unit in units if unit.teacher_id})
         loads = teacher_loads(semester.dsd, everyone.values()) if everyone else {}
+        open_proposals = {
+            proposal.unit_id: proposal
+            for proposal in TenderProposal.objects.filter(unit__in=units, state__in=OPEN_STATES)
+        }
         rows = []
         for unit in units:
             row = self._row(unit, offering, stale, sizes, can_edit, loads=loads)
             row["unassigned"] = unit.teacher_id is None and unit.pk not in stale
+            row["tender"] = open_proposals.get(unit.pk)
+            # dsd.view is not scoped but dsd.tender.view is: link only what can be opened.
+            row["tender_link"] = coordination_id in self._tender_coordinations
+            row["can_propose"] = can_assign and row["unassigned"] and row["tender"] is None
             row["choices"] = []
-            if can_assign and row["unassigned"]:
+            if can_assign and row["unassigned"] and row["tender"] is None:
                 described = describe_candidates(
                     candidates,
                     loads,
